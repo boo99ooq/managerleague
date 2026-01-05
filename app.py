@@ -11,7 +11,12 @@ file_caricato = st.sidebar.file_uploader("Carica il file rose.csv", type="csv")
 
 if file_caricato is not None:
     # Leggiamo i dati del file
-    df = pd.read_csv(file_caricato)
+    try:
+    # Prova a leggere con il formato standard UTF-8
+    df = pd.read_csv(file_caricato, encoding='utf-8')
+except UnicodeDecodeError:
+    # Se fallisce, prova con il formato tipico di Excel in Italia
+    df = pd.read_csv(file_caricato, encoding='latin-1')
 
     # Creiamo le schede nell'app
     tab1, tab2 = st.tabs(["📊 Classifica Budget", "🏃 Visualizza Rose"])
@@ -36,3 +41,4 @@ if file_caricato is not None:
         st.info(f"Questa squadra ha speso in totale: {totale} crediti.")
 else:
     st.warning("👋 Benvenuto! Per iniziare, carica il file CSV delle rose nella barra laterale a sinistra.")
+
