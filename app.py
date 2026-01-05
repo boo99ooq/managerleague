@@ -1,45 +1,48 @@
 import streamlit as st
 import pandas as pd
 
-# Titolo e stile
+# 1. Configurazione della pagina
 st.set_page_config(page_title="Gestore Fantalega", layout="centered")
 st.title("⚽ La mia Fantalega Manageriale")
 
-# Sezione Caricamento
+# 2. Sezione Caricamento nella barra laterale
 st.sidebar.header("Impostazioni")
 file_caricato = st.sidebar.file_uploader("Carica il file rose.csv", type="csv")
 
+# 3. Controllo se il file è stato caricato
 if file_caricato is not None:
-    # Leggiamo i dati del file
-try:
-    # Prova a leggere con il formato standard UTF-8
-    df = pd.read_csv(file_caricato, encoding='utf-8')
-except UnicodeDecodeError:
-    # Se fallisce, prova con il formato tipico di Excel in Italia
-    df = pd.read_csv(file_caricato, encoding='latin-1')
+    # --- INIZIO BLOCCO INDENTATO (SPOSTATO A DESTRA) ---
+    try:
+        # Prova a leggere il file
+        df = pd.read_csv(file_caricato, encoding='utf-8')
+    except Exception:
+        # Se c'è un errore di codifica, prova l'altra
+        df = pd.read_csv(file_caricato, encoding='latin-1')
 
-    # Creiamo le schede nell'app
+    st.success("File caricato correttamente!")
+    
+    # Creazione delle schede
     tab1, tab2 = st.tabs(["📊 Classifica Budget", "🏃 Visualizza Rose"])
-
+    
     with tab1:
         st.header("Spese per Squadra")
-        # Calcoliamo quanto ha speso ogni fantasquadra
-        spese = df.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
-        st.bar_chart(data=spese, x='Fantasquadra', y='Prezzo')
-        st.table(spese)
+        if 'Fantasquadra' in df.columns and 'Prezzo' in df.columns:
+            spese = df.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
+            st.bar_chart(data=spese, x='Fantasquadra', y='Prezzo')
+            st.table(spese)
+        else:
+            st.error("Il file deve avere le colonne: 'Fantasquadra' e 'Prezzo'")
 
     with tab2:
         st.header("Dettaglio Giocatori")
-        squadre = df['Fantasquadra'].unique()
-        scelta = st.selectbox("Scegli una squadra da visualizzare:", squadre)
-        
-        # Filtriamo i dati
-        rosa_filtrata = df[df['Fantasquadra'] == scelta]
-        st.dataframe(rosa_filtrata, use_container_width=True)
-        
-        totale = rosa_filtrata['Prezzo'].sum()
-        st.info(f"Questa squadra ha speso in totale: {totale} crediti.")
+        if 'Fantasquadra' in df.columns:
+            squadre = df['Fantasquadra'].unique()
+            scelta = st.selectbox("Scegli una squadra:", squadre)
+            rosa_filtrata = df[df['Fantasquadra'] == scelta]
+            st.dataframe(rosa_filtrata, use_container_width=True)
+        else:
+            st.error("Colonna 'Fantasquadra' non trovata.")
+    # --- FINE BLOCCO INDENTATO ---
 else:
-    st.warning("👋 Benvenuto! Per iniziare, carica il file CSV delle rose nella barra laterale a sinistra.")
-
-
+    # Questo appare se non c'è ancora nessun file
+    st.warning("👋 Benvenuto! Carica il file CSV delle rose per iniziare.")
