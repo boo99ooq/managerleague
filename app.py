@@ -11,7 +11,7 @@ file_caricato = st.sidebar.file_uploader("Carica il file rose.csv", type="csv")
 
 if file_caricato is not None:
     # Leggiamo i dati del file
-    try:
+try:
     # Prova a leggere con il formato standard UTF-8
     df = pd.read_csv(file_caricato, encoding='utf-8')
 except UnicodeDecodeError:
@@ -41,4 +41,5 @@ except UnicodeDecodeError:
         st.info(f"Questa squadra ha speso in totale: {totale} crediti.")
 else:
     st.warning("👋 Benvenuto! Per iniziare, carica il file CSV delle rose nella barra laterale a sinistra.")
+
 
