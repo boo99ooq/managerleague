@@ -1,57 +1,79 @@
 import streamlit as st
 import pandas as pd
 
+# 1. Configurazione della pagina
 st.set_page_config(page_title="Fantalega Manageriale", layout="wide")
 st.title("⚽ La mia Fantalega")
 
-st.sidebar.header("Caricamento Dati")
-file_caricato = st.sidebar.file_uploader("Carica il file rose muynov25.csv", type="csv")
+# 2. Caricamento file nella barra laterale
+st.sidebar.header("Impostazioni")
+file_caricato = st.sidebar.file_uploader("Carica il file delle rose", type="csv")
 
 if file_caricato is not None:
     try:
-        # 1. Lettura super-flessibile per Tab, virgole e punti e virgola
+        # Lettura del file (gestisce Tab, Virgole o Punti e Virgola automaticamente)
         file_caricato.seek(0)
-        df = pd.read_csv(file_caricato, sep=None, engine='python', encoding='latin-1', skip_blank_lines=True)
+        df = pd.read_csv(file_caricato, sep=None, engine='python', encoding='latin-1')
         
-        # 2. Pulizia: rimuoviamo righe e colonne completamente vuote
+        # PULIZIA DATI
+        # Rimuoviamo righe e colonne completamente vuote
         df = df.dropna(how='all').reset_index(drop=True)
-        df.columns = df.columns.str.strip() # Toglie spazi dai nomi delle colonne
-
-        # 3. Uniformiamo i nomi delle colonne
-        # Se nel file hai 'Prezzo', lo trasformiamo in 'Costo' per il calcolo
-        if 'Prezzo' in df.columns:
-            df = df.rename(columns={'Prezzo': 'Costo'})
+        # Togliamo spazi bianchi dai nomi delle colonne e dai dati
+        df.columns = df.columns.str.strip()
         
-        # 4. Controllo colonne fondamentali
-        if 'Fantasquadra' in df.columns and 'Costo' in df.columns:
-            # Trasformiamo il Costo in numero (gestendo eventuali errori)
-            df['Costo'] = pd.to_numeric(df['Costo'], errors='coerce').fillna(0)
+        # Trasformiamo i nomi delle colonne per renderli più belli nell'app
+        # Mappiamo i tuoi nomi (minuscoli) a quelli che vogliamo mostrare (Maiuscoli)
+        mappa_colonne = {
+            'ruolo': 'Ruolo',
+            'Calciatore': 'Calciatore',
+            'prezzo': 'Prezzo',
+            'Fantasquadra': 'Fantasquadra'
+        }
+        df = df.rename(columns=mappa_colonne)
 
-            tab1, tab2 = st.tabs(["📊 Analisi Lega", "🏃 Rose Complete"])
+        # Convertiamo il Prezzo in numero per poter fare i calcoli
+        if 'Prezzo' in df.columns:
+            df['Prezzo'] = pd.to_numeric(df['Prezzo'], errors='coerce').fillna(0)
 
-            with tab1:
-                st.subheader("Riepilogo Spese e Budget")
-                budget_totale = 500
-                riepilogo = df.groupby('Fantasquadra')['Costo'].sum().reset_index()
-                riepilogo['Crediti Residui'] = budget_totale - riepilogo['Costo']
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.dataframe(riepilogo, use_container_width=True)
-                with col2:
-                    st.bar_chart(data=riepilogo, x='Fantasquadra', y='Costo')
+        # Creazione delle Tab
+        tab1, tab2 = st.tabs(["📊 Classifica e Budget", "🏃 Dettaglio Rose"])
 
-            with tab2:
-                squadre = [s for s in df['Fantasquadra'].unique() if pd.notna(s)]
-                scelta = st.selectbox("Seleziona Squadra:", squadre)
-                rosa = df[df['Fantasquadra'] == scelta]
-                st.write(f"**Giocatori in rosa:** {len(rosa)}")
-                st.table(rosa)
-        else:
-            st.error(f"Colonne non trovate! Il file ha queste colonne: {list(df.columns)}")
-            st.info("Assicurati che la prima riga del file contenga: Fantasquadra, Calciatore, Prezzo, Ruolo")
+        with tab1:
+            st.subheader("Situazione Economica della Lega")
+            budget_iniziale = 500 # Puoi modificare questo valore
+            
+            # Calcolo spese per squadra
+            classifica = df.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
+            classifica['Residuo'] = budget_iniziale - classifica['Prezzo']
+            
+            # Grafico e Tabella
+            col_graf, col_tab = st.columns([2, 1])
+            with col_graf:
+                st.bar_chart(data=classifica, x='Fantasquadra', y='Prezzo')
+            with col_tab:
+                st.dataframe(classifica.sort_values(by='Residuo', ascending=False), hide_index=True)
+
+        with tab2:
+            squadre_disponibili = [s for s in df['Fantasquadra'].unique() if pd.notna(s)]
+            scelta = st.selectbox("Scegli una Fantasquadra:", squadre_disponibili)
+            
+            # Filtriamo la rosa della squadra scelta
+            rosa_squadra = df[df['Fantasquadra'] == scelta]
+            
+            # ORDINE COLONNE: Spostiamo il Ruolo per primo come hai chiesto
+            ordine_visualizzazione = ['Ruolo', 'Calciatore', 'Prezzo']
+            
+            # Mostriamo il numero di giocatori per ruolo
+            st.write(f"**Totale giocatori:** {len(rosa_squadra.dropna(subset=['Calciatore']))}")
+            
+            # Visualizzazione tabella pulita
+            st.dataframe(
+                rosa_squadra[ordine_visualizzazione].sort_values(by='Ruolo'), 
+                use_container_width=True, 
+                hide_index=True
+            )
 
     except Exception as e:
-        st.error(f"Errore tecnico: {e}")
+        st.error(f"Si è verificato un errore durante la lettura: {e}")
 else:
-    st.info("👋 Carica il file 'rose muynov25.csv' per visualizzare la tua lega!")
+    st.info("👋 Benvenuto! Carica il file 'rose muynov25.csv' per iniziare la gestione.")
