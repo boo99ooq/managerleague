@@ -4,8 +4,8 @@ import pandas as pd
 # 1. CONFIGURAZIONE PAGINA
 st.set_page_config(page_title="Fantalega Manageriale", layout="wide")
 
-# 2. STILE PROFESSIONALE (Sfondo scuro, testi bianchi/verdi)
-def apply_advanced_style():
+# 2. STILE PROFESSIONALE (Sfondo scuro, testi bianchi, titoli visibili)
+def apply_pro_style():
     img_url = "https://images.unsplash.com/photo-1556056504-5c7696c4c28d?q=80&w=2076&auto=format&fit=crop"
     st.markdown(
         f"""
@@ -34,20 +34,21 @@ def apply_advanced_style():
         }}
         [data-testid="stSidebar"] {{
             background-color: rgba(0, 0, 0, 0.95) !important;
-            border-right: 2px solid #2ecc71;
+            border-right: 2px solid #ffffff;
         }}
-        /* Colore delle celle nelle tabelle */
-        .stDataFrame td {{ color: white !important; }}
+        .stDataFrame td, .stDataFrame th {{
+            color: #ffffff !important;
+        }}
         </style>
         """,
         unsafe_allow_html=True
     )
 
-apply_advanced_style()
+apply_pro_style()
 
 st.title("⚽ Centro Direzionale Fantalega")
 
-# 3. BUDGET FISSI AGGIORNATI
+# 3. BUDGET AGGIORNATI
 budgets_fisso = {
     "GIANNI": 102.5, "DANI ROBI": 164.5, "MARCO": 131.0, "PIETRO": 101.5,
     "PIERLUIGI": 105.0, "GIGI": 232.5, "ANDREA": 139.0, "GIUSEPPE": 136.5,
@@ -55,11 +56,10 @@ budgets_fisso = {
 }
 
 # 4. SIDEBAR
-st.sidebar.header("📂 Gestione Database")
-file_rose = st.sidebar.file_uploader("1. Carica Rose (CSV)", type="csv")
-file_vincoli = st.sidebar.file_uploader("2. Carica Vincoli (CSV)", type="csv")
+st.sidebar.header("📂 Menu Dati")
+file_rose = st.sidebar.file_uploader("1. Carica Rose", type="csv")
+file_vincoli = st.sidebar.file_uploader("2. Carica Vincoli", type="csv")
 
-# Funzioni caricamento
 def carica_rose(file):
     if file is None: return None
     file.seek(0)
@@ -88,66 +88,10 @@ df_rose = carica_rose(file_rose)
 df_vincoli = carica_vincoli(file_vincoli)
 
 if df_rose is not None:
-    tabs = st.tabs(["📊 Economia", "📈 Analisi Reparti", "🏃 Rose", "📅 Vincoli", "🔍 Cerca"])
+    tabs = st.tabs(["📊 Economia", "📈 Analisi Reparti", "🏆 Record & Top", "🏃 Rose", "📅 Vincoli"])
 
     # --- TAB 0: ECONOMIA ---
     with tabs[0]:
         analisi = df_rose.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
         analisi.columns = ['Fantasquadra', 'Valore Rosa']
-        analisi['Extra Febbraio'] = analisi['Fantasquadra'].map(budgets_fisso).fillna(0)
-        analisi['Totale'] = analisi['Valore Rosa'] + analisi['Extra Febbraio']
-        st.dataframe(analisi.sort_values('Totale', ascending=False), hide_index=True, use_container_width=True)
-        st.bar_chart(data=analisi, x='Fantasquadra', y=['Valore Rosa', 'Extra Febbraio'])
-
-    # --- TAB 1: ANALISI REPARTI (NOVITÀ HEATMAP) ---
-    with tabs[1]:
-        st.subheader("Distribuzione della Spesa per Ruolo")
-        
-        # Creazione Tabella Pivot per Ruolo
-        pivot_spesa = df_rose.pivot_table(
-            index='Fantasquadra', 
-            columns='Ruolo', 
-            values='Prezzo', 
-            aggfunc='sum'
-        ).fillna(0)
-        
-        # Ordiniamo i ruoli in modo logico
-        cols_ordine = ['Portiere', 'Difensore', 'Centrocampista', 'Attaccante', 'Giovani']
-        pivot_spesa = pivot_spesa[[c for c in cols_ordine if c in pivot_spesa.columns]]
-
-        st.write("🔥 **Intensità di Spesa** (Colori più accesi = Investimento maggiore)")
-        # Applichiamo la Heatmap
-        st.dataframe(
-            pivot_spesa.style.background_gradient(cmap='YlGn', axis=None).format("{:.1f}"),
-            use_container_width=True
-        )
-
-        st.divider()
-        st.write("📊 **Percentuale del Budget spesa per Reparto**")
-        # Calcolo percentuale rispetto al totale della rosa
-        pivot_pct = pivot_spesa.div(pivot_spesa.sum(axis=1), axis=0) * 100
-        st.dataframe(
-            pivot_pct.style.background_gradient(cmap='Blues', axis=None).format("{:.1f}%"),
-            use_container_width=True
-        )
-
-    # --- TAB 2: DETTAGLIO ROSE ---
-    with tabs[2]:
-        squadre = sorted(df_rose['Fantasquadra'].unique())
-        scelta = st.selectbox("Seleziona Squadra:", squadre)
-        st.dataframe(df_rose[df_rose['Fantasquadra'] == scelta][['Ruolo', 'Nome', 'Prezzo']], hide_index=True, use_container_width=True)
-
-    # --- TAB 3: VINCOLI ---
-    with tabs[3]:
-        if df_vincoli is not None:
-            st.dataframe(df_vincoli.groupby('Squadra')['Costo 2026-27'].sum().reset_index(), hide_index=True)
-        else: st.info("Carica i vincoli per i dati futuri.")
-
-    # --- TAB 4: RICERCA ---
-    with tabs[4]:
-        nome = st.text_input("Cerca un calciatore:")
-        if nome:
-            st.dataframe(df_rose[df_rose['Nome'].str.contains(nome, case=False, na=False)], hide_index=True)
-
-else:
-    st.info("Carica i file CSV per attivare le statistiche.")
+        analisi['Extra Febbraio'] = analisi['Fantasquadra'].map
