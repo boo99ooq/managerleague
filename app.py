@@ -13,10 +13,12 @@ file_caricato = st.sidebar.file_uploader("Carica il file rose.csv", type="csv")
 if file_caricato is not None:
     # --- INIZIO BLOCCO INDENTATO (SPOSTATO A DESTRA) ---
     try:
-        # Prova a leggere il file
+        # Riporta il file all'inizio prima di leggere
+        file_caricato.seek(0)
         df = pd.read_csv(file_caricato, encoding='utf-8')
     except Exception:
-        # Se c'è un errore di codifica, prova l'altra
+        # Riporta di nuovo all'inizio se il primo tentativo fallisce
+        file_caricato.seek(0)
         df = pd.read_csv(file_caricato, encoding='latin-1')
 
     st.success("File caricato correttamente!")
@@ -46,3 +48,4 @@ if file_caricato is not None:
 else:
     # Questo appare se non c'è ancora nessun file
     st.warning("👋 Benvenuto! Carica il file CSV delle rose per iniziare.")
+
