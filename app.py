@@ -1,77 +1,83 @@
 import streamlit as st
 import pandas as pd
 
-# 1. Configurazione della pagina
 st.set_page_config(page_title="Fantalega Manageriale", layout="wide")
-st.title("⚽ La mia Fantalega Manageriale")
+st.title("⚽ Centro Direzionale Fantalega")
 
-# 2. Budget di Febbraio (Aggiornati)
+# 1. Budget assegnati (per calcoli economici correnti)
 budgets_fisso = {
     "GIANNI": 164, "DANI ROBI": 162, "MARCO": 194, "PIETRO": 164,
     "PIERLUIGI": 240, "GIGI": 222, "ANDREA": 165, "GIUSEPPE": 174,
     "MATTEO": 166, "NICHOLAS": 162
 }
 
-# 3. Caricamento file
-st.sidebar.header("Gestione Dati")
-file_caricato = st.sidebar.file_uploader("Carica nuove rose muynov25.csv", type="csv")
+# 2. Caricamento File nella sidebar
+st.sidebar.header("Caricamento Database")
+file_rose = st.sidebar.file_uploader("1. Carica Rose Attuali (CSV)", type="csv")
+file_vincoli = st.sidebar.file_uploader("2. Carica File Vincoli (CSV)", type="csv")
 
-if file_caricato is not None:
-    try:
-        # Leggiamo il file ignorando le righe vuote iniziali
-        file_caricato.seek(0)
-        df = pd.read_csv(file_caricato, sep=',', skip_blank_lines=True, encoding='utf-8')
-        
-        # Pulizia nomi colonne e rimozione righe totalmente vuote
-        df.columns = df.columns.str.strip()
-        df = df.dropna(subset=['Fantasquadra', 'Nome'])
-        
-        # Uniformiamo i dati
-        df['Fantasquadra'] = df['Fantasquadra'].str.strip().str.upper()
-        df['Prezzo'] = pd.to_numeric(df['Prezzo'], errors='coerce').fillna(0)
+# FUNZIONE PER LEGGERE I FILE IN MODO SICURO
+def carica_dati(file):
+    if file is not None:
+        file.seek(0)
+        return pd.read_csv(file, sep=',', skip_blank_lines=True, encoding='utf-8')
+    return None
 
-        tab1, tab2 = st.tabs(["📊 Potenziale Economico", "🏃 Dettaglio Rose"])
+df_rose = carica_dati(file_rose)
+df_vincoli = carica_dati(file_vincoli)
 
-        with tab1:
-            st.subheader("Analisi Finanziaria Febbraio")
-            # Calcolo Valore Rosa
-            analisi = df.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
-            analisi.columns = ['Fantasquadra', 'Valore Rosa']
+if df_rose is not None:
+    # Pulizia Rose
+    df_rose.columns = df_rose.columns.str.strip()
+    df_rose['Fantasquadra'] = df_rose['Fantasquadra'].str.strip().str.upper()
+    df_rose['Prezzo'] = pd.to_numeric(df_rose['Prezzo'], errors='coerce').fillna(0)
+
+    # Creazione Tab (La terza appare solo se carichi il secondo file)
+    nomi_tab = ["📊 Potenziale Economico", "🏃 Dettaglio Rose"]
+    if df_vincoli is not None:
+        nomi_tab.append("📅 Vincoli e Futuro")
+    
+    tabs = st.tabs(nomi_tab)
+
+    # --- TAB 1: ECONOMIA CORRENTE ---
+    with tabs[0]:
+        analisi = df_rose.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
+        analisi.columns = ['Fantasquadra', 'Valore Rosa']
+        analisi['Budget Febbraio'] = analisi['Fantasquadra'].map(budgets_fisso).fillna(0)
+        analisi['Potenziale Totale'] = analisi['Valore Rosa'] + analisi['Budget Febbraio']
+        st.dataframe(analisi.sort_values('Potenziale Totale', ascending=False), hide_index=True, use_container_width=True)
+        st.bar_chart(data=analisi, x='Fantasquadra', y=['Valore Rosa', 'Budget Febbraio'])
+
+    # --- TAB 2: DETTAGLIO ROSE ---
+    with tabs[1]:
+        squadre = sorted(df_rose['Fantasquadra'].unique())
+        scelta = st.selectbox("Seleziona Squadra:", squadre)
+        rosa = df_rose[df_rose['Fantasquadra'] == scelta].copy()
+        st.dataframe(rosa[['Ruolo', 'Nome', 'Prezzo']], use_container_width=True, hide_index=True)
+
+    # --- TAB 3: VINCOLI (Se il file è presente) ---
+    if df_vincoli is not None:
+        with tabs[2]:
+            st.subheader("Analisi Contratti e Scadenze")
             
-            # Integrazione Budget
-            analisi['Budget Febbraio'] = analisi['Fantasquadra'].map(budgets_fisso).fillna(0)
-            analisi['Potenziale Totale'] = analisi['Valore Rosa'] + analisi['Budget Febbraio']
-            analisi = analisi.sort_values(by='Potenziale Totale', ascending=False)
+            # Pulizia Vincoli
+            df_vincoli.columns = df_vincoli.columns.str.strip()
+            df_vincoli['Squadra'] = df_vincoli['Squadra'].str.strip().str.upper()
             
-            col_graf, col_tab = st.columns([2, 1.5])
-            with col_graf:
-                st.bar_chart(data=analisi, x='Fantasquadra', y=['Valore Rosa', 'Budget Febbraio'])
-            with col_tab:
-                st.dataframe(analisi, hide_index=True, use_container_width=True)
+            # Calcolo impegno per la prossima stagione (2026-27)
+            impegno_futuro = df_vincoli.groupby('Squadra')['Costo 2026-27'].sum().reset_index()
+            impegno_futuro.columns = ['Squadra', 'Impegno 26/27 (Crediti)']
+            
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                st.write("**Impegni Già Presi (26/27):**")
+                st.dataframe(impegno_futuro, hide_index=True)
+            
+            with col2:
+                # Mostriamo i dettagli dei vincoli per la squadra selezionata
+                vincoli_team = df_vincoli[df_vincoli['Squadra'] == scelta]
+                st.write(f"**Giocatori Vincolati per {scelta}:**")
+                st.table(vincoli_team[['Giocatore', 'Costo 2026-27', 'Durata (anni)']])
 
-        with tab2:
-            squadre = sorted(df['Fantasquadra'].unique())
-            scelta = st.selectbox("Seleziona la squadra:", squadre)
-            
-            rosa = df[df['Fantasquadra'] == scelta].copy()
-            v_team = rosa['Prezzo'].sum()
-            b_team = budgets_fisso.get(scelta, 0)
-            
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Valore Rosa", f"{int(v_team)}")
-            c2.metric("Extra Febbraio", f"{int(b_team)}")
-            c3.metric("Potenziale", f"{int(v_team + b_team)}")
-
-            # Visualizzazione ordinata per Ruolo
-            ordine_ruoli = {'Portiere': 1, 'Difensore': 2, 'Centrocampista': 3, 'Attaccante': 4, 'Giovani': 5}
-            rosa['sort'] = rosa['Ruolo'].str.capitalize().map(ordine_ruoli).fillna(99)
-            
-            st.dataframe(
-                rosa.sort_values('sort')[['Ruolo', 'Nome', 'Prezzo']], 
-                use_container_width=True, hide_index=True
-            )
-
-    except Exception as e:
-        st.error(f"Errore: {e}")
 else:
-    st.info("Carica il file CSV per visualizzare i dati della lega.")
+    st.info("👋 Per iniziare, carica il file delle Rose nella barra laterale.")
