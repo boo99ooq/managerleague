@@ -11,15 +11,27 @@ file_caricato = st.sidebar.file_uploader("Carica il file rose.csv", type="csv")
 
 # 3. Controllo se il file è stato caricato
 if file_caricato is not None:
-    # --- INIZIO BLOCCO INDENTATO (SPOSTATO A DESTRA) ---
     try:
-        # Riporta il file all'inizio prima di leggere
+        # 1. Prova il formato standard (Virgola e UTF-8)
         file_caricato.seek(0)
-        df = pd.read_csv(file_caricato, encoding='utf-8')
+        df = pd.read_csv(file_caricato, sep=None, engine='python', encoding='utf-8')
     except Exception:
-        # Riporta di nuovo all'inizio se il primo tentativo fallisce
-        file_caricato.seek(0)
-        df = pd.read_csv(file_caricato, encoding='latin-1')
+        try:
+            # 2. Prova il formato Excel Italiano (Punto e virgola e Latin-1)
+            file_caricato.seek(0)
+            df = pd.read_csv(file_caricato, sep=';', encoding='latin-1')
+        except Exception as e:
+            st.error(f"Non riesco a leggere il file. Errore: {e}")
+            st.stop() # Si ferma qui se non riesce a leggere nulla
+
+    st.success("File letto con successo!")
+    
+    # Mostriamo un'anteprima per capire cosa ha capito Python
+    st.write("Anteprima dati:", df.head())
+    
+    # Da qui in poi le tabelle...
+    tab1, tab2 = st.tabs(["📊 Analisi Lega", "🏃 Rose Complete"])
+    # ... (il resto del codice che avevi per tab1 e tab2)
 
     st.success("File caricato correttamente!")
     
@@ -48,4 +60,5 @@ if file_caricato is not None:
 else:
     # Questo appare se non c'è ancora nessun file
     st.warning("👋 Benvenuto! Carica il file CSV delle rose per iniziare.")
+
 
