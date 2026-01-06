@@ -1,51 +1,48 @@
 import streamlit as st
 import pandas as pd
 
-# 1. FUNZIONE PER LO SFONDO E LO STILE (Migliorata per visibilità sidebar e tabelle)
-def apply_custom_style():
+# 1. FUNZIONE PER LO SFONDO CHIARO E STILE PULITO
+def apply_light_football_style():
     st.markdown(
         f"""
         <style>
-        /* Sfondo principale */
+        /* Immagine di sfondo: Campo verde chiaro e luminoso */
         .stApp {{
-            background-image: url("https://images.unsplash.com/photo-1508098682722-e99c43a406b2?q=80&w=2070&auto=format&fit=crop");
+            background-image: url("https://images.unsplash.com/photo-1556056504-5c7696c4c28d?q=80&w=2076&auto=format&fit=crop");
             background-attachment: fixed;
             background-size: cover;
             background-position: center;
-            background-repeat: no-repeat;
         }}
         
-        /* Pannelli delle tabelle e metriche */
+        /* Pannelli bianchi semi-trasparenti per un effetto pulito */
         .stTabs, .stMetric, [data-testid="stMetricValue"], .stDataFrame, .stTable {{
-            background-color: rgba(0, 0, 0, 0.7) !important;
+            background-color: rgba(255, 255, 255, 0.85) !important;
             padding: 15px;
             border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }}
         
-        /* Stile speciale per la Sidebar (Barra laterale) */
+        /* Testi neri per massima leggibilità su sfondo chiaro */
+        h1, h2, h3, p, span, label, .stTabs [data-baseweb="tab"] {{
+            color: #1e3d1e !important; /* Verde molto scuro quasi nero */
+            font-weight: 600;
+        }}
+
+        /* Sidebar (Barra laterale) - Sfondo chiaro */
         [data-testid="stSidebar"] {{
-            background-color: rgba(0, 0, 0, 0.8) !important;
+            background-color: rgba(255, 255, 255, 0.9) !important;
         }}
         
         /* Colore dei testi nella Sidebar */
         [data-testid="stSidebar"] .stMarkdown p, 
-        [data-testid="stSidebar"] label, 
-        [data-testid="stSidebar"] h1, 
-        [data-testid="stSidebar"] h2,
-        [data-testid="stSidebar"] h3 {{
-            color: #ffffff !important;
-            font-weight: bold;
-        }}
-
-        /* Forza il bianco per tutti i testi principali dell'app */
-        h1, h2, h3, p, span, label, .stTabs [data-baseweb="tab"] {{
-            color: #ffffff !important;
+        [data-testid="stSidebar"] label {{
+            color: #1e3d1e !important;
         }}
         
-        /* Migliora la visibilità dei nomi nelle tabelle */
-        .stDataFrame td, .stDataFrame th {{
-            color: white !important;
+        /* Bottoni e input */
+        .stButton>button {{
+            background-color: #2e7d32;
+            color: white;
         }}
         </style>
         """,
@@ -54,23 +51,22 @@ def apply_custom_style():
 
 # 2. CONFIGURAZIONE PAGINA
 st.set_page_config(page_title="Fantalega Manageriale", layout="wide")
-apply_custom_style()
+apply_light_football_style()
 
 st.title("⚽ Centro Direzionale Fantalega")
 
-# 3. BUDGET DI FEBBRAIO (Valori Aggiornati)
+# 3. BUDGET CORRETTI (Valori aggiornati)
 budgets_fisso = {
     "GIANNI": 102.5, "DANI ROBI": 164.5, "MARCO": 131, "PIETRO": 101.5,
     "PIERLUIGI": 105, "GIGI": 232.5, "ANDREA": 139, "GIUSEPPE": 136.5,
     "MATTEO": 166.5, "NICHOLAS": 113
 }
 
-# 4. SIDEBAR PER CARICAMENTO
-st.sidebar.header("📂 Database")
-file_rose = st.sidebar.file_uploader("1. Carica Rose Attuali (CSV)", type="csv")
-file_vincoli = st.sidebar.file_uploader("2. Carica File Vincoli (CSV)", type="csv")
+# 4. SIDEBAR
+st.sidebar.header("📂 Caricamento Dati")
+file_rose = st.sidebar.file_uploader("1. Rose Attuali (CSV)", type="csv")
+file_vincoli = st.sidebar.file_uploader("2. Vincoli (CSV)", type="csv")
 
-# FUNZIONI DI CARICAMENTO DATI
 def carica_e_pulisci_rose(file):
     if file is None: return None
     file.seek(0)
@@ -98,48 +94,34 @@ def carica_e_pulisci_vincoli(file):
 df_rose = carica_e_pulisci_rose(file_rose)
 df_vincoli = carica_e_pulisci_vincoli(file_vincoli)
 
-# 5. VISUALIZZAZIONE DATI
+# 5. TAB
 if df_rose is not None:
-    nomi_tab = ["📊 Potenziale Economico", "🏃 Dettaglio Rose"]
-    if df_vincoli is not None: nomi_tab.append("📅 Vincoli e Futuro")
-    tabs = st.tabs(nomi_tab)
+    nomi_tab = ["📊 Economia", "🏃 Rose", "📅 Vincoli"]
+    tabs = st.tabs(nomi_tab[:2] + (["📅 Vincoli"] if df_vincoli is not None else []))
 
-    # --- TAB 1: ECONOMIA ---
     with tabs[0]:
         analisi = df_rose.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
         analisi.columns = ['Fantasquadra', 'Valore Rosa']
         analisi['Budget Febbraio'] = analisi['Fantasquadra'].map(budgets_fisso).fillna(0)
-        analisi['Potenziale Totale'] = analisi['Valore Rosa'] + analisi['Budget Febbraio']
-        
-        st.subheader("Riepilogo Finanziario")
-        st.dataframe(analisi.sort_values('Potenziale Totale', ascending=False), hide_index=True, use_container_width=True)
+        analisi['Totale'] = analisi['Valore Rosa'] + analisi['Budget Febbraio']
+        st.dataframe(analisi.sort_values('Totale', ascending=False), hide_index=True, use_container_width=True)
         st.bar_chart(data=analisi, x='Fantasquadra', y=['Valore Rosa', 'Budget Febbraio'])
 
-    # --- TAB 2: DETTAGLIO ---
     with tabs[1]:
-        squadre_rose = sorted(df_rose['Fantasquadra'].unique())
-        scelta_rosa = st.selectbox("Seleziona Squadra:", squadre_rose, key="sel_rose")
-        dati_squadra = df_rose[df_rose['Fantasquadra'] == scelta_rosa]
-        st.dataframe(dati_squadra[['Ruolo', 'Nome', 'Prezzo']], use_container_width=True, hide_index=True)
+        squadre = sorted(df_rose['Fantasquadra'].unique())
+        scelta = st.selectbox("Squadra:", squadre, key="r")
+        st.dataframe(df_rose[df_rose['Fantasquadra'] == scelta][['Ruolo', 'Nome', 'Prezzo']], hide_index=True, use_container_width=True)
 
-    # --- TAB 3: VINCOLI ---
     if df_vincoli is not None:
         with tabs[2]:
-            st.subheader("Strategia Pluriennale")
-            impegno_2627 = df_vincoli.groupby('Squadra')['Costo 2026-27'].sum().reset_index()
-            impegno_2627.columns = ['Fantasquadra', 'Spesa Impegnata 26/27']
-            
+            st.subheader("Strategia Futura")
+            impegno = df_vincoli.groupby('Squadra')['Costo 2026-27'].sum().reset_index()
             c1, c2 = st.columns([1, 2])
             with c1:
-                st.write("**Debiti per la prossima stagione:**")
-                st.dataframe(impegno_2627.sort_values('Spesa Impegnata 26/27', ascending=False), hide_index=True)
+                st.write("Debiti 26/27")
+                st.dataframe(impegno, hide_index=True)
             with c2:
-                squadre_vincoli = sorted(df_vincoli['Squadra'].unique())
-                scelta_v = st.selectbox("Dettaglio Vincoli per:", squadre_vincoli, key="sel_vincoli")
-                vincoli_team = df_vincoli[df_vincoli['Squadra'] == scelta_v]
-                if not vincoli_team.empty:
-                    st.dataframe(vincoli_team[['Giocatore', 'Costo 2026-27', 'Durata (anni)']], hide_index=True, use_container_width=True)
-                else:
-                    st.warning("Nessun vincolo trovato.")
+                s_v = st.selectbox("Dettaglio vincoli:", sorted(df_vincoli['Squadra'].unique()), key="v")
+                st.dataframe(df_vincoli[df_vincoli['Squadra'] == s_v][['Giocatore', 'Costo 2026-27', 'Durata (anni)']], hide_index=True)
 else:
-    st.info("👋 Carica i file CSV per generare i grafici e le tabelle.")
+    st.info("Carica i
