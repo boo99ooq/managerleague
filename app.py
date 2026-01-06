@@ -1,83 +1,101 @@
 import streamlit as st
 import pandas as pd
 
+# 1. Configurazione della pagina
 st.set_page_config(page_title="Fantalega Manageriale", layout="wide")
 st.title("⚽ Centro Direzionale Fantalega")
 
-# 1. Budget assegnati (per calcoli economici correnti)
+# 2. Budget di Febbraio (Nomi Standardizzati)
 budgets_fisso = {
     "GIANNI": 164, "DANI ROBI": 162, "MARCO": 194, "PIETRO": 164,
     "PIERLUIGI": 240, "GIGI": 222, "ANDREA": 165, "GIUSEPPE": 174,
     "MATTEO": 166, "NICHOLAS": 162
 }
 
-# 2. Caricamento File nella sidebar
+# 3. Sidebar per caricamento
 st.sidebar.header("Caricamento Database")
 file_rose = st.sidebar.file_uploader("1. Carica Rose Attuali (CSV)", type="csv")
 file_vincoli = st.sidebar.file_uploader("2. Carica File Vincoli (CSV)", type="csv")
 
-# FUNZIONE PER LEGGERE I FILE IN MODO SICURO
-def carica_dati(file):
-    if file is not None:
-        file.seek(0)
-        return pd.read_csv(file, sep=',', skip_blank_lines=True, encoding='utf-8')
-    return None
+def carica_e_pulisci_rose(file):
+    if file is None: return None
+    file.seek(0)
+    df = pd.read_csv(file, sep=',', skip_blank_lines=True, encoding='utf-8')
+    df.columns = df.columns.str.strip()
+    df = df.dropna(subset=['Fantasquadra', 'Nome'])
+    df['Fantasquadra'] = df['Fantasquadra'].str.strip().str.upper()
+    # Correzione nomi squadre se necessario
+    df['Fantasquadra'] = df['Fantasquadra'].replace({"DANI ROBI": "DANI ROBI", "NICHO": "NICHOLAS"})
+    df['Prezzo'] = pd.to_numeric(df['Prezzo'], errors='coerce').fillna(0)
+    return df
 
-df_rose = carica_dati(file_rose)
-df_vincoli = carica_dati(file_vincoli)
+def carica_e_pulisci_vincoli(file):
+    if file is None: return None
+    file.seek(0)
+    df = pd.read_csv(file, sep=',', skip_blank_lines=True, encoding='utf-8')
+    df.columns = df.columns.str.strip()
+    
+    # PULIZIA "ANTI-SPORCO": Teniamo solo le righe dove Squadra non contiene caratteri speciali di Markdown
+    df = df[df['Squadra'].notna()]
+    df = df[~df['Squadra'].str.contains(r'\*|`|:', na=False)]
+    
+    # Standardizzazione nomi squadre
+    df['Squadra'] = df['Squadra'].str.strip().str.upper()
+    df['Squadra'] = df['Squadra'].replace({"DANI ROBI": "DANI ROBI", "NICHO": "NICHOLAS", "DANI ROBI": "DANI ROBI"})
+    
+    # Conversione numerica costi futuri
+    for col in ['Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29']:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+    return df
+
+df_rose = carica_e_pulisci_rose(file_rose)
+df_vincoli = carica_e_pulisci_vincoli(file_vincoli)
 
 if df_rose is not None:
-    # Pulizia Rose
-    df_rose.columns = df_rose.columns.str.strip()
-    df_rose['Fantasquadra'] = df_rose['Fantasquadra'].str.strip().str.upper()
-    df_rose['Prezzo'] = pd.to_numeric(df_rose['Prezzo'], errors='coerce').fillna(0)
-
-    # Creazione Tab (La terza appare solo se carichi il secondo file)
     nomi_tab = ["📊 Potenziale Economico", "🏃 Dettaglio Rose"]
-    if df_vincoli is not None:
-        nomi_tab.append("📅 Vincoli e Futuro")
-    
+    if df_vincoli is not None: nomi_tab.append("📅 Vincoli e Futuro")
     tabs = st.tabs(nomi_tab)
 
-    # --- TAB 1: ECONOMIA CORRENTE ---
+    # TAB 1: ECONOMIA
     with tabs[0]:
         analisi = df_rose.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
         analisi.columns = ['Fantasquadra', 'Valore Rosa']
         analisi['Budget Febbraio'] = analisi['Fantasquadra'].map(budgets_fisso).fillna(0)
         analisi['Potenziale Totale'] = analisi['Valore Rosa'] + analisi['Budget Febbraio']
+        st.subheader("Riepilogo Finanziario Corrente")
         st.dataframe(analisi.sort_values('Potenziale Totale', ascending=False), hide_index=True, use_container_width=True)
         st.bar_chart(data=analisi, x='Fantasquadra', y=['Valore Rosa', 'Budget Febbraio'])
 
-    # --- TAB 2: DETTAGLIO ROSE ---
+    # TAB 2: DETTAGLIO
     with tabs[1]:
         squadre = sorted(df_rose['Fantasquadra'].unique())
         scelta = st.selectbox("Seleziona Squadra:", squadre)
-        rosa = df_rose[df_rose['Fantasquadra'] == scelta].copy()
+        rosa = df_rose[df_rose['Fantasquadra'] == scelta]
         st.dataframe(rosa[['Ruolo', 'Nome', 'Prezzo']], use_container_width=True, hide_index=True)
 
-    # --- TAB 3: VINCOLI (Se il file è presente) ---
+    # TAB 3: VINCOLI (La parte che era "non chiara")
     if df_vincoli is not None:
         with tabs[2]:
-            st.subheader("Analisi Contratti e Scadenze")
+            st.subheader("Pianificazione Contratti Futuri")
             
-            # Pulizia Vincoli
-            df_vincoli.columns = df_vincoli.columns.str.strip()
-            df_vincoli['Squadra'] = df_vincoli['Squadra'].str.strip().str.upper()
+            # Tabella di riepilogo pulita per squadra
+            impegno_2627 = df_vincoli.groupby('Squadra')['Costo 2026-27'].sum().reset_index()
+            impegno_2627.columns = ['Fantasquadra', 'Spesa Impegnata 26/27']
             
-            # Calcolo impegno per la prossima stagione (2026-27)
-            impegno_futuro = df_vincoli.groupby('Squadra')['Costo 2026-27'].sum().reset_index()
-            impegno_futuro.columns = ['Squadra', 'Impegno 26/27 (Crediti)']
+            c1, c2 = st.columns([1, 2])
+            with c1:
+                st.write("**Totale Debiti 2026/27:**")
+                st.dataframe(impegno_2627.sort_values('Spesa Impegnata 26/27', ascending=False), hide_index=True)
             
-            col1, col2 = st.columns([1, 2])
-            with col1:
-                st.write("**Impegni Già Presi (26/27):**")
-                st.dataframe(impegno_futuro, hide_index=True)
-            
-            with col2:
-                # Mostriamo i dettagli dei vincoli per la squadra selezionata
+            with c2:
+                # Dettaglio della squadra scelta (usiamo la stessa 'scelta' della Tab 2 per comodità)
                 vincoli_team = df_vincoli[df_vincoli['Squadra'] == scelta]
-                st.write(f"**Giocatori Vincolati per {scelta}:**")
-                st.table(vincoli_team[['Giocatore', 'Costo 2026-27', 'Durata (anni)']])
+                st.write(f"**Giocatori Blindati per {scelta}:**")
+                if not vincoli_team.empty:
+                    st.dataframe(vincoli_team[['Giocatore', 'Costo 2026-27', 'Durata (anni)']], hide_index=True, use_container_width=True)
+                else:
+                    st.warning("Nessun vincolo trovato per questa squadra.")
 
 else:
-    st.info("👋 Per iniziare, carica il file delle Rose nella barra laterale.")
+    st.info("👋 Carica i file CSV nella barra laterale per iniziare.")
