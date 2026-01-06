@@ -1,3 +1,31 @@
+def set_bg_image():
+    st.markdown(
+        f"""
+        <style>
+        .stApp {{
+            background-image: url("");
+            background-attachment: fixed;
+            background-size: cover;
+        }}
+        
+        /* Pannelli semi-trasparenti per leggere bene i dati */
+        .stTabs, .stMetric, [data-testid="stMetricValue"], .stDataFrame, .stTable {{
+            background-color: rgba(0, 0, 0, 0.6) !important;
+            padding: 15px;
+            border-radius: 10px;
+            color: white !important;
+        }}
+        
+        /* Colore dei titoli per farli risaltare */
+        h1, h2, h3, p {{
+            color: white !important;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+set_bg_image()
 import streamlit as st
 import pandas as pd
 
@@ -104,3 +132,4 @@ if df_rose is not None:
                     st.warning("Nessun vincolo trovato per questa squadra.")
 else:
     st.info("👋 Carica i file CSV per attivare i cruscotti.")
+
