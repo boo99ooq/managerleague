@@ -1,64 +1,57 @@
 import streamlit as st
 import pandas as pd
 
-# 1. Configurazione della pagina
-st.set_page_config(page_title="Gestore Fantalega", layout="centered")
-st.title("⚽ La mia Fantalega Manageriale")
+st.set_page_config(page_title="Fantalega Manageriale", layout="wide")
+st.title("⚽ La mia Fantalega")
 
-# 2. Sezione Caricamento nella barra laterale
-st.sidebar.header("Impostazioni")
-file_caricato = st.sidebar.file_uploader("Carica il file rose.csv", type="csv")
+st.sidebar.header("Caricamento Dati")
+file_caricato = st.sidebar.file_uploader("Carica il file rose muynov25.csv", type="csv")
 
-# 3. Controllo se il file è stato caricato
 if file_caricato is not None:
     try:
-        # 1. Prova il formato standard (Virgola e UTF-8)
+        # 1. Lettura super-flessibile per Tab, virgole e punti e virgola
         file_caricato.seek(0)
-        df = pd.read_csv(file_caricato, sep=None, engine='python', encoding='utf-8')
-    except Exception:
-        try:
-            # 2. Prova il formato Excel Italiano (Punto e virgola e Latin-1)
-            file_caricato.seek(0)
-            df = pd.read_csv(file_caricato, sep=';', encoding='latin-1')
-        except Exception as e:
-            st.error(f"Non riesco a leggere il file. Errore: {e}")
-            st.stop() # Si ferma qui se non riesce a leggere nulla
+        df = pd.read_csv(file_caricato, sep=None, engine='python', encoding='latin-1', skip_blank_lines=True)
+        
+        # 2. Pulizia: rimuoviamo righe e colonne completamente vuote
+        df = df.dropna(how='all').reset_index(drop=True)
+        df.columns = df.columns.str.strip() # Toglie spazi dai nomi delle colonne
 
-    st.success("File letto con successo!")
-    
-    # Mostriamo un'anteprima per capire cosa ha capito Python
-    st.write("Anteprima dati:", df.head())
-    
-    # Da qui in poi le tabelle...
-    tab1, tab2 = st.tabs(["📊 Analisi Lega", "🏃 Rose Complete"])
-    # ... (il resto del codice che avevi per tab1 e tab2)
+        # 3. Uniformiamo i nomi delle colonne
+        # Se nel file hai 'Prezzo', lo trasformiamo in 'Costo' per il calcolo
+        if 'Prezzo' in df.columns:
+            df = df.rename(columns={'Prezzo': 'Costo'})
+        
+        # 4. Controllo colonne fondamentali
+        if 'Fantasquadra' in df.columns and 'Costo' in df.columns:
+            # Trasformiamo il Costo in numero (gestendo eventuali errori)
+            df['Costo'] = pd.to_numeric(df['Costo'], errors='coerce').fillna(0)
 
-    st.success("File caricato correttamente!")
-    
-    # Creazione delle schede
-    tab1, tab2 = st.tabs(["📊 Classifica Budget", "🏃 Visualizza Rose"])
-    
-    with tab1:
-        st.header("Spese per Squadra")
-        if 'Fantasquadra' in df.columns and 'Prezzo' in df.columns:
-            spese = df.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
-            st.bar_chart(data=spese, x='Fantasquadra', y='Prezzo')
-            st.table(spese)
+            tab1, tab2 = st.tabs(["📊 Analisi Lega", "🏃 Rose Complete"])
+
+            with tab1:
+                st.subheader("Riepilogo Spese e Budget")
+                budget_totale = 500
+                riepilogo = df.groupby('Fantasquadra')['Costo'].sum().reset_index()
+                riepilogo['Crediti Residui'] = budget_totale - riepilogo['Costo']
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.dataframe(riepilogo, use_container_width=True)
+                with col2:
+                    st.bar_chart(data=riepilogo, x='Fantasquadra', y='Costo')
+
+            with tab2:
+                squadre = [s for s in df['Fantasquadra'].unique() if pd.notna(s)]
+                scelta = st.selectbox("Seleziona Squadra:", squadre)
+                rosa = df[df['Fantasquadra'] == scelta]
+                st.write(f"**Giocatori in rosa:** {len(rosa)}")
+                st.table(rosa)
         else:
-            st.error("Il file deve avere le colonne: 'Fantasquadra' e 'Prezzo'")
+            st.error(f"Colonne non trovate! Il file ha queste colonne: {list(df.columns)}")
+            st.info("Assicurati che la prima riga del file contenga: Fantasquadra, Calciatore, Prezzo, Ruolo")
 
-    with tab2:
-        st.header("Dettaglio Giocatori")
-        if 'Fantasquadra' in df.columns:
-            squadre = df['Fantasquadra'].unique()
-            scelta = st.selectbox("Scegli una squadra:", squadre)
-            rosa_filtrata = df[df['Fantasquadra'] == scelta]
-            st.dataframe(rosa_filtrata, use_container_width=True)
-        else:
-            st.error("Colonna 'Fantasquadra' non trovata.")
-    # --- FINE BLOCCO INDENTATO ---
+    except Exception as e:
+        st.error(f"Errore tecnico: {e}")
 else:
-    # Questo appare se non c'è ancora nessun file
-    st.warning("👋 Benvenuto! Carica il file CSV delle rose per iniziare.")
-
-
+    st.info("👋 Carica il file 'rose muynov25.csv' per visualizzare la tua lega!")
