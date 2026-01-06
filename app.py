@@ -5,8 +5,7 @@ import pandas as pd
 st.set_page_config(page_title="Fantalega Manageriale", layout="wide")
 st.title("⚽ La mia Fantalega Manageriale")
 
-# 2. Definizione dei Budget di Febbraio (Dati forniti da te)
-# Ho inserito i nomi esattamente come appaiono nel tuo file CSV
+# 2. Definizione dei Budget di Febbraio
 budgets_fisso = {
     "Gianni": 164,
     "Dany Roby": 162,
@@ -16,8 +15,8 @@ budgets_fisso = {
     "Giuseppe": 174,
     "Matteo": 166,
     "Nicholas": 162,
-    "Pietro": 0,    # Inserito come 0 se non specificato
-    "Andrea": 0     # Inserito come 0 se non specificato
+    "Pietro": 0,
+    "Andrea": 0
 }
 
 # 3. Caricamento file nella barra laterale
@@ -53,23 +52,46 @@ if file_caricato is not None:
         with tab1:
             st.subheader("Analisi Finanziaria Febbraio")
             
-            # 1. Calcolo valore attuale delle rose
+            # Calcolo valore attuale delle rose
             analisi = df.groupby('Fantasquadra')['Valore Rosa'].sum().reset_index()
             
-            # 2. Aggiungiamo il Budget di Febbraio dal dizionario sopra
+            # Aggiungiamo il Budget di Febbraio
             analisi['Budget Febbraio'] = analisi['Fantasquadra'].map(budgets_fisso).fillna(0)
             
-            # 3. Calcolo Totale (Potere d'acquisto)
+            # Calcolo Totale
             analisi['Potenziale Totale'] = analisi['Valore Rosa'] + analisi['Budget Febbraio']
-            
-            # Ordiniamo per Potenziale Totale decrescente
             analisi = analisi.sort_values(by='Potenziale Totale', ascending=False)
             
-            # Mostriamo i risultati
             col_graf, col_tab = st.columns([2, 1.5])
-            
             with col_graf:
-                st.write("### Confronto Potenziale Totale")
-                # Grafico che mostra la composizione (Rosa + Budget)
-                st.bar_chart(data=analisi, x='Fantasquadra', y=[
+                st.write("### Composizione Valore (Rosa + Budget)")
+                st.bar_chart(data=analisi, x='Fantasquadra', y=['Valore Rosa', 'Budget Febbraio'])
+            with col_tab:
+                st.write("### Riepilogo Crediti")
+                st.dataframe(analisi, hide_index=True, use_container_width=True)
 
+        with tab2:
+            squadre_disponibili = [s for s in df['Fantasquadra'].unique() if pd.notna(s)]
+            scelta = st.selectbox("Scegli una Fantasquadra:", squadre_disponibili)
+            
+            rosa_squadra = df[df['Fantasquadra'] == scelta]
+            budget_team = budgets_fisso.get(scelta, 0)
+            valore_team = rosa_squadra['Valore Rosa'].sum()
+            
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Valore Rosa", f"{int(valore_team)}")
+            c2.metric("Budget Febbraio", f"{int(budget_team)}")
+            c3.metric("Potenziale", f"{int(valore_team + budget_team)}")
+
+            # Tabella con Ruolo per primo
+            ordine_visualizzazione = ['Ruolo', 'Calciatore', 'Valore Rosa']
+            st.dataframe(
+                rosa_squadra[ordine_visualizzazione].sort_values(by='Ruolo'), 
+                use_container_width=True, 
+                hide_index=True
+            )
+
+    except Exception as e:
+        st.error(f"Errore: {e}")
+else:
+    st.info("👋 Carica il file delle rose per attivare l'app.")
