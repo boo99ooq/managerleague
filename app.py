@@ -1,8 +1,3 @@
-Perfetto! Ho preso nota di tutti i budget per febbraio. Adesso l'app non solo calcolerà quanto vale la rosa attuale, ma aggiungerà quel budget per darti il "Potenziale Totale" (ovvero quanti crediti ogni squadra avrà effettivamente a disposizione tra valore dei giocatori e cassa).
-
-Ecco il codice completo aggiornato per il tuo file app.py:
-Python
-
 import streamlit as st
 import pandas as pd
 
@@ -77,3 +72,4 @@ if file_caricato is not None:
                 st.write("### Confronto Potenziale Totale")
                 # Grafico che mostra la composizione (Rosa + Budget)
                 st.bar_chart(data=analisi, x='Fantasquadra', y=[
+
