@@ -5,7 +5,7 @@ import pandas as pd
 st.set_page_config(page_title="Fantalega Manageriale", layout="wide")
 st.title("⚽ La mia Fantalega Manageriale")
 
-# 2. Definizione dei Budget di Febbraio
+# 2. Definizione dei Budget di Febbraio (Aggiornata con Andrea e Pietro)
 budgets_fisso = {
     "Gianni": 164,
     "Dany Roby": 162,
@@ -15,8 +15,8 @@ budgets_fisso = {
     "Giuseppe": 174,
     "Matteo": 166,
     "Nicholas": 162,
-    "Pietro": 0,
-    "Andrea": 0
+    "Andrea": 165,
+    "Pietro": 164
 }
 
 # 3. Caricamento file nella barra laterale
@@ -71,7 +71,7 @@ if file_caricato is not None:
                 st.dataframe(analisi, hide_index=True, use_container_width=True)
 
         with tab2:
-            squadre_disponibili = [s for s in df['Fantasquadra'].unique() if pd.notna(s)]
+            squadre_disponibili = sorted([s for s in df['Fantasquadra'].unique() if pd.notna(s)])
             scelta = st.selectbox("Scegli una Fantasquadra:", squadre_disponibili)
             
             rosa_squadra = df[df['Fantasquadra'] == scelta]
@@ -94,4 +94,4 @@ if file_caricato is not None:
     except Exception as e:
         st.error(f"Errore: {e}")
 else:
-    st.info("👋 Carica il file delle rose per attivare l'app.")
+    st.info("👋 Carica il file delle rose per visualizzare l'analisi aggiornata.")
