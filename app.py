@@ -22,7 +22,7 @@ def apply_style():
 apply_style()
 st.title("⚽ Centro Direzionale Fantalega")
 
-# 2. BUDGET FISSI
+# 2. BUDGET FISSI (FEBBRAIO)
 budgets_fisso = {
     "GIANNI": 102.5, "DANI ROBI": 164.5, "MARCO": 131.0, "PIETRO": 101.5,
     "PIERLUIGI": 105.0, "GIGI": 232.5, "ANDREA": 139.0, "GIUSEPPE": 136.5,
@@ -37,8 +37,10 @@ def pulisci_nomi(df, col):
     return df
 
 def carica_dati(file_input, nomi_possibili):
+    # Priorità al file caricato manualmente
     if file_input is not None:
         return pd.read_csv(file_input, sep=',', skip_blank_lines=True, encoding='utf-8-sig')
+    # Altrimenti cerca su GitHub
     for nome in nomi_possibili:
         if os.path.exists(nome):
             df = pd.read_csv(nome, sep=',', skip_blank_lines=True, encoding='utf-8-sig')
@@ -46,6 +48,30 @@ def carica_dati(file_input, nomi_possibili):
             return df.dropna(how='all')
     return None
 
-# 4. CARICAMENTO DATI
+# 4. CARICAMENTO DATI (SIDEBAR)
+st.sidebar.header("📂 Aggiornamento Dati")
 f_sc_up = st.sidebar.file_uploader("Aggiorna Scontri", type="csv")
-d_sc = carica_dati(f_sc_up, ["s
+d_sc = carica_dati(f_sc_up, ["scontridiretti.csv"])
+
+f_pt_up = st.sidebar.file_uploader("Aggiorna Punti", type="csv")
+d_pt = carica_dati(f_pt_up, ["classificapunti.csv"])
+
+f_rs_up = st.sidebar.file_uploader("Aggiorna Rose", type="csv")
+d_rs = carica_dati(f_rs_up, ["rose_complete.csv"])
+
+f_vn_up = st.sidebar.file_uploader("Aggiorna Vincoli", type="csv")
+d_vn = carica_dati(f_vn_up, ["vincoli.csv"])
+
+# 5. LOGICA TAB
+if any([d_sc is not None, d_pt is not None, d_rs is not None, d_vn is not None]):
+    tabs = st.tabs(["🏆 Classifiche", "📊 Economia", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
+
+    # --- TAB CLASSIFICHE ---
+    with tabs[0]:
+        c1, c2 = st.columns(2)
+        with c1:
+            st.subheader("🔥 Scontri Diretti")
+            if d_sc is not None:
+                d_sc = pulisci_nomi(d_sc, 'Giocatore')
+                st.dataframe(d_sc, hide_index=True, use_container_width=True)
+        with c
