@@ -2,11 +2,36 @@ import streamlit as st
 import pandas as pd
 import os
 
-# 1. SETUP E STILE
+# 1. SETUP E STILE (FIX NOTTURNA MOBILE)
 st.set_page_config(page_title="MuyFantaManager", layout="wide")
-st.markdown("<style>.stApp{background-color:#f4f7f6;} .stTabs{background-color:white; border-radius:10px; padding:10px;}</style>", unsafe_allow_html=True)
+st.markdown("""
+<style>
+    /* Forza sfondo chiaro e testo scuro per le tabelle su mobile */
+    .stDataFrame, div[data-testid="stTable"] {
+        background-color: white !important;
+        border-radius: 10px;
+    }
+    /* Forza colore testo nero nelle tabelle per contrasto Dark Mode */
+    [data-testid="stTable"] td, [data-testid="stTable"] th, .stDataFrame td {
+        color: #1a1a1a !important;
+    }
+    /* Fix visibilità scritte Sidebar e Input */
+    .stTextInput input, .stSelectbox div {
+        color: #1a1a1a !important;
+    }
+    .stApp {
+        background-color: #f4f7f6;
+    }
+    /* Migliora scorrimento tabelle su mobile */
+    div[data-testid="stExpander"] {
+        overflow-x: auto;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 st.title("⚽ MuyFantaManager")
 
+# Configurazione Budget e Mappatura nomi
 bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
 map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS", "NICHO:79": "NICHOLAS"}
 
@@ -33,6 +58,7 @@ def ld(f):
         return df.dropna(how='all')
     except: return None
 
+# 2. CARICAMENTO E PULIZIA
 f_sc, f_pt, f_rs, f_vn = ld("scontridiretti.csv"), ld("classificapunti.csv"), ld("rose_complete.csv"), ld("vincoli.csv")
 
 def process_df(df, col_name):
@@ -61,8 +87,6 @@ if f_rs is not None:
 
 t = st.tabs(["🏆 Classifiche", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
 
-# --- TABELLE ---
-
 with t[0]: # CLASSIFICHE
     c1, c2 = st.columns(2)
     with c1:
@@ -81,10 +105,7 @@ if f_rs is not None:
         eco = f_rs.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
         eco['Crediti Disponibili'] = eco['Fantasquadra'].map(bg_ex).fillna(0)
         if f_vn is not None:
-            # Calcolo pulito per il budget
-            c26_b = f_vn['Costo 2026-27'].apply(cv)
-            c27_b = f_vn['Costo 2027-28'].apply(cv) if 'Costo 2027-28' in f_vn.columns else pd.Series(0.0, index=f_vn.index)
-            c28_b = f_vn['Costo 2028-29'].apply(cv) if 'Costo 2028-29' in f_vn.columns else pd.Series(0.0, index=f_vn.index)
+            c26_b = f_vn['Costo 2026-27'].apply(cv); c27_b = f_vn['Costo 2027-28'].apply(cv) if 'Costo 2027-28' in f_vn.columns else pd.Series(0.0, index=f_vn.index); c28_b = f_vn['Costo 2028-29'].apply(cv) if 'Costo 2028-29' in f_vn.columns else pd.Series(0.0, index=f_vn.index)
             f_vn['Vincolo Totale'] = c26_b + c27_b + c28_b
             v_sum = f_vn.groupby('Squadra')['Vincolo Totale'].sum().reset_index()
             v_sum.columns = ['Fantasquadra', 'Vincoli']
@@ -112,25 +133,15 @@ if f_rs is not None:
         df_sq = f_rs[f_rs['Fantasquadra'] == sq][['Ruolo', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False)
         st.dataframe(df_sq.style.apply(color_ruolo, axis=1).set_properties(**{'font-weight': 'bold'}, subset=['Nome']).format({"Prezzo": "{:g}"}), hide_index=True, use_container_width=True)
 
-with t[4]: # VINCOLI - FIX TYPEERROR
+with t[4]: # VINCOLI
     st.subheader("📅 Gestione Vincoli")
     if f_vn is not None:
-        # Conversione sicura per tutte le colonne potenziali
-        c_26 = f_vn['Costo 2026-27'].apply(cv)
-        c_27 = f_vn['Costo 2027-28'].apply(cv) if 'Costo 2027-28' in f_vn.columns else pd.Series(0.0, index=f_vn.index)
-        c_28 = f_vn['Costo 2028-29'].apply(cv) if 'Costo 2028-29' in f_vn.columns else pd.Series(0.0, index=f_vn.index)
-        dur = f_vn['Durata (anni)'].apply(cv) if 'Durata (anni)' in f_vn.columns else pd.Series(0.0, index=f_vn.index)
-        
-        # Riapplichiamo i valori puliti al dataframe originale per la visualizzazione
-        f_vn['Costo 2026-27'] = c_26
-        if 'Costo 2027-28' in f_vn.columns: f_vn['Costo 2027-28'] = c_27
-        if 'Costo 2028-29' in f_vn.columns: f_vn['Costo 2028-29'] = c_28
-        f_vn['Durata (anni)'] = dur
+        c_26 = f_vn['Costo 2026-27'].apply(cv); c_27 = f_vn['Costo 2027-28'].apply(cv) if 'Costo 2027-28' in f_vn.columns else pd.Series(0.0, index=f_vn.index); c_28 = f_vn['Costo 2028-29'].apply(cv) if 'Costo 2028-29' in f_vn.columns else pd.Series(0.0, index=f_vn.index); dur = f_vn['Durata (anni)'].apply(cv) if 'Durata (anni)' in f_vn.columns else pd.Series(0.0, index=f_vn.index)
+        f_vn['Costo 2026-27'], f_vn['Durata (anni)'] = c_26, dur
         f_vn['Spesa Complessiva'] = c_26 + c_27 + c_28
         
         v1, v2 = st.columns([1, 2.5])
         with v1:
-            st.write("**Riepilogo Investimenti Totali**")
             deb = f_vn.groupby('Squadra')['Spesa Complessiva'].sum().reset_index().sort_values('Spesa Complessiva', ascending=False)
             st.dataframe(deb.style.format({"Spesa Complessiva": "{:g}"}), hide_index=True, use_container_width=True)
         with v2:
@@ -139,6 +150,4 @@ with t[4]: # VINCOLI - FIX TYPEERROR
             cols_v = ['Giocatore', 'Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29', 'Durata (anni)', 'Spesa Complessiva']
             present_v = [c for c in cols_v if c in f_vn.columns]
             det = f_vn[f_vn['Squadra'] == sv][present_v].dropna(subset=['Giocatore'])
-            
-            num_cols = [c for c in present_v if c != 'Giocatore']
-            st.dataframe(det.style.format("{:g}", subset=num_cols).set_properties(**{'font-weight': 'bold'}, subset=['Giocatore']), hide_index=True, use_container_width=True)
+            st.dataframe(det.style.format("{:g}", subset=[c for c in present_v if c != 'Giocatore']).set_properties(**{'font-weight': 'bold'}, subset=['Giocatore']), hide_index=True, use_container_width=True)
