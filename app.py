@@ -67,15 +67,7 @@ df_vincoli = carica_csv(f_vinc)
 if df_rose is not None:
     df_rose = df_rose.dropna(subset=['Fantasquadra', 'Nome'])
     df_rose = pulisci_nomi(df_rose, 'Fantasquadra')
-    # Arrotondamento prezzi all'intero
+    # Prezzi interi senza decimali
     df_rose['Prezzo'] = pd.to_numeric(df_rose['Prezzo'], errors='coerce').fillna(0).astype(int)
 
-    tabs = st.tabs(["🏆 Classifiche", "📊 Economia", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
-
-    # --- TAB CLASSIFICHE ---
-    with tabs[0]:
-        cl1, cl2 = st.columns(2)
-        with cl1:
-            st.subheader("🔥 Scontri Diretti")
-            if df_scontri is not None:
-                df
+    tabs = st.tabs(["🏆 Class
