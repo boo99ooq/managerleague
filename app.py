@@ -54,120 +54,86 @@ def process_df(df, col_name):
 
 f_sc, f_pt, f_rs, f_vn = process_df(f_sc, 'Giocatore'), process_df(f_pt, 'Giocatore'), process_df(f_rs, 'Fantasquadra'), process_df(f_vn, 'Squadra')
 
+# Calcolo vincoli preventivo per simulatore e budget
+if f_vn is not None:
+    for c in ['Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29']:
+        f_vn[c] = f_vn[c].apply(cv) if c in f_vn.columns else 0.0
+    f_vn['Spesa Complessiva'] = f_vn['Costo 2026-27'] + f_vn.get('Costo 2027-28', 0) + f_vn.get('Costo 2028-29', 0)
+
 def style_rose(row):
     colors = {'Portiere':'#E3F2FD','Difensore':'#E8F5E9','Centrocampista':'#FFFDE7','Attaccante':'#FFEBEE','Giovani':'#F3E5F5'}
     return [f'background-color: {colors.get(row["Ruolo"], "#FFFFFF")}; color: black; font-weight: bold;'] * len(row)
 
-# Sidebar Ricerca
-if f_rs is not None:
-    st.sidebar.header("🔍 Cerca Giocatore")
-    s = st.sidebar.text_input("Nome:").upper()
-    if s:
-        res = f_rs[f_rs['Nome'].str.upper().str.contains(s, na=False)].copy()
-        if not res.empty:
-            st.sidebar.dataframe(res[['Nome', 'Fantasquadra', 'Prezzo']].style.format({"Prezzo": "{:g}"}).set_properties(**{'font-weight': 'bold'}), hide_index=True)
+# TABS
+t = st.tabs(["🏆 Classifiche", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli", "🔄 Scambi"])
 
-t = st.tabs(["🏆 Classifiche", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
-
-with t[0]: # CLASSIFICHE + GRAFICO ZOOM
+with t[0]: # CLASSIFICHE
     c1, c2 = st.columns(2)
     if f_sc is not None:
         with c1:
             st.subheader("🔥 Scontri")
             cols_sc = f_sc.select_dtypes(include=['number']).columns
-            st.dataframe(f_sc.style.background_gradient(subset=cols_sc, cmap='Blues').set_properties(**{'font-weight': 'bold'}), hide_index=True, use_container_width=True)
+            st.dataframe(f_sc.style.background_gradient(subset=cols_sc, cmap='Blues'), hide_index=True, use_container_width=True)
     if f_pt is not None:
         with c2:
             st.subheader("🎯 Punti")
             f_pt['Punti Totali'] = f_pt['Punti Totali'].apply(cv)
-            f_pt['Media'] = f_pt['Media'].apply(cv)
-            st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali','Media']].sort_values('Posizione').style.background_gradient(subset=['Punti Totali'], cmap='Greens').format({"Punti Totali": "{:g}", "Media": "{:.2f}"}).set_properties(**{'font-weight': 'bold'}), hide_index=True, use_container_width=True)
-        
+            st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali','Media']].sort_values('Posizione').style.background_gradient(subset=['Punti Totali'], cmap='Greens').format({"Punti Totali": "{:g}", "Media": "{:.2f}"}), hide_index=True, use_container_width=True)
         st.write("---")
-        st.subheader("📊 Analisi Gap Punteggio")
-        p_min = f_pt['Punti Totali'].min() - 5
-        p_max = f_pt['Punti Totali'].max() + 5
-        base = alt.Chart(f_pt).encode(
-            x=alt.X('Giocatore:N', sort='-y', title='Squadra'),
-            y=alt.Y('Punti Totali:Q', scale=alt.Scale(domain=[p_min, p_max]), title='Punti'),
-            tooltip=['Giocatore', 'Punti Totali']
-        )
-        chart = base.mark_line(point=True, color='green', strokeWidth=3) + base.mark_text(align='center', baseline='bottom', dy=-10).encode(text='Punti Totali:Q')
-        st.altair_chart(chart.properties(height=350), use_container_width=True)
+        p_min, p_max = f_pt['Punti Totali'].min() - 5, f_pt['Punti Totali'].max() + 5
+        base = alt.Chart(f_pt).encode(x=alt.X('Giocatore:N', sort='-y'), y=alt.Y('Punti Totali:Q', scale=alt.Scale(domain=[p_min, p_max])))
+        st.altair_chart((base.mark_line(point=True, color='green') + base.mark_text(dy=-10).encode(text='Punti Totali:Q')).properties(height=350), use_container_width=True)
 
-if f_rs is not None:
-    f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
-    with t[1]: # BUDGET + GRAFICO BILANCIO
+with t[1]: # BUDGET
+    if f_rs is not None:
+        f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
         st.subheader("💰 Bilancio Globale")
         eco = f_rs.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
         eco.columns = ['Fantasquadra', 'Valore Rosa']
         eco['Crediti Disponibili'] = eco['Fantasquadra'].map(bg_ex).fillna(0)
-        
         if f_vn is not None:
-            c26 = f_vn['Costo 2026-27'].apply(cv); c27 = f_vn.get('Costo 2027-28', pd.Series(0.0, index=f_vn.index)).apply(cv); c28 = f_vn.get('Costo 2028-29', pd.Series(0.0, index=f_vn.index)).apply(cv)
-            f_vn['Vincolo Totale'] = c26 + c27 + c28
-            v_sum = f_vn.groupby('Squadra')['Vincolo Totale'].sum().reset_index()
+            v_sum = f_vn.groupby('Squadra')['Spesa Complessiva'].sum().reset_index()
             v_sum.columns = ['Fantasquadra', 'Vincoli']
             eco = pd.merge(eco, v_sum, on='Fantasquadra', how='left').fillna(0)
         else: eco['Vincoli'] = 0
         eco['Totale'] = eco['Valore Rosa'] + eco['Crediti Disponibili'] + eco['Vincoli']
-        
-        st.dataframe(
-            eco.sort_values('Totale', ascending=False).style
-            .background_gradient(subset=['Valore Rosa'], cmap='YlOrRd')
-            .background_gradient(subset=['Crediti Disponibili'], cmap='GnBu')
-            .background_gradient(subset=['Vincoli'], cmap='Purples')
-            .background_gradient(subset=['Totale'], cmap='YlGn')
-            .format({"Valore Rosa": "{:g}", "Crediti Disponibili": "{:g}", "Vincoli": "{:g}", "Totale": "{:g}"})
-            .set_properties(**{'font-weight': 'bold'}),
-            hide_index=True, use_container_width=True
-        )
+        st.dataframe(eco.sort_values('Totale', ascending=False).style.background_gradient(subset=['Valore Rosa'], cmap='YlOrRd').background_gradient(subset=['Crediti Disponibili'], cmap='GnBu').background_gradient(subset=['Vincoli'], cmap='Purples').background_gradient(subset=['Totale'], cmap='YlGn').format({"Valore Rosa": "{:g}", "Crediti Disponibili": "{:g}", "Vincoli": "{:g}", "Totale": "{:g}"}), hide_index=True, use_container_width=True)
 
-        # GRAFICO BILANCI IMPILATI
-        st.write("---")
-        st.subheader("📊 Confronto Risorse Finanziarie")
-        
-        # Trasformiamo i dati per Altair (formato "long")
-        eco_melted = eco.melt(id_vars='Fantasquadra', value_vars=['Valore Rosa', 'Crediti Disponibili', 'Vincoli'], 
-                              var_name='Tipo Spesa', value_name='Crediti')
-        
-        chart_budget = alt.Chart(eco_melted).mark_bar().encode(
-            x=alt.X('sum(Crediti):Q', title='Totale Crediti'),
-            y=alt.Y('Fantasquadra:N', sort='-x', title='Fantasquadra'),
-            color=alt.Color('Tipo Spesa:N', 
-                            scale=alt.Scale(domain=['Valore Rosa', 'Crediti Disponibili', 'Vincoli'], 
-                                          range=['#ff9e9e', '#9ecbff', '#d19eff']),
-                            title='Legenda'),
-            tooltip=['Fantasquadra', 'Tipo Spesa', 'Crediti']
-        ).properties(height=400)
-        
-        st.altair_chart(chart_budget, use_container_width=True)
-
-    with t[2]: # STRATEGIA
+with t[2]: # STRATEGIA
+    if f_rs is not None:
         st.subheader("🧠 Strategia")
         piv = f_rs.pivot_table(index='Fantasquadra', columns='Ruolo', values='Nome', aggfunc='count').fillna(0).astype(int)
-        st.dataframe(piv.style.set_properties(**{'font-weight': 'bold'}), use_container_width=True)
+        st.dataframe(piv, use_container_width=True)
 
-    with t[3]: # ROSE
+with t[3]: # ROSE
+    if f_rs is not None:
         sq_list = sorted([x for x in f_rs['Fantasquadra'].unique() if x != "SKIP"])
         sq = st.selectbox("Seleziona Squadra:", sq_list)
-        df_sq = f_rs[f_rs['Fantasquadra'] == sq][['Ruolo', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False).copy()
+        df_sq = f_rs[f_rs['Fantasquadra'] == sq][['Ruolo', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False)
         st.dataframe(df_sq.style.apply(style_rose, axis=1).format({"Prezzo": "{:g}"}), hide_index=True, use_container_width=True)
 
 with t[4]: # VINCOLI
-    st.subheader("📅 Gestione Vincoli")
     if f_vn is not None:
-        for c in ['Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29', 'Durata (anni)']:
-            if c in f_vn.columns: f_vn[c] = f_vn[c].apply(cv)
-            else: f_vn[c] = 0.0
-        f_vn['Spesa Complessiva'] = f_vn['Costo 2026-27'] + f_vn.get('Costo 2027-28', 0) + f_vn.get('Costo 2028-29', 0)
-        
+        st.subheader("📅 Gestione Vincoli")
         v1, v2 = st.columns([1, 2.5])
         with v1:
             deb = f_vn.groupby('Squadra')['Spesa Complessiva'].sum().reset_index().sort_values('Spesa Complessiva', ascending=False)
-            st.dataframe(deb.style.background_gradient(subset=['Spesa Complessiva'], cmap='Oranges').format({"Spesa Complessiva": "{:g}"}).set_properties(**{'font-weight': 'bold'}), hide_index=True, use_container_width=True)
+            st.dataframe(deb.style.background_gradient(subset=['Spesa Complessiva'], cmap='Oranges').format({"Spesa Complessiva": "{:g}"}), hide_index=True, use_container_width=True)
         with v2:
             sv = st.selectbox("Squadra:", sorted([x for x in f_vn['Squadra'].unique() if x != "SKIP"]), key="v_sel")
-            cols_v = ['Giocatore', 'Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29', 'Durata (anni)', 'Spesa Complessiva']
-            det = f_vn[f_vn['Squadra'] == sv][[c for c in cols_v if c in f_vn.columns]].dropna(subset=['Giocatore'])
-            st.dataframe(det.style.background_gradient(subset=['Spesa Complessiva'], cmap='YlOrBr').format({c: "{:g}" for c in det.columns if c != 'Giocatore'}).set_properties(**{'font-weight': 'bold'}), hide_index=True, use_container_width=True)
+            det = f_vn[f_vn['Squadra'] == sv].dropna(subset=['Giocatore'])
+            st.dataframe(det.style.background_gradient(subset=['Spesa Complessiva'], cmap='YlOrBr').format({c: "{:g}" for c in det.columns if c != 'Giocatore' and c != 'Squadra'}), hide_index=True, use_container_width=True)
+
+with t[5]: # SIMULATORE SCAMBI
+    st.subheader("🔄 Simulatore Scambi (Punto di Incontro)")
+    if f_rs is not None:
+        sq_l = sorted([x for x in f_rs['Fantasquadra'].unique() if x != "SKIP"])
+        c1, c2 = st.columns(2)
+        
+        with c1:
+            s_a = st.selectbox("Squadra A:", sq_l, key="sa")
+            g_a = st.selectbox("Cede:", f_rs[f_rs['Fantasquadra']==s_a]['Nome'], key="ga")
+            v_a = f_rs[f_rs['Nome']==g_a]['Prezzo'].values[0]
+            vn_a = f_vn[f_vn['Giocatore']==g_a]['Spesa Complessiva'].values[0] if (f_vn is not None and g_a in f_vn['Giocatore'].values) else 0.0
+            vt_a = v_a + vn_a
+            st.metric(f"Valore {g_a}", f"{vt_a:g}", help="Pre
