@@ -9,13 +9,12 @@ st.markdown("""
     .stApp { background-color: white; }
     div[data-testid="stDataFrame"] * { color: #1a1a1a !important; font-weight: bold !important; }
     header { visibility: hidden; }
-    /* Stile per il riquadro del calcolo tagli */
     .cut-box {
         background-color: #f8f9fa;
         padding: 20px;
         border-radius: 10px;
         border-left: 5px solid #ff4b4b;
-        margin-top: 10px;
+        margin-bottom: 20px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -63,10 +62,9 @@ if f_vn is not None:
     f_vn['Anni_T'] = f_vn[v_cols].gt(0).sum(axis=1).astype(str) + " anni"
     f_vn = f_vn.drop_duplicates(subset=['Sq_N', 'Giocatore'])
 
-# --- TABS ---
+# --- CREAZIONE TAB ---
 t = st.tabs(["🏆 Classifiche", "💰 Budget", "🏃 Rose", "📅 Vincoli", "🔄 Scambi", "✂️ Tagli"])
 
-# [TAB 0, 1, 2, 3, 4 RIMANGONO INVARIATI]
 with t[0]: # CLASSIFICHE
     c1, c2 = st.columns(2)
     if f_pt is not None:
@@ -97,7 +95,7 @@ with t[1]: # BUDGET
 with t[2]: # ROSE
     if f_rs is not None:
         lista_sq = sorted([s for s in f_rs['Squadra_N'].unique() if s])
-        sq = st.selectbox("Seleziona Squadra:", lista_sq)
+        sq = st.selectbox("Seleziona Squadra:", lista_sq, key="sq_rose")
         df_sq = f_rs[f_rs['Squadra_N'] == sq].copy()
         def color_ruoli(row):
             r = str(row['Ruolo']).upper()
@@ -109,7 +107,7 @@ with t[3]: # VINCOLI
     if f_vn is not None:
         st.subheader("📅 Dettaglio Vincoli")
         sq_list_v = sorted([s for s in f_vn['Sq_N'].unique() if s])
-        sq_v = st.selectbox("Filtra Squadra:", ["TUTTE"] + sq_list_v)
+        sq_v = st.selectbox("Filtra Squadra:", ["TUTTE"] + sq_list_v, key="sq_vinc")
         df_v_display = f_vn if sq_v == "TUTTE" else f_vn[f_vn['Sq_N'] == sq_v]
         st.dataframe(df_v_display[['Squadra', 'Giocatore', 'Tot_Vincolo', 'Anni_T']].sort_values('Tot_Vincolo', ascending=False).style.background_gradient(subset=['Tot_Vincolo'], cmap='Purples').format({"Tot_Vincolo": "{:g}"}), hide_index=True, use_container_width=True)
 
@@ -147,48 +145,31 @@ with t[4]: # SCAMBI
                     st.markdown(f"**{n}** | POST: **Base {max(0, nuovo_t-int(info['v']))} + Vinc {int(info['v'])}**")
                     st.caption(f"PRE: Base {int(info['p'])} + Vinc {int(info['v'])} (Tot: {int(info['t'])})")
 
-with t[5]: # ✂️ NUOVA TAB TAGLI
-    st.subheader("✂️ Simulatore Tagli Giocatori")
+with t[5]: # ✂️ TAB TAGLI (Menu interno)
+    st.subheader("✂️ Simulatore Tagli")
+    col_t_sel1, col_t_sel2 = st.columns(2)
     
-    # SIDEBAR PER SELEZIONE
-    st.sidebar.header("⚙️ Impostazioni Taglio")
-    lista_sq_taglio = sorted([s for s in f_rs['Squadra_N'].unique() if s])
-    sq_taglio = st.sidebar.selectbox("Seleziona Squadra:", lista_sq_taglio)
+    with col_t_sel1:
+        sq_t = st.selectbox("Seleziona Squadra per il taglio:", sorted(f_rs['Squadra_N'].unique()), key="sq_t_internal")
+    with col_t_sel2:
+        giocatori_sq = f_rs[f_rs['Squadra_N'] == sq_t]['Nome'].tolist()
+        gioc_t = st.selectbox("Seleziona Giocatore:", giocatori_sq, key="gioc_t_internal")
     
-    rosa_taglio = f_rs[f_rs['Squadra_N'] == sq_taglio]
-    gioc_taglio = st.sidebar.selectbox("Seleziona Giocatore da Tagliare:", rosa_taglio['Nome'].tolist())
-    
-    if gioc_taglio:
-        # Recupero Dati
-        val_rosa = rosa_taglio[rosa_taglio['Nome'] == gioc_taglio]['Prezzo_N'].iloc[0]
-        val_vinc = f_vn[f_vn['Giocatore'] == gioc_taglio]['Tot_Vincolo'].iloc[0] if (f_vn is not None and gioc_taglio in f_vn['Giocatore'].values) else 0
+    if gioc_t:
+        v_p = f_rs[(f_rs['Squadra_N'] == sq_t) & (f_rs['Nome'] == gioc_t)]['Prezzo_N'].iloc[0]
+        v_v = f_vn[f_vn['Giocatore'] == gioc_t]['Tot_Vincolo'].iloc[0] if (f_vn is not None and gioc_t in f_vn['Giocatore'].values) else 0
         
-        restituzione_rosa = val_rosa * 0.6
-        restituzione_vinc = val_vinc * 0.6
-        totale_restituito = round(restituzione_rosa + restituzione_vinc)
+        rimborso = round((v_p + v_v) * 0.6)
         
-        # DISPLAY CENTRALE
-        c_taglio1, c_taglio2 = st.columns([2, 1])
-        
-        with c_taglio1:
+        c_res1, c_res2 = st.columns([2,1])
+        with c_res1:
             st.markdown(f"""
             <div class="cut-box">
-                <h3>📉 Analisi Taglio: {gioc_taglio}</h3>
-                <p>Squadra di appartenenza: <b>{sq_taglio}</b></p>
-                <hr>
-                <ul>
-                    <li>Valore Prezzo Rosa: <b>{int(val_rosa)}</b> &rarr; Rimborso (60%): <b>{restituzione_rosa:.1f}</b></li>
-                    <li>Valore Totale Vincoli: <b>{int(val_vinc)}</b> &rarr; Rimborso (60%): <b>{restituzione_vinc:.1f}</b></li>
-                </ul>
-                <h2 style="color: #ff4b4b;">💰 Cifra Restituita: {totale_restituito} crediti</h2>
+                <h3>💰 Calcolo Rimborso: {gioc_t}</h3>
+                <p>Prezzo Rosa: {int(v_p)} | Vincoli: {int(v_v)}</p>
+                <h2 style="color: #ff4b4b;">Crediti Restituiti (60%): {rimborso}</h2>
             </div>
             """, unsafe_allow_html=True)
-            
-        with c_taglio2:
-            st.write("### 📊 Impatto Budget")
-            # Calcolo budget attuale per la metrica
-            budget_attuale = bu[bu['Squadra'] == sq_taglio]['Crediti Disponibili'].iloc[0] if sq_taglio in bu['Squadra'].values else 0
-            st.metric("Budget Pre-Taglio", f"{budget_attuale:g}")
-            st.metric("Budget Post-Taglio", f"{budget_attuale + totale_restituito:g}", delta=f"+{totale_restituito}")
-            
-        st.warning("⚠️ Nota: Il taglio di un giocatore comporta la perdita definitiva del diritto alle prestazioni sportive e ai vincoli pluriennali associati.")
+        with c_res2:
+            cred_att = bu[bu['Squadra'] == sq_t]['Crediti Disponibili'].iloc[0] if sq_t in bu['Squadra'].values else 0
+            st.metric("Nuovo Budget Teorico", f"{int(cred_att + rimborso)}", delta=f"+{rimborso}")
