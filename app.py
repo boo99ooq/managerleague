@@ -61,6 +61,8 @@ if f_rs is not None:
 
 t = st.tabs(["🏆 Classifiche", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
 
+# --- TABELLE ---
+
 with t[0]: # CLASSIFICHE
     c1, c2 = st.columns(2)
     with c1:
@@ -79,10 +81,11 @@ if f_rs is not None:
         eco = f_rs.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
         eco['Crediti Disponibili'] = eco['Fantasquadra'].map(bg_ex).fillna(0)
         if f_vn is not None:
-            c26 = f_vn['Costo 2026-27'].apply(cv)
-            c27 = f_vn.get('Costo 2027-28', pd.Series([0.0]*len(f_vn))).apply(cv)
-            c28 = f_vn.get('Costo 2028-29', pd.Series([0.0]*len(f_vn))).apply(cv)
-            f_vn['Vincolo Totale'] = c26 + c27 + c28
+            # Calcolo pulito per il budget
+            c26_b = f_vn['Costo 2026-27'].apply(cv)
+            c27_b = f_vn['Costo 2027-28'].apply(cv) if 'Costo 2027-28' in f_vn.columns else pd.Series(0.0, index=f_vn.index)
+            c28_b = f_vn['Costo 2028-29'].apply(cv) if 'Costo 2028-29' in f_vn.columns else pd.Series(0.0, index=f_vn.index)
+            f_vn['Vincolo Totale'] = c26_b + c27_b + c28_b
             v_sum = f_vn.groupby('Squadra')['Vincolo Totale'].sum().reset_index()
             v_sum.columns = ['Fantasquadra', 'Vincoli']
             eco = pd.merge(eco, v_sum, on='Fantasquadra', how='left').fillna(0)
@@ -109,12 +112,21 @@ if f_rs is not None:
         df_sq = f_rs[f_rs['Fantasquadra'] == sq][['Ruolo', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False)
         st.dataframe(df_sq.style.apply(color_ruolo, axis=1).set_properties(**{'font-weight': 'bold'}, subset=['Nome']).format({"Prezzo": "{:g}"}), hide_index=True, use_container_width=True)
 
-with t[4]: # VINCOLI - ORDINE COLONNE CORRETTO
+with t[4]: # VINCOLI - FIX TYPEERROR
     st.subheader("📅 Gestione Vincoli")
     if f_vn is not None:
-        if 'Durata (anni)' in f_vn.columns: f_vn['Durata (anni)'] = f_vn['Durata (anni)'].apply(cv)
-        # Assicuriamoci che Spesa Complessiva sia aggiornata
-        f_vn['Spesa Complessiva'] = f_vn['Costo 2026-27'] + f_vn.get('Costo 2027-28', 0) + f_vn.get('Costo 2028-29', 0)
+        # Conversione sicura per tutte le colonne potenziali
+        c_26 = f_vn['Costo 2026-27'].apply(cv)
+        c_27 = f_vn['Costo 2027-28'].apply(cv) if 'Costo 2027-28' in f_vn.columns else pd.Series(0.0, index=f_vn.index)
+        c_28 = f_vn['Costo 2028-29'].apply(cv) if 'Costo 2028-29' in f_vn.columns else pd.Series(0.0, index=f_vn.index)
+        dur = f_vn['Durata (anni)'].apply(cv) if 'Durata (anni)' in f_vn.columns else pd.Series(0.0, index=f_vn.index)
+        
+        # Riapplichiamo i valori puliti al dataframe originale per la visualizzazione
+        f_vn['Costo 2026-27'] = c_26
+        if 'Costo 2027-28' in f_vn.columns: f_vn['Costo 2027-28'] = c_27
+        if 'Costo 2028-29' in f_vn.columns: f_vn['Costo 2028-29'] = c_28
+        f_vn['Durata (anni)'] = dur
+        f_vn['Spesa Complessiva'] = c_26 + c_27 + c_28
         
         v1, v2 = st.columns([1, 2.5])
         with v1:
@@ -124,7 +136,6 @@ with t[4]: # VINCOLI - ORDINE COLONNE CORRETTO
         with v2:
             lista_sq = sorted([x for x in f_vn['Squadra'].unique() if x != "SKIP"])
             sv = st.selectbox("Seleziona Squadra per Dettaglio:", lista_sq, key="v_sel")
-            # Ordine richiesto: Giocatore, Costi vari, Durata, Spesa Complessiva finale
             cols_v = ['Giocatore', 'Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29', 'Durata (anni)', 'Spesa Complessiva']
             present_v = [c for c in cols_v if c in f_vn.columns]
             det = f_vn[f_vn['Squadra'] == sv][present_v].dropna(subset=['Giocatore'])
