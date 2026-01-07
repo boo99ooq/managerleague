@@ -7,15 +7,13 @@ st.set_page_config(page_title="MuyFantaManager", layout="wide")
 st.markdown("<style>.stApp{background-color:#f4f7f6;} .stTabs{background-color:white; border-radius:10px; padding:10px;}</style>", unsafe_allow_html=True)
 st.title("⚽ MuyFantaManager")
 
-# Configurazione Budget e Mappatura nomi (estesa per accorpare tutto)
+# Configurazione Budget e Mappatura nomi per accorpare tutto
 bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
 map_n = {
     "NICO FABIO": "NICHOLAS", 
     "MATTEO STEFANO": "MATTEO", 
     "NICHO": "NICHOLAS", 
     "NICHO:79": "NICHOLAS",
-    "NICHOLAS": "NICHOLAS",
-    "MATTEO": "MATTEO",
     "DANI ROBI": "DANI ROBI"
 }
 
@@ -26,12 +24,9 @@ def cv(v):
 
 def clean_name(s):
     """Pulizia totale: rimuove asterischi, numeri dopo i due punti e spazi"""
-    if pd.isna(s): return ""
-    # Rimuove tutto ciò che viene dopo un eventuale ':' (es. NICHO:79 -> NICHO)
+    if pd.isna(s) or str(s).strip() == "": return "SKIP"
     s = str(s).split(':')[0]
-    # Toglie asterischi e spazi bianchi
     s = s.replace('*', '').replace('"', '').strip().upper()
-    # Applica mappatura finale
     return map_n.get(s, s)
 
 def ld(f):
@@ -45,13 +40,27 @@ def ld(f):
         return df.dropna(how='all')
     except: return None
 
-# 2. CARICAMENTO E PULIZIA
+# 2. CARICAMENTO E PULIZIA RIGOROSA
 f_sc, f_pt, f_rs, f_vn = ld("scontridiretti.csv"), ld("classificapunti.csv"), ld("rose_complete.csv"), ld("vincoli.csv")
 
-if f_sc is not None: f_sc['Giocatore'] = f_sc['Giocatore'].apply(clean_name)
-if f_pt is not None: f_pt['Giocatore'] = f_pt['Giocatore'].apply(clean_name)
-if f_rs is not None: f_rs['Fantasquadra'] = f_rs['Fantasquadra'].apply(clean_name)
-if f_vn is not None: f_vn['Squadra'] = f_vn['Squadra'].apply(clean_name)
+# Filtriamo e puliamo i file per evitare i "None"
+def process_df(df, col_name):
+    if df is not None:
+        df = df.dropna(subset=[col_name]) # Rimuove righe dove il nome è NaN
+        df[col_name] = df[col_name].apply(clean_name)
+        df = df[df[col_name] != "SKIP"] # Rimuove righe marcate come vuote
+        return df
+    return None
+
+f_sc = process_df(f_sc, 'Giocatore')
+f_pt = process_df(f_pt, 'Giocatore')
+f_rs = process_df(f_rs, 'Fantasquadra')
+f_vn = process_df(f_vn, 'Squadra')
+
+# Pulizia specifica per i nomi dei giocatori (per togliere i "None" dai Vincoli)
+if f_vn is not None:
+    f_vn = f_vn.dropna(subset=['Giocatore'])
+    f_vn = f_vn[f_vn['Giocatore'].astype(str).str.upper() != 'NONE']
 
 # SIDEBAR RICERCA
 if f_rs is not None:
@@ -64,8 +73,6 @@ if f_rs is not None:
         else: st.sidebar.warning("Nessuno trovato")
 
 t = st.tabs(["🏆 Classifiche", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
-
-# --- TABELLE ---
 
 with t[0]: # CLASSIFICHE
     c1, c2 = st.columns(2)
@@ -106,8 +113,7 @@ if f_rs is not None:
             st.dataframe(f_rs.loc[idx, ['Fantasquadra', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False).style.format({"Prezzo": "{:g}"}), hide_index=True, use_container_width=True)
 
     with t[3]: # ROSE
-        # Fix duplicati menu Rose
-        sq_list = sorted(list(set(f_rs['Fantasquadra'].unique())))
+        sq_list = sorted([x for x in f_rs['Fantasquadra'].unique() if x != "SKIP"])
         sq = st.selectbox("Seleziona Squadra:", sq_list)
         st.dataframe(f_rs[f_rs['Fantasquadra'] == sq][['Ruolo', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False).style.format({"Prezzo": "{:g}"}), hide_index=True, use_container_width=True)
 
@@ -123,8 +129,9 @@ with t[4]: # VINCOLI
             deb = f_vn.groupby('Squadra')['Costo 2026-27'].sum().reset_index().sort_values('Costo 2026-27', ascending=False)
             st.dataframe(deb.style.format({"Costo 2026-27": "{:g}"}), hide_index=True, use_container_width=True)
         with v2:
-            # Fix duplicati menu Vincoli: set() rimuove i duplicati, sorted() li ordina
-            lista_sq = sorted(list(set(f_vn['Squadra'].unique())))
+            lista_sq = sorted([x for x in f_vn['Squadra'].unique() if x != "SKIP"])
             sv = st.selectbox("Seleziona Squadra per Dettaglio:", lista_sq, key="v_sel")
             det = f_vn[f_vn['Squadra'] == sv][['Giocatore', 'Costo 2026-27', 'Durata (anni)']]
+            # Filtro finale per rimuovere righe con giocatore nullo
+            det = det.dropna(subset=['Giocatore'])
             st.dataframe(det.style.format({"Costo 2026-27": "{:g}", "Durata (anni)": "{:g}"}), hide_index=True, use_container_width=True)
