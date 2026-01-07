@@ -28,7 +28,7 @@ def ld(f):
 
 f_sc, f_pt, f_rs, f_vn = ld("scontridiretti.csv"), ld("classificapunti.csv"), ld("rose_complete.csv"), ld("vincoli.csv")
 
-# --- RICERCA GIOCATORE NELLA SIDEBAR ---
+# SIDEBAR RICERCA
 if f_rs is not None:
     st.sidebar.header("🔍 Cerca Giocatore")
     s = st.sidebar.text_input("Nome:").upper()
@@ -58,15 +58,30 @@ with t[0]: # CLASSIFICHE
 if f_rs is not None:
     f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
     f_rs['Fantasquadra'] = f_rs['Fantasquadra'].str.upper().str.strip().replace(map_n)
+    
     with t[1]: # BUDGET
         st.subheader("💰 Bilancio")
         eco = f_rs.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
         eco['Extra'] = eco['Fantasquadra'].map(bg_ex).fillna(0)
         eco['Totale'] = (eco['Prezzo'] + eco['Extra']).astype(int)
         st.dataframe(eco.sort_values('Totale', ascending=False), hide_index=True, use_container_width=True)
+    
     with t[2]: # STRATEGIA
-        st.subheader("🧠 Ruoli")
-        st.dataframe(f_rs.pivot_table(index='Fantasquadra', columns='Ruolo', values='Nome', aggfunc='count').fillna(0).astype(int), use_container_width=True)
+        st.subheader("🧠 Strategia")
+        cs1, cs2 = st.columns([1.5, 1])
+        with cs1:
+            st.write("**Distribuzione Ruoli**")
+            piv = f_rs.pivot_table(index='Fantasquadra', columns='Ruolo', values='Nome', aggfunc='count').fillna(0).astype(int)
+            # Ordinamento ruoli richiesto
+            r_ord = ['Portiere', 'Difensore', 'Centrocampista', 'Attaccante', 'Giovani']
+            col_esistenti = [r for r in r_ord if r in piv.columns]
+            st.dataframe(piv[col_esistenti], use_container_width=True)
+        with cs2:
+            st.write("**💎 Top Player per Squadra**")
+            idx = f_rs.groupby('Fantasquadra')['Prezzo'].idxmax()
+            top = f_rs.loc[idx, ['Fantasquadra', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False)
+            st.dataframe(top, hide_index=True, use_container_width=True)
+
     with t[3]: # ROSE
         sq = st.selectbox("Squadra:", sorted(f_rs['Fantasquadra'].unique()))
         st.dataframe(f_rs[f_rs['Fantasquadra'] == sq][['Ruolo', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False), hide_index=True, use_container_width=True)
