@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 
-# 1. SETUP
+# 1. SETUP E STILE
 st.set_page_config(page_title="Lega", layout="wide")
 st.markdown("<style>.stApp{background-color:#e8f5e9;} .stTabs, .stDataFrame{background-color:white; border-radius:10px; padding:5px;}</style>", unsafe_allow_html=True)
 st.title("⚽ Centro Direzionale Fantalega")
@@ -24,9 +24,10 @@ def clean_n(df, c):
     return df
 
 def style_c(df):
+    # Forza allineamento centrale su dati e testate
     return df.style.set_properties(**{'text-align': 'center'}).set_table_styles([dict(selector='th', props=[('text-align', 'center')])])
 
-# 4. CARICAMENTO
+# 4. DATI
 f_sc = get_df("scontridiretti.csv")
 f_pt = get_df("classificapunti.csv")
 f_rs = get_df("rose_complete.csv")
@@ -47,23 +48,5 @@ if any([f_sc is not None, f_pt is not None, f_rs is not None, f_vn is not None])
                 st.write("🎯 **Punti**")
                 f_pt = clean_n(f_pt, 'Giocatore')
                 for c in ['Punti Totali', 'Media']:
-                    if c in f_pt.columns: 
-                        f_pt[c] = f_pt[c].astype(str).str.replace(',','.').apply(pd.to_numeric, errors='coerce')
-                st.dataframe(style_c(f_pt[['Posizione','Giocatore','Punti Totali','Media']]), hide_index=True, use_container_width=True)
-
-    if f_rs is not None:
-        # Identificazione colonne rose (Semplificata senza next)
-        cols = f_rs.columns
-        f_c = cols[0]
-        n_c = cols[1]
-        r_c = cols[2]
-        p_c = cols[-1]
-        
-        f_rs = clean_n(f_rs, f_c)
-        f_rs[p_c] = pd.to_numeric(f_rs[p_c], errors='coerce').fillna(0).astype(int)
-
-        with t[1]:
-            st.write("💰 **Bilancio**")
-            eco = f_rs.groupby(f_c)[p_c].sum().reset_index()
-            eco['Extra'] = eco[f_c].map(budgets).fillna(0)
-            eco['Totale'] = (
+                    if c in f_pt.columns: f_pt[c] = f_pt[c].astype(str).str.replace(',','.').apply(pd.to_numeric, errors='coerce')
+                st.dataframe(style_c(f_pt[['Posizione','Giocatore','Punti Totali','Media
