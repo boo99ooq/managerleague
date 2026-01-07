@@ -22,7 +22,7 @@ def apply_style():
 apply_style()
 st.title("⚽ Centro Direzionale Fantalega")
 
-# 2. BUDGET FISSI (FEBBRAIO)
+# 2. BUDGET FISSI
 budgets_fisso = {
     "GIANNI": 102.5, "DANI ROBI": 164.5, "MARCO": 131.0, "PIETRO": 101.5,
     "PIERLUIGI": 105.0, "GIGI": 232.5, "ANDREA": 139.0, "GIUSEPPE": 136.5,
@@ -38,43 +38,82 @@ def pulisci_nomi(df, col):
 
 def carica_dati(file_input, nome_locale):
     if file_input is not None:
-        return pd.read_csv(file_input, sep=',', skip_blank_lines=True, encoding='utf-8-sig')
-    if os.path.exists(nome_locale):
+        df = pd.read_csv(file_input, sep=',', skip_blank_lines=True, encoding='utf-8-sig')
+    elif os.path.exists(nome_locale):
         df = pd.read_csv(nome_locale, sep=',', skip_blank_lines=True, encoding='utf-8-sig')
-        df.columns = df.columns.str.strip()
-        return df.dropna(how='all')
-    return None
+    else:
+        return None
+    df.columns = df.columns.str.strip()
+    return df.dropna(how='all')
 
 # 4. CARICAMENTO DATI
-st.sidebar.header("📂 Gestione File")
+st.sidebar.header("📂 Stato File su GitHub")
 f_sc = carica_dati(st.sidebar.file_uploader("Scontri", type="csv"), "scontridiretti.csv")
 f_pt = carica_dati(st.sidebar.file_uploader("Punti", type="csv"), "classificapunti.csv")
 f_rs = carica_dati(st.sidebar.file_uploader("Rose", type="csv"), "rose_complete.csv")
 f_vn = carica_dati(st.sidebar.file_uploader("Vincoli", type="csv"), "vincoli.csv")
 
+# Indicatori sidebar
+st.sidebar.write("✅ Scontri" if f_sc is not None else "❌ scontridiretti.csv")
+st.sidebar.write("✅ Punti" if f_pt is not None else "❌ classificapunti.csv")
+st.sidebar.write("✅ Rose" if f_rs is not None else "❌ rose_complete.csv")
+st.sidebar.write("✅ Vincoli" if f_vn is not None else "❌ vincoli.csv")
+
 # 5. LOGICA TAB
 if any([f_sc is not None, f_pt is not None, f_rs is not None, f_vn is not None]):
     tabs = st.tabs(["🏆 Classifiche", "📊 Economia", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
 
-    # --- TAB CLASSIFICHE ---
     with tabs[0]:
         c1, c2 = st.columns(2)
         with c1:
-            st.subheader("🔥 Scontri Diretti")
             if f_sc is not None:
+                st.subheader("🔥 Scontri Diretti")
                 f_sc = pulisci_nomi(f_sc, 'Giocatore')
                 st.dataframe(f_sc, hide_index=True, use_container_width=True)
         with c2:
-            st.subheader("🎯 Punti Totali")
             if f_pt is not None:
+                st.subheader("🎯 Punti Totali")
                 f_pt = pulisci_nomi(f_pt, 'Giocatore')
                 for c in ['Punti Totali', 'Media']:
                     if c in f_pt.columns:
                         f_pt[c] = f_pt[c].astype(str).str.replace(',', '.').pipe(pd.to_numeric, errors='coerce').fillna(0)
                 st.dataframe(f_pt[['Posizione', 'Giocatore', 'Punti Totali', 'Media']], hide_index=True, use_container_width=True)
 
-    # --- TAB ECONOMIA ---
     with tabs[1]:
-        st.subheader("💰 Bilancio Rose")
         if f_rs is not None:
+            st.subheader("💰 Bilancio Rose")
             f_col = next((c for c in f_rs.columns if 'fantasquadra' in c.lower()), f_rs.columns[0])
+            p_col = next((c for c in f_rs.columns if 'prezzo' in c.lower()), f_rs.columns[-1])
+            f_rs = pulisci_nomi(f_rs, f_col)
+            f_rs[p_col] = pd.to_numeric(f_rs[p_col], errors='coerce').fillna(0)
+            eco = f_rs.groupby(f_col)[p_col].sum().reset_index()
+            eco.columns = ['Fantasquadra', 'Costo Rosa']
+            eco['Extra'] = eco['Fantasquadra'].map(budgets_fisso).fillna(0)
+            eco['Totale'] = (eco['Costo Rosa'] + eco['Extra']).astype(int)
+            st.dataframe(eco.sort_values('Totale', ascending=False), hide_index=True, use_container_width=True)
+
+    with tabs[2]:
+        if f_rs is not None:
+            st.subheader("📋 Analisi Strategica")
+            cx, cy = st.columns([1.5, 1])
+            f_col = next((c for c in f_rs.columns if 'fantasquadra' in c.lower()), f_rs.columns[0])
+            n_col = next((c for c in f_rs.columns if 'nome' in c.lower()), f_rs.columns[1])
+            p_col = next((c for c in f_rs.columns if 'prezzo' in c.lower()), f_rs.columns[-1])
+            r_col = next((c for c in f_rs.columns if 'ruolo' in c.lower()), 'Ruolo')
+            with cx:
+                ord_r = ['Portiere', 'Difensore', 'Centrocampista', 'Attaccante', 'Giovani']
+                piv = f_rs.pivot_table(index=f_col, columns=r_col, values=n_col, aggfunc='count').fillna(0).astype(int)
+                st.dataframe(piv[[r for r in ord_r if r in piv.columns]], use_container_width=True)
+            with cy:
+                st.write("**💎 Top Player per Squadra:**")
+                idx = f_rs.groupby(f_col)[p_col].idxmax()
+                st.dataframe(f_rs.loc[idx, [f_col, n_col, p_col]].sort_values(p_col, ascending=False), hide_index=True)
+
+    with tabs[3]:
+        if f_rs is not None:
+            st.subheader("🏃 Dettaglio Rose")
+            f_col = next((c for c in f_rs.columns if 'fantasquadra' in c.lower()), f_rs.columns[0])
+            n_col = next((c for c in f_rs.columns if 'nome' in c.lower()), f_rs.columns[1])
+            p_col = next((c for c in f_rs.columns if 'prezzo' in c.lower()), f_rs.columns[-1])
+            r_col = next((c for c in f_rs.columns if 'ruolo' in c.lower()), 'Ruolo')
+            sq = st.selectbox("Seleziona Squadra:", sorted(f_rs[f
