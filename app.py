@@ -47,14 +47,8 @@ f_sc, f_pt, f_rs, f_vn = process_df(f_sc, 'Giocatore'), process_df(f_pt, 'Giocat
 
 # Funzione per colorare i ruoli
 def color_ruolo(row):
-    colors = {
-        'Portiere': 'background-color: #f0f4ff',
-        'Difensore': 'background-color: #f0fff0',
-        'Centrocampista': 'background-color: #fffdf0',
-        'Attaccante': 'background-color: #fff0f0',
-        'Giovani': 'background-color: #fcf0ff'
-    }
-    return [colors.get(row['Ruolo'], '')] * len(row)
+    colors = {'Portiere': '#f0f4ff', 'Difensore': '#f0fff0', 'Centrocampista': '#fffdf0', 'Attaccante': '#fff0f0', 'Giovani': '#fcf0ff'}
+    return [f'background-color: {colors.get(row["Ruolo"], "")}'] * len(row)
 
 # Sidebar Ricerca
 if f_rs is not None:
@@ -63,7 +57,6 @@ if f_rs is not None:
     if s:
         res = f_rs[f_rs['Nome'].str.upper().str.contains(s, na=False)].copy()
         if not res.empty:
-            # Grassetto sul nome nella sidebar
             st.sidebar.dataframe(res[['Nome', 'Fantasquadra', 'Prezzo']].style.format({"Prezzo": "{:g}"}).set_properties(**{'font-weight': 'bold'}, subset=['Nome']), hide_index=True)
         else: st.sidebar.warning("Nessuno trovato")
 
@@ -79,7 +72,6 @@ with t[0]: # CLASSIFICHE
         st.subheader("🎯 Punti")
         if f_pt is not None:
             f_pt['Punti Totali'] = f_pt['Punti Totali'].apply(cv)
-            # Grassetto su Giocatore
             st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali','Media']].sort_values('Punti Totali', ascending=False).style.format({"Punti Totali": "{:g}", "Media": "{:.2f}"}).set_properties(**{'font-weight': 'bold'}, subset=['Giocatore']), hide_index=True, use_container_width=True)
 
 if f_rs is not None:
@@ -89,14 +81,20 @@ if f_rs is not None:
         eco = f_rs.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
         eco['Crediti Disponibili'] = eco['Fantasquadra'].map(bg_ex).fillna(0)
         if f_vn is not None:
+            # Calcoliamo il costo totale dei vincoli (incluso 2026-29)
             f_vn['Costo 2026-27'] = f_vn['Costo 2026-27'].apply(cv)
-            v_sum = f_vn.groupby('Squadra')['Costo 2026-27'].sum().reset_index()
+            f_vn['Costo 2028-29'] = f_vn.get('Costo 2028-29', pd.Series([0]*len(f_vn))).apply(cv) # Gestione se colonna non esiste
+            
+            # Somma dei due costi per il bilancio
+            f_vn['Vincolo Tot'] = f_vn['Costo 2026-27'] + f_vn['Costo 2028-29']
+            v_sum = f_vn.groupby('Squadra')['Vincolo Tot'].sum().reset_index()
             v_sum.columns = ['Fantasquadra', 'Vincoli']
             eco = pd.merge(eco, v_sum, on='Fantasquadra', how='left').fillna(0)
         else: eco['Vincoli'] = 0
+        
         eco['Totale'] = eco['Prezzo'] + eco['Crediti Disponibili'] + eco['Vincoli']
         st.dataframe(eco.sort_values('Totale', ascending=False).style.background_gradient(subset=['Totale'], cmap='RdYlGn').background_gradient(subset=['Crediti Disponibili'], cmap='YlGn').format({"Prezzo": "{:g}", "Crediti Disponibili": "{:g}", "Vincoli": "{:g}", "Totale": "{:g}"}), hide_index=True, use_container_width=True)
-    
+
     with t[2]: # STRATEGIA
         st.subheader("🧠 Strategia")
         cs1, cs2 = st.columns([1.5, 1])
@@ -107,28 +105,37 @@ if f_rs is not None:
         with cs2:
             st.write("**💎 Top Player**")
             idx = f_rs.groupby('Fantasquadra')['Prezzo'].idxmax()
-            # Grassetto sul nome del Top Player
             st.dataframe(f_rs.loc[idx, ['Fantasquadra', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False).style.format({"Prezzo": "{:g}"}).set_properties(**{'font-weight': 'bold'}, subset=['Nome']), hide_index=True, use_container_width=True)
 
-    with t[3]: # ROSE COLORATE + GRASSETTO
+    with t[3]: # ROSE
         st.subheader("🏃 Dettaglio Rose")
         sq_list = sorted([x for x in f_rs['Fantasquadra'].unique() if x != "SKIP"])
         sq = st.selectbox("Seleziona Squadra:", sq_list)
         df_sq = f_rs[f_rs['Fantasquadra'] == sq][['Ruolo', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False)
-        # Combinazione colori ruolo + grassetto sul nome
         st.dataframe(df_sq.style.apply(color_ruolo, axis=1).set_properties(**{'font-weight': 'bold'}, subset=['Nome']).format({"Prezzo": "{:g}"}), hide_index=True, use_container_width=True)
 
-with t[4]: # VINCOLI (GRASSETTO)
+with t[4]: # VINCOLI AGGIORNATI
     st.subheader("📅 Gestione Vincoli")
     if f_vn is not None:
+        # Pulizia e preparazione dati
         if 'Durata (anni)' in f_vn.columns: f_vn['Durata (anni)'] = f_vn['Durata (anni)'].apply(cv)
-        v1, v2 = st.columns([1, 2])
+        if 'Costo 2028-29' not in f_vn.columns: f_vn['Costo 2028-29'] = 0
+        f_vn['Costo 2028-29'] = f_vn['Costo 2028-29'].apply(cv)
+        
+        v1, v2 = st.columns([1, 2.5])
         with v1:
-            deb = f_vn.groupby('Squadra')['Costo 2026-27'].sum().reset_index().sort_values('Costo 2026-27', ascending=False)
-            st.dataframe(deb.style.format({"Costo 2026-27": "{:g}"}), hide_index=True, use_container_width=True)
+            st.write("**Riepilogo Investimenti (Totali)**")
+            # Mostriamo la somma di entrambi i costi pagati
+            f_vn['Tot Pagato'] = f_vn['Costo 2026-27'] + f_vn['Costo 2028-29']
+            deb = f_vn.groupby('Squadra')['Tot Pagato'].sum().reset_index().sort_values('Tot Pagato', ascending=False)
+            st.dataframe(deb.style.format({"Tot Pagato": "{:g}"}), hide_index=True, use_container_width=True)
         with v2:
             lista_sq = sorted([x for x in f_vn['Squadra'].unique() if x != "SKIP"])
             sv = st.selectbox("Seleziona Squadra per Dettaglio:", lista_sq, key="v_sel")
-            det = f_vn[f_vn['Squadra'] == sv][['Giocatore', 'Costo 2026-27', 'Durata (anni)']].dropna(subset=['Giocatore'])
-            # Grassetto su Giocatore
-            st.dataframe(det.style.format({"Costo 2026-27": "{:g}", "Durata (anni)": "{:g}"}).set_properties(**{'font-weight': 'bold'}, subset=['Giocatore']), hide_index=True, use_container_width=True)
+            # Tabella di dettaglio con entrambe le colonne di costo
+            det = f_vn[f_vn['Squadra'] == sv][['Giocatore', 'Costo 2026-27', 'Costo 2028-29', 'Durata (anni)']].dropna(subset=['Giocatore'])
+            st.dataframe(det.style.format({
+                "Costo 2026-27": "{:g}", 
+                "Costo 2028-29": "{:g}", 
+                "Durata (anni)": "{:g}"
+            }).set_properties(**{'font-weight': 'bold'}, subset=['Giocatore']), hide_index=True, use_container_width=True)
