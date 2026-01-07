@@ -45,7 +45,7 @@ def process_df(df, col_name):
 
 f_sc, f_pt, f_rs, f_vn = process_df(f_sc, 'Giocatore'), process_df(f_pt, 'Giocatore'), process_df(f_rs, 'Fantasquadra'), process_df(f_vn, 'Squadra')
 
-# Funzione per colorare i ruoli
+# Funzione colore ruoli
 def color_ruolo(row):
     colors = {'Portiere': '#f0f4ff', 'Difensore': '#f0fff0', 'Centrocampista': '#fffdf0', 'Attaccante': '#fff0f0', 'Giovani': '#fcf0ff'}
     return [f'background-color: {colors.get(row["Ruolo"], "")}'] * len(row)
@@ -62,12 +62,13 @@ if f_rs is not None:
 
 t = st.tabs(["🏆 Classifiche", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
 
+# --- TABELLE ---
+
 with t[0]: # CLASSIFICHE
     c1, c2 = st.columns(2)
     with c1:
         st.subheader("🔥 Scontri")
-        if f_sc is not None: 
-            st.dataframe(f_sc.style.set_properties(**{'font-weight': 'bold'}, subset=['Giocatore']), hide_index=True, use_container_width=True)
+        if f_sc is not None: st.dataframe(f_sc.style.set_properties(**{'font-weight': 'bold'}, subset=['Giocatore']), hide_index=True, use_container_width=True)
     with c2:
         st.subheader("🎯 Punti")
         if f_pt is not None:
@@ -76,18 +77,19 @@ with t[0]: # CLASSIFICHE
 
 if f_rs is not None:
     f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
-    with t[1]: # BUDGET
+    with t[1]: # BUDGET TOTALE (Vincoli completi)
         st.subheader("💰 Bilancio Globale")
         eco = f_rs.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
         eco['Crediti Disponibili'] = eco['Fantasquadra'].map(bg_ex).fillna(0)
+        
         if f_vn is not None:
-            # Calcoliamo il costo totale dei vincoli (incluso 2026-29)
-            f_vn['Costo 2026-27'] = f_vn['Costo 2026-27'].apply(cv)
-            f_vn['Costo 2028-29'] = f_vn.get('Costo 2028-29', pd.Series([0]*len(f_vn))).apply(cv) # Gestione se colonna non esiste
+            # Sommiamo tutti gli anni di vincolo (26-27, 27-28, 28-29)
+            c26 = f_vn['Costo 2026-27'].apply(cv)
+            c27 = f_vn.get('Costo 2027-28', pd.Series([0]*len(f_vn))).apply(cv)
+            c28 = f_vn.get('Costo 2028-29', pd.Series([0]*len(f_vn))).apply(cv)
             
-            # Somma dei due costi per il bilancio
-            f_vn['Vincolo Tot'] = f_vn['Costo 2026-27'] + f_vn['Costo 2028-29']
-            v_sum = f_vn.groupby('Squadra')['Vincolo Tot'].sum().reset_index()
+            f_vn['Vincolo Totale Futuro'] = c26 + c27 + c28
+            v_sum = f_vn.groupby('Squadra')['Vincolo Totale Futuro'].sum().reset_index()
             v_sum.columns = ['Fantasquadra', 'Vincoli']
             eco = pd.merge(eco, v_sum, on='Fantasquadra', how='left').fillna(0)
         else: eco['Vincoli'] = 0
@@ -114,28 +116,31 @@ if f_rs is not None:
         df_sq = f_rs[f_rs['Fantasquadra'] == sq][['Ruolo', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False)
         st.dataframe(df_sq.style.apply(color_ruolo, axis=1).set_properties(**{'font-weight': 'bold'}, subset=['Nome']).format({"Prezzo": "{:g}"}), hide_index=True, use_container_width=True)
 
-with t[4]: # VINCOLI AGGIORNATI
+with t[4]: # VINCOLI (Tutte le stagioni)
     st.subheader("📅 Gestione Vincoli")
     if f_vn is not None:
-        # Pulizia e preparazione dati
-        if 'Durata (anni)' in f_vn.columns: f_vn['Durata (anni)'] = f_vn['Durata (anni)'].apply(cv)
-        if 'Costo 2028-29' not in f_vn.columns: f_vn['Costo 2028-29'] = 0
-        f_vn['Costo 2028-29'] = f_vn['Costo 2028-29'].apply(cv)
+        # Calcolo dei totali per il riepilogo
+        c26 = f_vn['Costo 2026-27'].apply(cv)
+        c27 = f_vn.get('Costo 2027-28', pd.Series([0]*len(f_vn))).apply(cv)
+        c28 = f_vn.get('Costo 2028-29', pd.Series([0]*len(f_vn))).apply(cv)
+        f_vn['Spesa Complessiva'] = c26 + c27 + c28
         
         v1, v2 = st.columns([1, 2.5])
         with v1:
-            st.write("**Riepilogo Investimenti (Totali)**")
-            # Mostriamo la somma di entrambi i costi pagati
-            f_vn['Tot Pagato'] = f_vn['Costo 2026-27'] + f_vn['Costo 2028-29']
-            deb = f_vn.groupby('Squadra')['Tot Pagato'].sum().reset_index().sort_values('Tot Pagato', ascending=False)
-            st.dataframe(deb.style.format({"Tot Pagato": "{:g}"}), hide_index=True, use_container_width=True)
+            st.write("**Riepilogo Investimenti Totali**")
+            deb = f_vn.groupby('Squadra')['Spesa Complessiva'].sum().reset_index().sort_values('Spesa Complessiva', ascending=False)
+            st.dataframe(deb.style.format({"Spesa Complessiva": "{:g}"}), hide_index=True, use_container_width=True)
         with v2:
             lista_sq = sorted([x for x in f_vn['Squadra'].unique() if x != "SKIP"])
             sv = st.selectbox("Seleziona Squadra per Dettaglio:", lista_sq, key="v_sel")
-            # Tabella di dettaglio con entrambe le colonne di costo
-            det = f_vn[f_vn['Squadra'] == sv][['Giocatore', 'Costo 2026-27', 'Costo 2028-29', 'Durata (anni)']].dropna(subset=['Giocatore'])
-            st.dataframe(det.style.format({
-                "Costo 2026-27": "{:g}", 
-                "Costo 2028-29": "{:g}", 
-                "Durata (anni)": "{:g}"
-            }).set_properties(**{'font-weight': 'bold'}, subset=['Giocatore']), hide_index=True, use_container_width=True)
+            # Mostriamo tutte le colonne di costo
+            cols_to_show = ['Giocatore', 'Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29', 'Durata (anni)']
+            # Filtriamo solo le colonne effettivamente presenti nel CSV per evitare errori
+            present_cols = [c for c in cols_to_show if c in f_vn.columns]
+            
+            det = f_vn[f_vn['Squadra'] == sv][present_cols].dropna(subset=['Giocatore'])
+            
+            # Formattazione dinamica per tutte le colonne costo
+            format_dict = {c: "{:g}" for c in present_cols if "Costo" in c or "Durata" in c}
+            
+            st.dataframe(det.style.format(format_dict).set_properties(**{'font-weight': 'bold'}, subset=['Giocatore']), hide_index=True, use_container_width=True)
