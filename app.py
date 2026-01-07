@@ -78,34 +78,4 @@ if df_rose is not None:
         with cl1:
             st.subheader("🔥 Scontri Diretti")
             if df_scontri is not None:
-                df_scontri = pulisci_nomi(df_scontri, 'Giocatore')
-                cols = ['Posizione', 'Giocatore', 'Punti', 'Gol Fatti', 'Gol Subiti', 'Differenza Reti']
-                st.dataframe(df_scontri[cols].sort_values('Punti', ascending=False), hide_index=True, use_container_width=True)
-            else: st.info("Carica scontridiretti.csv")
-        with cl2:
-            st.subheader("🎯 Punti Totali")
-            if df_punti_tot is not None:
-                df_punti_tot = pulisci_nomi(df_punti_tot, 'Giocatore')
-                if 'Punti Totali' in df_punti_tot.columns:
-                    df_punti_tot['Punti Totali'] = df_punti_tot['Punti Totali'].astype(str).str.replace(',', '.').astype(float)
-                st.dataframe(df_punti_tot[['Posizione', 'Giocatore', 'Punti Totali', 'Media']], hide_index=True, use_container_width=True)
-
-    # --- TAB ECONOMIA ---
-    with tabs[1]:
-        st.subheader("💰 Bilancio Rose")
-        eco = df_rose.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
-        eco.columns = ['Fantasquadra', 'Costo della Rosa']
-        eco['Extra Febbraio'] = eco['Fantasquadra'].map(budgets_fisso).fillna(0)
-        eco['Budget Totale'] = (eco['Costo della Rosa'] + eco['Extra Febbraio']).astype(int)
-        st.dataframe(eco.sort_values('Budget Totale', ascending=False), hide_index=True, use_container_width=True)
-
-    # --- TAB STRATEGIA ---
-    with tabs[2]:
-        st.subheader("📋 Analisi Strategica")
-        c1, c2 = st.columns([1.5, 1])
-        with c1:
-            st.write("**Distribuzione Ruoli:**")
-            ordine_ruoli = ['Portiere', 'Difensore', 'Centrocampista', 'Attaccante', 'Giovani']
-            pivot_count = df_rose.pivot_table(index='Fantasquadra', columns='Ruolo', values='Nome', aggfunc='count').fillna(0).astype(int)
-            colonne_presenti = [r for r in ordine_ruoli if r in pivot_count.columns]
-            st.dataframe(pivot_count[colonne_presenti], use_container_width
+                df
