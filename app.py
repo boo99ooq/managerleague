@@ -9,6 +9,13 @@ st.markdown("""
     .stApp { background-color: white; }
     div[data-testid="stDataFrame"] * { color: #1a1a1a !important; font-weight: bold !important; }
     header { visibility: hidden; }
+    .search-box {
+        background-color: #f1f3f4;
+        padding: 15px;
+        border-radius: 10px;
+        border-left: 5px solid #1a73e8;
+        margin-bottom: 20px;
+    }
     .cut-box {
         background-color: #f8f9fa;
         padding: 20px;
@@ -18,12 +25,6 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
-
-st.title("⚽ MuyFantaManager")
-
-# Configurazione Crediti Extra
-bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
-map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS", "DANI ROBI": "DANI ROBI"}
 
 # --- FUNZIONI DI PULIZIA ---
 def clean_string(s):
@@ -47,14 +48,14 @@ f_sc, f_pt, f_rs, f_vn = ld("scontridiretti.csv"), ld("classificapunti.csv"), ld
 
 # ELABORAZIONE ROSE
 if f_rs is not None:
-    f_rs['Squadra_N'] = f_rs['Fantasquadra'].apply(clean_string).replace(map_n)
+    f_rs['Squadra_N'] = f_rs['Fantasquadra'].apply(clean_string).replace({"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS", "DANI ROBI": "DANI ROBI"})
     f_rs['Nome'] = f_rs['Nome'].apply(clean_string)
     f_rs = f_rs.dropna(subset=['Squadra_N', 'Nome'])
     f_rs['Prezzo_N'] = pd.to_numeric(f_rs['Prezzo'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
 
 # ELABORAZIONE VINCOLI
 if f_vn is not None:
-    f_vn['Sq_N'] = f_vn['Squadra'].apply(clean_string).replace(map_n)
+    f_vn['Sq_N'] = f_vn['Squadra'].apply(clean_string).replace({"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS", "DANI ROBI": "DANI ROBI"})
     f_vn['Giocatore'] = f_vn['Giocatore'].apply(clean_string)
     v_cols = [c for c in ['Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29'] if c in f_vn.columns]
     for c in v_cols: f_vn[c] = pd.to_numeric(f_vn[c].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
@@ -62,7 +63,31 @@ if f_vn is not None:
     f_vn['Anni_T'] = f_vn[v_cols].gt(0).sum(axis=1).astype(str) + " anni"
     f_vn = f_vn.drop_duplicates(subset=['Sq_N', 'Giocatore'])
 
-# --- CREAZIONE TAB ---
+# --- SIDEBAR: CERCA GIOCATORE ---
+st.sidebar.title("🔍 Cerca Giocatore")
+if f_rs is not None:
+    tutti_giocatori = sorted(f_rs['Nome'].unique())
+    cerca = st.sidebar.selectbox("Scrivi o seleziona un nome:", [""] + tutti_giocatori)
+    
+    if cerca != "":
+        dati_r = f_rs[f_rs['Nome'] == cerca].iloc[0]
+        vinc_val = f_vn[f_vn['Giocatore'] == cerca]['Tot_Vincolo'].iloc[0] if (f_vn is not None and cerca in f_vn['Giocatore'].values) else 0
+        
+        st.sidebar.markdown(f"""
+        <div class="search-box">
+            <h3 style='margin:0;'>{cerca}</h3>
+            <p style='margin:0;'>👕 Squadra: <b>{dati_r['Squadra_N']}</b></p>
+            <p style='margin:0;'>🏃 Ruolo: <b>{dati_r['Ruolo']}</b></p>
+            <hr style='margin:10px 0;'>
+            <p style='margin:0;'>💰 Prezzo Rosa: <b>{int(dati_r['Prezzo_N'])}</b></p>
+            <p style='margin:0;'>📅 Vincoli Tot: <b>{int(vinc_val)}</b></p>
+            <p style='margin:0; color:#1a73e8;'>💎 Valore Reale: <b>{int(dati_r['Prezzo_N'] + vinc_val)}</b></p>
+        </div>
+        """, unsafe_allow_html=True)
+
+st.title("⚽ MuyFantaManager")
+
+# --- TABS ---
 t = st.tabs(["🏆 Classifiche", "💰 Budget", "🏃 Rose", "📅 Vincoli", "🔄 Scambi", "✂️ Tagli"])
 
 with t[0]: # CLASSIFICHE
@@ -87,10 +112,10 @@ with t[1]: # BUDGET
             bu = pd.merge(bu, v_sum, left_on='Squadra', right_on='Sq_N', how='left').fillna(0).drop('Sq_N', axis=1)
             bu.rename(columns={'Tot_Vincolo': 'Spesa Vincoli'}, inplace=True)
         else: bu['Spesa Vincoli'] = 0
+        bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
         bu['Crediti Disponibili'] = bu['Squadra'].map(bg_ex).fillna(0)
         bu['Patrimonio Reale'] = bu['Spesa Rose'] + bu['Spesa Vincoli'] + bu['Crediti Disponibili']
-        num_cols_b = ['Spesa Rose', 'Spesa Vincoli', 'Crediti Disponibili', 'Patrimonio Reale']
-        st.dataframe(bu.sort_values('Patrimonio Reale', ascending=False).style.background_gradient(cmap='YlOrRd', subset=num_cols_b).format({c: "{:g}" for c in num_cols_b}), hide_index=True, use_container_width=True)
+        st.dataframe(bu.sort_values('Patrimonio Reale', ascending=False).style.background_gradient(cmap='YlOrRd', subset=['Spesa Rose', 'Spesa Vincoli', 'Crediti Disponibili', 'Patrimonio Reale']).format({c: "{:g}" for c in ['Spesa Rose', 'Spesa Vincoli', 'Crediti Disponibili', 'Patrimonio Reale']}), hide_index=True, use_container_width=True)
 
 with t[2]: # ROSE
     if f_rs is not None:
@@ -113,7 +138,7 @@ with t[3]: # VINCOLI
 
 with t[4]: # SCAMBI
     if f_rs is not None:
-        st.subheader("🔄 Simulatore Scambi: Analisi Pre/Post")
+        st.subheader("🔄 Simulatore Scambi")
         c1, c2 = st.columns(2)
         lista_n_sq = sorted([s for s in f_rs['Squadra_N'].unique() if s])
         with c1:
@@ -145,31 +170,21 @@ with t[4]: # SCAMBI
                     st.markdown(f"**{n}** | POST: **Base {max(0, nuovo_t-int(info['v']))} + Vinc {int(info['v'])}**")
                     st.caption(f"PRE: Base {int(info['p'])} + Vinc {int(info['v'])} (Tot: {int(info['t'])})")
 
-with t[5]: # ✂️ TAB TAGLI (Menu interno)
+with t[5]: # TAGLI
     st.subheader("✂️ Simulatore Tagli")
     col_t_sel1, col_t_sel2 = st.columns(2)
-    
     with col_t_sel1:
         sq_t = st.selectbox("Seleziona Squadra per il taglio:", sorted(f_rs['Squadra_N'].unique()), key="sq_t_internal")
     with col_t_sel2:
         giocatori_sq = f_rs[f_rs['Squadra_N'] == sq_t]['Nome'].tolist()
         gioc_t = st.selectbox("Seleziona Giocatore:", giocatori_sq, key="gioc_t_internal")
-    
     if gioc_t:
         v_p = f_rs[(f_rs['Squadra_N'] == sq_t) & (f_rs['Nome'] == gioc_t)]['Prezzo_N'].iloc[0]
         v_v = f_vn[f_vn['Giocatore'] == gioc_t]['Tot_Vincolo'].iloc[0] if (f_vn is not None and gioc_t in f_vn['Giocatore'].values) else 0
-        
         rimborso = round((v_p + v_v) * 0.6)
-        
         c_res1, c_res2 = st.columns([2,1])
         with c_res1:
-            st.markdown(f"""
-            <div class="cut-box">
-                <h3>💰 Calcolo Rimborso: {gioc_t}</h3>
-                <p>Prezzo Rosa: {int(v_p)} | Vincoli: {int(v_v)}</p>
-                <h2 style="color: #ff4b4b;">Crediti Restituiti (60%): {rimborso}</h2>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"""<div class="cut-box"><h3>💰 Calcolo Rimborso: {gioc_t}</h3><p>Prezzo Rosa: {int(v_p)} | Vincoli: {int(v_v)}</p><h2 style="color: #ff4b4b;">Crediti Restituiti (60%): {rimborso}</h2></div>""", unsafe_allow_html=True)
         with c_res2:
             cred_att = bu[bu['Squadra'] == sq_t]['Crediti Disponibili'].iloc[0] if sq_t in bu['Squadra'].values else 0
             st.metric("Nuovo Budget Teorico", f"{int(cred_att + rimborso)}", delta=f"+{rimborso}")
