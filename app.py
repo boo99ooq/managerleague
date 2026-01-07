@@ -2,15 +2,14 @@ import streamlit as st
 import pandas as pd
 import os
 
-# 1. SETUP E STILE PULITO
+# 1. SETUP E STILE (FIX LEGGIBILITÀ TOTALE)
 st.set_page_config(page_title="MuyFantaManager", layout="wide")
 st.markdown("""
 <style>
     .stApp { background-color: white; }
-    header { visibility: hidden; }
-    /* Forza testo scuro ovunque per contrastare Dark Mode mobile */
+    /* Forza il testo delle tabelle a essere sempre scuro */
     div[data-testid="stDataFrame"] * { color: #1a1a1a !important; }
-    .stTabs [data-baseweb="tab"] { color: #1a1a1a; }
+    header { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -27,9 +26,7 @@ def cv(v):
     except: return 0.0
 
 def fmt_n(x):
-    """Toglie gli .0 superflui ma tiene i .5"""
-    try:
-        return f"{x:g}" if isinstance(x, (int, float)) else x
+    try: return f"{x:g}" if isinstance(x, (int, float)) else x
     except: return x
 
 def clean_name(s):
@@ -63,7 +60,7 @@ f_sc, f_pt, f_rs, f_vn = process_df(f_sc, 'Giocatore'), process_df(f_pt, 'Giocat
 
 def color_ruolo(row):
     colors = {'Portiere':'#E3F2FD','Difensore':'#E8F5E9','Centrocampista':'#FFFDE7','Attaccante':'#FFEBEE','Giovani':'#F3E5F5'}
-    return [f'background-color: {colors.get(row["Ruolo"], "#FFFFFF")}; color: black;'] * len(row)
+    return [f'background-color: {colors.get(row["Ruolo"], "#FFFFFF")}; color: black; font-weight: bold;'] * len(row)
 
 # Sidebar Ricerca
 if f_rs is not None:
@@ -73,7 +70,7 @@ if f_rs is not None:
         res = f_rs[f_rs['Nome'].str.upper().str.contains(s, na=False)].copy()
         if not res.empty:
             res['Prezzo'] = res['Prezzo'].apply(fmt_n)
-            st.sidebar.dataframe(res[['Nome', 'Fantasquadra', 'Prezzo']].style.set_properties(**{'font-weight': 'bold'}), hide_index=True)
+            st.sidebar.dataframe(res[['Nome', 'Fantasquadra', 'Prezzo']], hide_index=True)
 
 t = st.tabs(["🏆 Classifiche", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
 
@@ -86,13 +83,12 @@ with t[0]: # CLASSIFICHE
         st.subheader("🎯 Punti")
         if f_pt is not None:
             f_pt['Punti Totali'] = f_pt['Punti Totali'].apply(cv)
-            f_pt['Media'] = f_pt['Media'].apply(cv).apply(lambda x: f"{x:.2f}")
-            f_pt['Punti Totali'] = f_pt['Punti Totali'].apply(fmt_n)
-            st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali','Media']].sort_values('Posizione'), hide_index=True, use_container_width=True)
+            f_pt['Punti Totali_fmt'] = f_pt['Punti Totali'].apply(fmt_n)
+            st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali_fmt','Media']].sort_values('Posizione'), hide_index=True, use_container_width=True)
 
 if f_rs is not None:
     f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
-    with t[1]: # BUDGET PULITO
+    with t[1]: # BUDGET CON GRADIENTI CHIARI
         st.subheader("💰 Bilancio Globale")
         eco = f_rs.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
         eco['Crediti Disponibili'] = eco['Fantasquadra'].map(bg_ex).fillna(0)
@@ -105,12 +101,14 @@ if f_rs is not None:
         else: eco['Vincoli'] = 0
         eco['Totale'] = eco['Prezzo'] + eco['Crediti Disponibili'] + eco['Vincoli']
         
-        # Pulizia zeri decimali prima della visualizzazione
-        eco_fmt = eco.copy()
-        for col in ['Prezzo', 'Crediti Disponibili', 'Vincoli', 'Totale']:
-            eco_fmt[col] = eco_fmt[col].apply(fmt_n)
-        
-        st.dataframe(eco_fmt.sort_values('Fantasquadra'), hide_index=True, use_container_width=True)
+        # Applicazione gradienti su dati numerici prima della conversione in stringa per la visualizzazione
+        st.dataframe(
+            eco.sort_values('Totale', ascending=False).style
+            .background_gradient(subset=['Totale'], cmap='YlGn') 
+            .background_gradient(subset=['Crediti Disponibili'], cmap='GnBu')
+            .format({"Prezzo": "{:g}", "Crediti Disponibili": "{:g}", "Vincoli": "{:g}", "Totale": "{:g}"}),
+            hide_index=True, use_container_width=True
+        )
 
     with t[2]: # STRATEGIA
         st.subheader("🧠 Strategia")
@@ -123,15 +121,13 @@ if f_rs is not None:
             st.write("**💎 Top Player**")
             idx = f_rs.groupby('Fantasquadra')['Prezzo'].idxmax()
             top = f_rs.loc[idx, ['Fantasquadra', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False)
-            top['Prezzo'] = top['Prezzo'].apply(fmt_n)
-            st.dataframe(top.style.set_properties(**{'font-weight': 'bold'}), hide_index=True, use_container_width=True)
+            st.dataframe(top.style.format({"Prezzo": "{:g}"}).set_properties(**{'font-weight': 'bold'}), hide_index=True, use_container_width=True)
 
     with t[3]: # ROSE
         sq_list = sorted([x for x in f_rs['Fantasquadra'].unique() if x != "SKIP"])
         sq = st.selectbox("Seleziona Squadra:", sq_list)
         df_sq = f_rs[f_rs['Fantasquadra'] == sq][['Ruolo', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False).copy()
-        df_sq['Prezzo'] = df_sq['Prezzo'].apply(fmt_n)
-        st.dataframe(df_sq.style.apply(color_ruolo, axis=1).set_properties(**{'font-weight': 'bold'}), hide_index=True, use_container_width=True)
+        st.dataframe(df_sq.style.apply(color_ruolo, axis=1).format({"Prezzo": "{:g}"}), hide_index=True, use_container_width=True)
 
 with t[4]: # VINCOLI
     st.subheader("📅 Gestione Vincoli")
@@ -144,13 +140,10 @@ with t[4]: # VINCOLI
         v1, v2 = st.columns([1, 2.5])
         with v1:
             deb = f_vn.groupby('Squadra')['Spesa Complessiva'].sum().reset_index().sort_values('Spesa Complessiva', ascending=False)
-            deb['Spesa Complessiva'] = deb['Spesa Complessiva'].apply(fmt_n)
-            st.dataframe(deb, hide_index=True, use_container_width=True)
+            st.dataframe(deb.style.format({"Spesa Complessiva": "{:g}"}), hide_index=True, use_container_width=True)
         with v2:
             sv = st.selectbox("Seleziona Squadra per Dettaglio:", sorted([x for x in f_vn['Squadra'].unique() if x != "SKIP"]), key="v_sel")
             cols_v = ['Giocatore', 'Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29', 'Durata (anni)', 'Spesa Complessiva']
             present_v = [c for c in cols_v if c in f_vn.columns]
             det = f_vn[f_vn['Squadra'] == sv][present_v].dropna(subset=['Giocatore']).copy()
-            for col in det.columns:
-                if col != 'Giocatore': det[col] = det[col].apply(fmt_n)
-            st.dataframe(det.style.set_properties(**{'font-weight': 'bold'}), hide_index=True, use_container_width=True)
+            st.dataframe(det.style.format({c: "{:g}" for c in present_v if c != 'Giocatore'}).set_properties(**{'font-weight': 'bold'}, subset=['Giocatore']), hide_index=True, use_container_width=True)
