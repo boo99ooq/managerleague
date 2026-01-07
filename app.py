@@ -36,42 +36,26 @@ def pulisci_nomi(df, col):
     df[col] = df[col].astype(str).str.strip().str.upper().replace(mappa)
     return df
 
-def carica_dati(file_input, nomi_possibili):
-    # Priorità al file caricato manualmente
+def carica_dati(file_input, nome_locale):
     if file_input is not None:
         return pd.read_csv(file_input, sep=',', skip_blank_lines=True, encoding='utf-8-sig')
-    # Altrimenti cerca su GitHub
-    for nome in nomi_possibili:
-        if os.path.exists(nome):
-            df = pd.read_csv(nome, sep=',', skip_blank_lines=True, encoding='utf-8-sig')
-            df.columns = df.columns.str.strip()
-            return df.dropna(how='all')
+    if os.path.exists(nome_locale):
+        df = pd.read_csv(nome_locale, sep=',', skip_blank_lines=True, encoding='utf-8-sig')
+        df.columns = df.columns.str.strip()
+        return df.dropna(how='all')
     return None
 
-# 4. CARICAMENTO DATI (SIDEBAR)
-st.sidebar.header("📂 Aggiornamento Dati")
-f_sc_up = st.sidebar.file_uploader("Aggiorna Scontri", type="csv")
-d_sc = carica_dati(f_sc_up, ["scontridiretti.csv"])
-
-f_pt_up = st.sidebar.file_uploader("Aggiorna Punti", type="csv")
-d_pt = carica_dati(f_pt_up, ["classificapunti.csv"])
-
-f_rs_up = st.sidebar.file_uploader("Aggiorna Rose", type="csv")
-d_rs = carica_dati(f_rs_up, ["rose_complete.csv"])
-
-f_vn_up = st.sidebar.file_uploader("Aggiorna Vincoli", type="csv")
-d_vn = carica_dati(f_vn_up, ["vincoli.csv"])
+# 4. CARICAMENTO DATI (Dalle Sidebar o da GitHub)
+st.sidebar.header("📂 Gestione File")
+f_sc = carica_dati(st.sidebar.file_uploader("Scontri", type="csv"), "scontridiretti.csv")
+f_pt = carica_dati(st.sidebar.file_uploader("Punti", type="csv"), "classificapunti.csv")
+f_rs = carica_dati(st.sidebar.file_uploader("Rose", type="csv"), "rose_complete.csv")
+f_vn = carica_dati(st.sidebar.file_uploader("Vincoli", type="csv"), "vincoli.csv")
 
 # 5. LOGICA TAB
-if any([d_sc is not None, d_pt is not None, d_rs is not None, d_vn is not None]):
+if any([f_sc is not None, f_pt is not None, f_rs is not None, f_vn is not None]):
     tabs = st.tabs(["🏆 Classifiche", "📊 Economia", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
 
     # --- TAB CLASSIFICHE ---
     with tabs[0]:
-        c1, c2 = st.columns(2)
-        with c1:
-            st.subheader("🔥 Scontri Diretti")
-            if d_sc is not None:
-                d_sc = pulisci_nomi(d_sc, 'Giocatore')
-                st.dataframe(d_sc, hide_index=True, use_container_width=True)
-        with c
+        c
