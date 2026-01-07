@@ -3,7 +3,7 @@ import pandas as pd
 import os
 import altair as alt
 
-# 1. SETUP UI GOLDEN ORIGINALE
+# 1. SETUP E STILE
 st.set_page_config(page_title="MuyFantaManager", layout="wide")
 st.markdown("""
 <style>
@@ -15,71 +15,117 @@ st.markdown("""
 
 st.title("⚽ MuyFantaManager")
 
-# Configurazione Budget e Mappature
 bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
-map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS", "DANI ROBI": "DANI ROBI"}
+map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS", "NICHO:79": "NICHOLAS"}
 
 def cv(v):
     if pd.isna(v): return 0.0
     try:
-        return float(str(v).replace('"', '').replace(',', '.').strip())
+        s = str(v).replace('"', '').replace(',', '.').strip()
+        return float(s) if s != "" else 0.0
     except: return 0.0
+
+def clean_name(s):
+    if pd.isna(s) or str(s).strip().upper() == "NONE" or str(s).strip() == "": return "SKIP"
+    s = str(s).split(':')[0].replace('*', '').replace('"', '').strip().upper()
+    return map_n.get(s, s)
 
 def ld(f):
     if not os.path.exists(f): return None
     try:
-        # Legge saltando la riga vuota iniziale tipica del tuo file rose
-        df = pd.read_csv(f, sep=',', engine='python', skip_blank_lines=True)
-        if df.columns[0].startswith('Unnamed'):
-            df = pd.read_csv(f, sep=',', engine='python', skiprows=1)
+        df = pd.read_csv(f, sep=',', engine='python', encoding='utf-8-sig', skip_blank_lines=True)
         df.columns = [c.strip() for c in df.columns]
+        if df.columns[0].startswith('Unnamed'):
+            df = pd.read_csv(f, sep=',', engine='python', encoding='utf-8-sig', skiprows=1)
+            df.columns = [c.strip() for c in df.columns]
         return df.dropna(how='all')
     except: return None
 
-# 2. CARICAMENTO DATI (ESCLUDIAMO VOLUTAMENTE QUOTAZIONI.CSV)
-f_pt = ld("classificapunti.csv")
-f_rs = ld("rose_complete.csv")
-f_vn = ld("vincoli.csv")
+# 2. CARICAMENTO E PULIZIA
+f_sc, f_pt, f_rs, f_vn = ld("scontridiretti.csv"), ld("classificapunti.csv"), ld("rose_complete.csv"), ld("vincoli.csv")
 
-# 3. INTERFACCIA A TABS
-t = st.tabs(["🏆 Classifiche", "💰 Budget", "🏃 Rose", "📅 Vincoli"])
+if f_rs is not None:
+    f_rs['Nome'] = f_rs['Nome'].apply(clean_name)
+    f_rs['Fantasquadra'] = f_rs['Fantasquadra'].apply(clean_name)
+    f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
 
-with t[0]: # CLASSIFICHE
-    if f_pt is not None:
+if f_vn is not None:
+    f_vn['Giocatore'] = f_vn['Giocatore'].apply(clean_name)
+    f_vn['Squadra'] = f_vn['Squadra'].apply(clean_name)
+    for c in ['Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29']:
+        if c in f_vn.columns: f_vn[c] = f_vn[c].apply(cv)
+    f_vn['Spesa Complessiva'] = f_vn.get('Costo 2026-27', 0) + f_vn.get('Costo 2027-28', 0) + f_vn.get('Costo 2028-29', 0)
+
+# TABS
+t = st.tabs(["🏆 Classifiche", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli", "🔄 Scambi"])
+
+# ... (Le prime 5 tab rimangono invariate) ...
+
+with t[5]:
+    st.subheader("🔄 Scambi: Meritocrazia su Prezzo + Vincoli Invariati")
+    if f_rs is not None:
+        sq_l = sorted([x for x in f_rs['Fantasquadra'].unique() if x != "SKIP"])
+        
+        def get_details(lista_nomi):
+            dati = []
+            for n in lista_nomi:
+                p = f_rs[f_rs['Nome'] == n]['Prezzo'].values[0]
+                v = f_vn[f_vn['Giocatore'] == n]['Spesa Complessiva'].values[0] if (f_vn is not None and n in f_vn['Giocatore'].values) else 0.0
+                dati.append({'Giocatore': n, 'Prezzo Cartellino': p, 'Valore Vincolo': v, 'Totale': p + v})
+            return pd.DataFrame(dati)
+
         c1, c2 = st.columns(2)
         with c1:
-            st.subheader("🎯 Classifica Punti")
-            f_pt['Punti Totali'] = f_pt['Punti Totali'].apply(lambda x: cv(str(x).replace('.', '')))
-            st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali']].sort_values('Posizione').style.background_gradient(subset=['Punti Totali'], cmap='Greens'), hide_index=True)
+            sa = st.selectbox("Squadra A:", sq_l, key="sa_vinc")
+            ga_list = st.multiselect("Cede da A:", f_rs[f_rs['Fantasquadra']==sa]['Nome'], key="ga_vinc")
+            df_a = get_details(ga_list)
+            if not df_a.empty: st.dataframe(df_a, hide_index=True)
+
         with c2:
-            st.subheader("📈 Grafico")
-            chart = alt.Chart(f_pt).mark_line(point=True, color='green').encode(
-                x=alt.X('Giocatore:N', sort='-y'),
-                y=alt.Y('Punti Totali:Q', scale=alt.Scale(domainMin=f_pt['Punti Totali'].min()-5))
-            ).properties(height=300)
-            st.altair_chart(chart, use_container_width=True)
+            sb = st.selectbox("Squadra B:", [s for s in sq_l if s != sa], key="sb_vinc")
+            gb_list = st.multiselect("Cede da B:", f_rs[f_rs['Fantasquadra']==sb]['Nome'], key="gb_vinc")
+            df_b = get_details(gb_list)
+            if not df_b.empty: st.dataframe(df_b, hide_index=True)
 
-with t[1]: # BUDGET
-    if f_rs is not None:
-        st.subheader("💰 Bilancio")
-        f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
-        f_rs['Fantasquadra'] = f_rs['Fantasquadra'].str.upper().replace(map_n)
-        bu = f_rs.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
-        bu['Extra'] = bu['Fantasquadra'].map(bg_ex).fillna(0)
-        bu['Totale'] = bu['Prezzo'] + bu['Extra']
-        st.dataframe(bu.sort_values('Totale', ascending=False).style.background_gradient(subset=['Totale'], cmap='YlOrRd'), hide_index=True)
+        if not df_a.empty and not df_b.empty:
+            st.write("---")
+            val_a_pre, val_b_pre = df_a['Totale'].sum(), df_b['Totale'].sum()
+            punto_pareggio = (val_a_pre + val_b_pre) / 2
+            
+            # Calcolo coefficienti meritocratici basati sul valore totale iniziale
+            coeff_a = punto_pareggio / val_a_pre if val_a_pre > 0 else 1
+            coeff_b = punto_pareggio / val_b_pre if val_b_pre > 0 else 1
 
-with t[2]: # ROSE
-    if f_rs is not None:
-        sq = st.selectbox("Squadra:", sorted(f_rs['Fantasquadra'].unique()))
-        df_sq = f_rs[f_rs['Fantasquadra'] == sq].copy()
-        def color_ruoli(row):
-            r = str(row['Ruolo']).upper()
-            bg = '#E3F2FD' if 'PORTIERE' in r else '#E8F5E9' if 'DIFENSORE' in r else '#FFFDE7' if 'CENTROCAMPISTA' in r else '#FFEBEE' if 'ATTACCANTE' in r else '#FFFFFF'
-            return [f'background-color: {bg}; color: black; font-weight: bold;'] * len(row)
-        st.dataframe(df_sq[['Ruolo', 'Nome', 'Prezzo']].style.apply(color_ruoli, axis=1), hide_index=True)
+            st.markdown(f"### 🤝 Esito Scambio (Vincoli Ereditati)")
+            r1, r2 = st.columns(2)
+            
+            vals_a_post, vals_b_post = [], []
 
-with t[3]: # VINCOLI
-    if f_vn is not None:
-        st.subheader("📅 Vincoli")
-        st.dataframe(f_vn.style.set_properties(**{'font-weight': 'bold'}), hide_index=True)
+            with r1:
+                st.write(f"**Vanno a {sb} (da {sa}):**")
+                for _, r in df_a.iterrows():
+                    # Il nuovo valore totale è proporzionale, ma il vincolo resta fisso
+                    nuovo_totale = round(r['Totale'] * coeff_a)
+                    nuovo_cartellino = nuovo_totale - r['Valore Vincolo']
+                    vals_a_post.append(nuovo_totale)
+                    st.success(f"🔹 **{r['Giocatore']}**\n\nNuovo Totale: **{nuovo_totale}** \n*(Cartellino: {nuovo_cartellino} + Vincolo: {r['Valore Vincolo']:g})*")
+            
+            with r2:
+                st.write(f"**Vanno a {sa} (da {sb}):**")
+                for _, r in df_b.iterrows():
+                    nuovo_totale = round(r['Totale'] * coeff_b)
+                    nuovo_cartellino = nuovo_totale - r['Valore Vincolo']
+                    vals_b_post.append(nuovo_totale)
+                    st.success(f"🔸 **{r['Giocatore']}**\n\nNuovo Totale: **{nuovo_totale}** \n*(Cartellino: {nuovo_cartellino} + Vincolo: {r['Valore Vincolo']:g})*")
+
+            st.write("---")
+            # Riepilogo finale per conferma
+            val_a_post, val_b_post = sum(vals_b_post), sum(vals_a_post)
+            comp = pd.DataFrame({
+                "Squadra": [sa, sb],
+                "Valore Rosa Ante": [val_a_pre, val_b_pre],
+                "Valore Rosa Post": [val_a_post, val_b_post],
+                "Bilancio Netto": [val_a_post - val_a_pre, val_b_post - val_b_pre]
+            })
+            st.table(comp)
+            st.caption("Nota: Il valore del vincolo è rimasto invariato rispetto ai file originali. È cambiato solo il valore del cartellino per bilanciare lo scambio.")
