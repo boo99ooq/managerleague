@@ -4,9 +4,9 @@ import pandas as pd
 # 1. CONFIGURAZIONE PAGINA
 st.set_page_config(page_title="Fantalega Manageriale", layout="wide")
 
-# 2. STILE GLASSMORPHISM COMPATTO (Sidebar ultra-ridotta)
-def apply_compact_glass_style():
-    img_url = "https://images.unsplash.com/photo-1556056504-5c7696c4c28d?q=80&w=2076&auto=format&fit=crop"
+# 2. STILE PROFESSIONALE
+def apply_pro_style():
+    img_url = "[https://images.unsplash.com/photo-1556056504-5c7696c4c28d?q=80&w=2076&auto=format&fit=crop](https://images.unsplash.com/photo-1556056504-5c7696c4c28d?q=80&w=2076&auto=format&fit=crop)"
     st.markdown(
         f"""
         <style>
@@ -17,35 +17,24 @@ def apply_compact_glass_style():
             background-position: center;
         }}
         .stTabs, .stMetric, [data-testid="stMetricValue"], .stDataFrame, .stTable {{
-            background: rgba(255, 255, 255, 0.05) !important;
-            backdrop-filter: blur(12px);
-            padding: 15px;
+            background-color: rgba(0, 0, 0, 0.85) !important;
+            padding: 20px;
             border-radius: 15px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }}
-        [data-testid="stSidebar"] {{
-            background: rgba(0, 0, 0, 0.8) !important;
-            backdrop-filter: blur(15px);
-            width: 260px !important;
-        }}
-        /* Riduzione estrema spazi file uploader */
-        [data-testid="stFileUploader"] {{
-            padding-bottom: 0px !important;
-            margin-bottom: -25px !important;
-        }}
-        [data-testid="stFileUploader"] label p {{
-            font-size: 13px !important;
-            color: #2ecc71 !important;
-            margin-bottom: -15px !important;
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }}
         h1 {{
             color: #ffffff !important;
-            text-shadow: 0 0 10px rgba(46, 204, 113, 0.9);
+            text-shadow: 3px 3px 5px #000000;
             text-align: center;
-            font-size: 2.2rem !important;
+            font-size: 3rem !important;
         }}
         h2, h3, p, span, label, .stTabs [data-baseweb="tab"] {{
             color: #ffffff !important;
+            font-weight: 700 !important;
+        }}
+        [data-testid="stSidebar"] {{
+            background-color: rgba(0, 0, 0, 0.95) !important;
+            border-right: 2px solid #ffffff;
         }}
         .stDataFrame td, .stDataFrame th {{
             color: #ffffff !important;
@@ -55,96 +44,130 @@ def apply_compact_glass_style():
         unsafe_allow_html=True
     )
 
-apply_compact_glass_style()
+apply_pro_style()
 
 st.title("⚽ Centro Direzionale Fantalega")
 
-# 3. BUDGET FISSI
+# 3. BUDGET AGGIORNATI
 budgets_fisso = {
     "GIANNI": 102.5, "DANI ROBI": 164.5, "MARCO": 131.0, "PIETRO": 101.5,
     "PIERLUIGI": 105.0, "GIGI": 232.5, "ANDREA": 139.0, "GIUSEPPE": 136.5,
     "MATTEO": 166.5, "NICHOLAS": 113.0
 }
 
-# 4. SIDEBAR COMPATTA
-st.sidebar.markdown("### 📂 Database")
-f_scontri = st.sidebar.file_uploader("Scontri Diretti", type="csv")
-f_punti = st.sidebar.file_uploader("Classifica Punti", type="csv")
-f_rose = st.sidebar.file_uploader("Rose Attuali", type="csv")
-f_vinc = st.sidebar.file_uploader("Vincoli 26/27", type="csv")
+# 4. SIDEBAR
+st.sidebar.header("📂 Menu Dati")
+file_rose = st.sidebar.file_uploader("1. Carica Rose", type="csv")
+file_vincoli = st.sidebar.file_uploader("2. Carica Vincoli", type="csv")
 
-def pulisci_nomi(df, col):
-    mappa = {"NICO FABIO": "NICHOLAS", "NICHO": "NICHOLAS", "DANI ROBI": "DANI ROBI", "MATTEO STEFANO": "MATTEO"}
-    df[col] = df[col].astype(str).str.strip().str.upper().replace(mappa)
-    return df
-
-def carica_csv(file):
+# --- FUNZIONI DI PULIZIA AVANZATA ---
+def carica_rose(file):
     if file is None: return None
     file.seek(0)
-    df = pd.read_csv(file, sep=',', skip_blank_lines=True, encoding='utf-8-sig')
+    df = pd.read_csv(file, sep=',', skip_blank_lines=True, encoding='utf-8')
     df.columns = df.columns.str.strip()
+    df = df.dropna(subset=['Fantasquadra', 'Nome'])
+    df['Fantasquadra'] = df['Fantasquadra'].str.strip().str.upper()
+    df['Prezzo'] = pd.to_numeric(df['Prezzo'], errors='coerce').fillna(0)
+    # Correzione nomi squadre
+    df['Fantasquadra'] = df['Fantasquadra'].replace({"NICHO": "NICHOLAS"})
     return df
 
-df_scontri = carica_csv(f_scontri)
-df_punti_tot = carica_csv(f_punti)
-df_rose = carica_csv(f_rose)
-df_vincoli = carica_csv(f_vinc)
+def carica_vincoli(file):
+    if file is None: return None
+    file.seek(0)
+    df = pd.read_csv(file, sep=',', skip_blank_lines=True, encoding='utf-8')
+    df.columns = df.columns.str.strip()
+    
+    # 1. Rimuoviamo le righe di riepilogo "sporche" (quelle che iniziano con * o ` o non hanno giocatore)
+    df = df[df['Giocatore'].notna()] 
+    df = df[~df['Squadra'].str.contains(r'\*|`|:', na=False)]
+    
+    # 2. Pulizia e Standardizzazione nomi
+    df['Squadra'] = df['Squadra'].str.strip().str.upper()
+    mappa_nomi = {"NICHO": "NICHOLAS", "DANI ROBI": "DANI ROBI"}
+    df['Squadra'] = df['Squadra'].replace(mappa_nomi)
+    
+    # 3. Conversione costi in numeri
+    for col in ['Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29']:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+    
+    return df
 
-# 5. LOGICA VISUALIZZAZIONE
+df_rose = carica_rose(file_rose)
+df_vincoli = carica_vincoli(file_vincoli)
+
 if df_rose is not None:
-    df_rose = df_rose.dropna(subset=['Fantasquadra', 'Nome'])
-    df_rose = pulisci_nomi(df_rose, 'Fantasquadra')
-    df_rose['Prezzo'] = pd.to_numeric(df_rose['Prezzo'], errors='coerce').fillna(0)
+    tabs = st.tabs(["📊 Economia", "📈 Analisi Reparti", "🏆 Record & Top", "🏃 Rose", "📅 Vincoli"])
 
-    tabs = st.tabs(["🏆 Classifiche", "📊 Economia", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
-
+    # --- TAB ECONOMIA ---
     with tabs[0]:
-        c_cl1, c_cl2 = st.columns(2)
-        with c_cl1:
-            st.markdown("##### 🔥 Scontri Diretti")
-            if df_scontri is not None:
-                df_scontri = pulisci_nomi(df_scontri, 'Giocatore')
-                st.dataframe(df_scontri[['Posizione', 'Giocatore', 'Punti']].sort_values('Punti', ascending=False), hide_index=True)
-            else: st.caption("In attesa di scontridiretti.csv")
-        with c_cl2:
-            st.markdown("##### 🎯 Punti Totali")
-            if df_punti_tot is not None:
-                df_punti_tot = pulisci_nomi(df_punti_tot, 'Giocatore')
-                if 'Punti Totali' in df_punti_tot.columns:
-                    df_punti_tot['Punti Totali'] = df_punti_tot['Punti Totali'].astype(str).str.replace(',', '.').astype(float)
-                st.dataframe(df_punti_tot[['Giocatore', 'Punti Totali', 'Media']].sort_values('Punti Totali', ascending=False), hide_index=True)
-            else: st.caption("In attesa di classificapunti.csv")
-
-    with tabs[1]:
         analisi = df_rose.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
-        analisi['Extra'] = analisi['Fantasquadra'].map(budgets_fisso).fillna(0)
-        analisi['Totale'] = analisi['Prezzo'] + analisi['Extra']
+        analisi.columns = ['Fantasquadra', 'Valore Rosa']
+        analisi['Extra Febbraio'] = analisi['Fantasquadra'].map(budgets_fisso).fillna(0)
+        analisi['Totale'] = analisi['Valore Rosa'] + analisi['Extra Febbraio']
         st.dataframe(analisi.sort_values('Totale', ascending=False), hide_index=True, use_container_width=True)
-        st.bar_chart(data=analisi, x='Fantasquadra', y=['Prezzo', 'Extra'])
+        st.bar_chart(data=analisi, x='Fantasquadra', y=['Valore Rosa', 'Extra Febbraio'])
 
+    # --- TAB ANALISI REPARTI ---
+    with tabs[1]:
+        st.subheader("Distribuzione Spesa per Ruolo")
+        pivot = df_rose.pivot_table(index='Fantasquadra', columns='Ruolo', values='Prezzo', aggfunc='sum').fillna(0)
+        ord_r = ['Portiere', 'Difensore', 'Centrocampista', 'Attaccante', 'Giovani']
+        pivot = pivot[[c for c in ord_r if c in pivot.columns]]
+        try:
+            st.dataframe(pivot.style.background_gradient(cmap='YlGn', axis=None).format("{:.1f}"), use_container_width=True)
+        except:
+            st.dataframe(pivot, use_container_width=True)
+
+    # --- TAB RECORD & TOP ---
     with tabs[2]:
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("##### 📋 Conteggio per Ruolo")
-            pivot_count = df_rose.pivot_table(index='Fantasquadra', columns='Ruolo', values='Nome', aggfunc='count').fillna(0).astype(int)
-            st.dataframe(pivot_count, use_container_width=True)
-        with col2:
-            st.markdown("##### 🕵️ Top Spesa per Squadra")
-            idx_max = df_rose.groupby('Fantasquadra')['Prezzo'].idxmax()
-            st.dataframe(df_rose.loc[idx_max, ['Fantasquadra', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False), hide_index=True)
+        c1, c2 = st.columns(2)
+        with c1:
+            st.subheader("💎 Top 20 più Costosi")
+            top_20 = df_rose.sort_values(by='Prezzo', ascending=False).head(20)
+            st.dataframe(top_20[['Nome', 'Fantasquadra', 'Ruolo', 'Prezzo']], hide_index=True, use_container_width=True)
+        with c2:
+            st.subheader("🥇 I Re dei Reparti")
+            idx = df_rose.groupby('Ruolo')['Prezzo'].idxmax()
+            st.table(df_rose.loc[idx, ['Ruolo', 'Nome', 'Fantasquadra', 'Prezzo']])
 
+    # --- TAB DETTAGLIO ROSE ---
     with tabs[3]:
-        sq = sorted(df_rose['Fantasquadra'].unique())
-        scelta = st.selectbox("Seleziona Rosa:", sq)
-        st.dataframe(df_rose[df_rose['Fantasquadra'] == scelta][['Ruolo', 'Nome', 'Prezzo']], hide_index=True, use_container_width=True)
+        squadre_r = sorted(df_rose['Fantasquadra'].unique())
+        scelta_r = st.selectbox("Seleziona Squadra:", squadre_r, key="sb_rose")
+        st.dataframe(df_rose[df_rose['Fantasquadra'] == scelta_r][['Ruolo', 'Nome', 'Prezzo']], hide_index=True, use_container_width=True)
 
+    # --- TAB VINCOLI (RISOLTA) ---
     with tabs[4]:
         if df_vincoli is not None:
-            df_vincoli = pulisci_nomi(df_vincoli, 'Squadra')
-            if 'Costo 2026-27' in df_vincoli.columns:
-                df_vincoli['Costo 2026-27'] = pd.to_numeric(df_vincoli['Costo 2026-27'], errors='coerce').fillna(0)
-                riepilogo_v = df_vincoli.groupby('Squadra')['Costo 2026-27'].sum().reset_index()
-                st.dataframe(riepilogo_v.sort_values('Costo 2026-27', ascending=False), hide_index=True)
-        else: st.caption("In attesa di vincoli.csv")
+            st.subheader("Pianificazione Debiti 2026/27")
+            
+            # 1. Riepilogo pulito e ordinato
+            riepilogo_v = df_vincoli.groupby('Squadra')['Costo 2026-27'].sum().reset_index()
+            riepilogo_v.columns = ['Fantasquadra', 'Impegno 26/27 (Crediti)']
+            
+            col_v1, col_v2 = st.columns([1, 2])
+            
+            with col_v1:
+                st.write("**Classifica Debiti:**")
+                st.dataframe(riepilogo_v.sort_values('Impegno 26/27 (Crediti)', ascending=False), hide_index=True)
+            
+            with col_v2:
+                # 2. Selettore specifico per i vincoli (permette di vedere i giocatori di ogni squadra)
+                lista_squadre_v = sorted(df_vincoli['Squadra'].unique())
+                scelta_v = st.selectbox("Dettaglio Giocatori Vincolati:", lista_squadre_v, key="sb_vinc")
+                
+                dettaglio_team = df_vincoli[df_vincoli['Squadra'] == scelta_v]
+                st.write(f"**Giocatori di {scelta_v} con contratto per il 26/27:**")
+                st.dataframe(
+                    dettaglio_team[['Giocatore', 'Costo 2026-27', 'Durata (anni)']].sort_values('Costo 2026-27', ascending=False),
+                    hide_index=True,
+                    use_container_width=True
+                )
+        else:
+            st.info("Carica il file 'vincoli 26.csv' per visualizzare i debiti futuri.")
+
 else:
-    st.info("👋 Carica i file CSV per generare il cruscotto della lega.")
+    st.info("👋 Carica i file CSV per iniziare l'analisi.")
