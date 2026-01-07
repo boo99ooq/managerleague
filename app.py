@@ -15,7 +15,7 @@ st.markdown("""
 
 st.title("⚽ MuyFantaManager")
 
-# Configurazione Budget e Mappature
+# Configurazione Budget Extra e Mappature
 bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
 map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS", "NICHO:79": "NICHOLAS"}
 map_r = {"P": "PORTIERE", "D": "DIFENSORE", "C": "CENTROCAMPISTA", "A": "ATTACCANTE"}
@@ -30,11 +30,16 @@ def cv(v):
 def clean_name(s):
     if pd.isna(s) or str(s).strip().upper() == "NONE" or str(s).strip() == "": return "SKIP"
     s = str(s).split(':')[0].replace('*', '').replace('"', '').strip().upper()
-    # Rimuoviamo eventuali iniziali puntate finali (es: "MARTINEZ L." -> "MARTINEZ")
-    parts = s.split(' ')
-    if len(parts) > 1 and len(parts[-1]) <= 2: 
-        s = " ".join(parts[:-1]).strip()
     return map_n.get(s, s)
+
+def get_match_key(name):
+    """Crea una chiave 'COGNOME I' per il match delle quotazioni"""
+    name = clean_name(name)
+    parts = name.replace("-", " ").split()
+    if not parts: return ""
+    surname = parts[0]
+    initial = parts[1][0] if len(parts) > 1 else ""
+    return f"{surname} {initial}".strip()
 
 def clean_role(r):
     if pd.isna(r): return "NONE"
@@ -49,59 +54,63 @@ def ld(f):
         return df.dropna(how='all')
     except: return None
 
-# 2. CARICAMENTO
+# 2. CARICAMENTO E PULIZIA
 f_sc, f_pt, f_rs, f_vn, f_qt = ld("scontridiretti.csv"), ld("classificapunti.csv"), ld("rose_complete.csv"), ld("vincoli.csv"), ld("quotazioni.csv")
 
-# 3. ELABORAZIONE QUOTAZIONI
+# Elaborazione Quotazioni (R, Nome, Qt.A)
 if f_qt is not None:
-    # Cerchiamo di identificare le colonne correte (R, Nome, Qt.A)
     f_qt = f_qt.rename(columns={'R': 'Ruolo_QT', 'Nome': 'Nome_QT', 'Qt.A': 'Quotazione'})
-    f_qt['Nome_Match'] = f_qt['Nome_QT'].apply(clean_name)
-    f_qt['Ruolo_Match'] = f_qt['Ruolo_QT'].apply(clean_role)
+    f_qt['MatchKey'] = f_qt['Nome_QT'].apply(get_match_key)
+    f_qt['Ruolo_QT'] = f_qt['Ruolo_QT'].apply(clean_role)
     f_qt['Quotazione'] = f_qt['Quotazione'].apply(cv)
 
-# 4. ELABORAZIONE ROSE E UNIONE
+# Elaborazione Rose e Match Quotazioni
 if f_rs is not None:
     f_rs['Nome'] = f_rs['Nome'].apply(clean_name)
     f_rs['Ruolo'] = f_rs['Ruolo'].apply(clean_role)
     f_rs['Fantasquadra'] = f_rs['Fantasquadra'].apply(clean_name)
     f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
+    f_rs['MatchKey'] = f_rs['Nome'].apply(get_match_key)
     
     if f_qt is not None:
-        # Uniamo le rose con le quotazioni basandoci su Nome (pulito) e Ruolo
-        f_rs = pd.merge(f_rs, f_qt[['Nome_Match', 'Ruolo_Match', 'Quotazione']], 
-                        left_on=['Nome', 'Ruolo'], right_on=['Nome_Match', 'Ruolo_Match'], how='left')
+        # Match su Ruolo e MatchKey (Cognome + Iniziale)
+        f_rs = pd.merge(f_rs, f_qt[['MatchKey', 'Ruolo_QT', 'Quotazione']], 
+                        left_on=['MatchKey', 'Ruolo'], right_on=['MatchKey', 'Ruolo_QT'], how='left').drop('Ruolo_QT', axis=1)
         f_rs['Plusvalenza'] = f_rs['Quotazione'] - f_rs['Prezzo']
-        
-        # Diagnostica
-        match_count = f_rs['Quotazione'].notna().sum()
-        total_players = len(f_rs)
-        st.sidebar.success(f"✅ Quotazioni caricate: {match_count}/{total_players} giocatori trovati.")
 
-# 5. TABS
+# Elaborazione Vincoli
+if f_vn is not None:
+    f_vn['Giocatore'] = f_vn['Giocatore'].apply(clean_name)
+    f_vn['Squadra'] = f_vn['Squadra'].apply(clean_name)
+    for c in ['Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29']:
+        if c in f_vn.columns: f_vn[c] = f_vn[c].apply(cv)
+    f_vn['Spesa Complessiva'] = f_vn.get('Costo 2026-27', 0) + f_vn.get('Costo 2027-28', 0) + f_vn.get('Costo 2028-29', 0)
+
+# 3. TABS
 t = st.tabs(["🏆 Classifiche", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli", "🔄 Scambi"])
 
-with t[1]: # TAB BUDGET
+with t[1]: # BUDGET (FIX TYPEERROR)
     if f_rs is not None:
-        st.subheader("💰 Bilancio e Valore di Mercato")
+        st.subheader("💰 Bilancio e Valore Rosa")
         agg_cols = {'Prezzo': 'sum'}
         if 'Quotazione' in f_rs.columns: agg_cols['Quotazione'] = 'sum'
         
         eco = f_rs.groupby('Fantasquadra').agg(agg_cols).reset_index()
-        eco.columns = ['Fantasquadra', 'Costo Rose'] + (['Valore Mercato'] if 'Quotazione' in agg_cols else [])
-        
+        eco.columns = ['Fantasquadra', 'Investimento'] + (['Valore Mercato'] if 'Quotazione' in agg_cols else [])
         eco['Crediti Disponibili'] = eco['Fantasquadra'].map(bg_ex).fillna(0)
+        
         if f_vn is not None:
-            v_sum = f_vn.groupby('Squadra').agg({'Costo 2026-27':'sum','Costo 2027-28':'sum','Costo 2028-29':'sum'}).sum(axis=1).reset_index()
+            # Calcolo sicuro dei vincoli per squadra
+            v_sum = f_vn.groupby('Squadra')['Spesa Complessiva'].sum().reset_index()
             v_sum.columns = ['Fantasquadra', 'Vincoli']
             eco = pd.merge(eco, v_sum, on='Fantasquadra', how='left').fillna(0)
         
-        target = 'Valore Mercato' if 'Valore Mercato' in eco.columns else 'Costo Rose'
-        eco['Patrimonio'] = eco[target] + eco['Crediti Disponibili'] + eco.get('Vincoli', 0)
+        val_rif = 'Valore Mercato' if 'Valore Mercato' in eco.columns else 'Investimento'
+        eco['Patrimonio'] = eco[val_rif] + eco['Crediti Disponibili'] + eco.get('Vincoli', 0)
         
-        st.dataframe(eco.sort_values('Patrimonio', ascending=False).style.background_gradient(subset=[target], cmap='Greens').format({c: "{:g}" for c in eco.columns if c != 'Fantasquadra'}), hide_index=True, use_container_width=True)
+        st.dataframe(eco.sort_values('Patrimonio', ascending=False).style.background_gradient(subset=[val_rif], cmap='Greens').format({c: "{:g}" for c in eco.columns if c != 'Fantasquadra'}), hide_index=True, use_container_width=True)
 
-with t[3]: # TAB ROSE
+with t[3]: # ROSE (VISUALIZZAZIONE QUOTAZIONI)
     if f_rs is not None:
         sq_l = sorted([x for x in f_rs['Fantasquadra'].unique() if x != "SKIP"])
         sq = st.selectbox("Seleziona Squadra:", sq_l, key="rose_view")
@@ -115,4 +124,4 @@ with t[3]: # TAB ROSE
         else:
             st.dataframe(df_sq[cols], hide_index=True, use_container_width=True)
 
-# ... (Le altre tab Classifiche, Strategia, Vincoli e Scambi rimangono attive con le logiche precedenti)
+# ... (Le altre tab Classifiche, Strategia, Vincoli e Scambi mantengono le logiche precedenti)
