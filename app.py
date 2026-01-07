@@ -1,5 +1,118 @@
-with t[5]: # SIMULATORE SCAMBI MERITOCRATICO CON RIEPILOGO TOTALI
-    st.subheader("🔄 Simulatore Scambi Proporzionale (Logica Meritocratica)")
+import streamlit as st
+import pandas as pd
+import os
+import altair as alt
+
+# 1. SETUP E STILE
+st.set_page_config(page_title="MuyFantaManager", layout="wide")
+st.markdown("""
+<style>
+    .stApp { background-color: white; }
+    div[data-testid="stDataFrame"] * { color: #1a1a1a !important; font-weight: bold !important; }
+    header { visibility: hidden; }
+</style>
+""", unsafe_allow_html=True)
+
+st.title("⚽ MuyFantaManager")
+
+# Configurazione Budget e Mappatura
+bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
+map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS", "NICHO:79": "NICHOLAS"}
+
+def cv(v):
+    if pd.isna(v): return 0.0
+    try:
+        s = str(v).replace('"', '').replace(',', '.').strip()
+        return float(s) if s != "" else 0.0
+    except: return 0.0
+
+def clean_name(s):
+    if pd.isna(s) or str(s).strip().upper() == "NONE" or str(s).strip() == "": return "SKIP"
+    s = str(s).split(':')[0].replace('*', '').replace('"', '').strip().upper()
+    return map_n.get(s, s)
+
+def ld(f):
+    if not os.path.exists(f): return None
+    try:
+        df = pd.read_csv(f, sep=',', engine='python', encoding='utf-8-sig', skip_blank_lines=True)
+        df.columns = [c.strip() for c in df.columns]
+        if df.columns[0].startswith('Unnamed'):
+            df = pd.read_csv(f, sep=',', engine='python', encoding='utf-8-sig', skiprows=1)
+            df.columns = [c.strip() for c in df.columns]
+        return df.dropna(how='all')
+    except: return None
+
+# 2. CARICAMENTO E PULIZIA
+f_sc, f_pt, f_rs, f_vn = ld("scontridiretti.csv"), ld("classificapunti.csv"), ld("rose_complete.csv"), ld("vincoli.csv")
+
+if f_rs is not None:
+    f_rs['Nome'] = f_rs['Nome'].apply(clean_name)
+    f_rs['Fantasquadra'] = f_rs['Fantasquadra'].apply(clean_name)
+    f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
+
+if f_vn is not None:
+    f_vn['Giocatore'] = f_vn['Giocatore'].apply(clean_name)
+    f_vn['Squadra'] = f_vn['Squadra'].apply(clean_name)
+    for c in ['Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29']:
+        if c in f_vn.columns: f_vn[c] = f_vn[c].apply(cv)
+    f_vn['Spesa Complessiva'] = f_vn.get('Costo 2026-27', 0) + f_vn.get('Costo 2027-28', 0) + f_vn.get('Costo 2028-29', 0)
+
+def style_rose(row):
+    colors = {'Portiere':'#E3F2FD','Difensore':'#E8F5E9','Centrocampista':'#FFFDE7','Attaccante':'#FFEBEE','Giovani':'#F3E5F5'}
+    return [f'background-color: {colors.get(row["Ruolo"], "#FFFFFF")}; color: black; font-weight: bold;'] * len(row)
+
+# TABS
+t = st.tabs(["🏆 Classifiche", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli", "🔄 Scambi"])
+
+with t[0]: # CLASSIFICHE
+    c1, c2 = st.columns(2)
+    if f_sc is not None:
+        with c1:
+            st.subheader("🔥 Scontri")
+            cols_sc = f_sc.select_dtypes(include=['number']).columns
+            st.dataframe(f_sc.style.background_gradient(subset=cols_sc, cmap='Blues'), hide_index=True, use_container_width=True)
+    if f_pt is not None:
+        with c2:
+            st.subheader("🎯 Punti")
+            f_pt['Punti Totali'] = f_pt['Punti Totali'].apply(cv)
+            st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali','Media']].sort_values('Posizione').style.background_gradient(subset=['Punti Totali'], cmap='Greens').format({"Punti Totali": "{:g}", "Media": "{:.2f}"}), hide_index=True, use_container_width=True)
+
+with t[1]: # BUDGET
+    if f_rs is not None:
+        st.subheader("💰 Bilancio Globale")
+        eco = f_rs.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
+        eco.columns = ['Fantasquadra', 'Valore Rosa']
+        eco['Crediti Disponibili'] = eco['Fantasquadra'].map(bg_ex).fillna(0)
+        if f_vn is not None:
+            v_sum = f_vn.groupby('Squadra')['Spesa Complessiva'].sum().reset_index()
+            v_sum.columns = ['Fantasquadra', 'Vincoli']
+            eco = pd.merge(eco, v_sum, on='Fantasquadra', how='left').fillna(0)
+        else: eco['Vincoli'] = 0
+        eco['Totale'] = eco['Valore Rosa'] + eco['Crediti Disponibili'] + eco['Vincoli']
+        st.dataframe(eco.sort_values('Totale', ascending=False).style.background_gradient(subset=['Valore Rosa'], cmap='YlOrRd').background_gradient(subset=['Crediti Disponibili'], cmap='GnBu').background_gradient(subset=['Vincoli'], cmap='Purples').background_gradient(subset=['Totale'], cmap='YlGn').format({"Valore Rosa": "{:g}", "Crediti Disponibili": "{:g}", "Vincoli": "{:g}", "Totale": "{:g}"}), hide_index=True, use_container_width=True)
+
+with t[2]: # STRATEGIA
+    if f_rs is not None:
+        st.subheader("🧠 Strategia")
+        piv = f_rs.pivot_table(index='Fantasquadra', columns='Ruolo', values='Nome', aggfunc='count').fillna(0).astype(int)
+        st.dataframe(piv.style.set_properties(**{'font-weight': 'bold'}), use_container_width=True)
+
+with t[3]: # ROSE
+    if f_rs is not None:
+        sq_list = sorted([x for x in f_rs['Fantasquadra'].unique() if x != "SKIP"])
+        sq = st.selectbox("Seleziona Squadra:", sq_list)
+        df_sq = f_rs[f_rs['Fantasquadra'] == sq][['Ruolo', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False)
+        st.dataframe(df_sq.style.apply(style_rose, axis=1).format({"Prezzo": "{:g}"}), hide_index=True, use_container_width=True)
+
+with t[4]: # VINCOLI
+    if f_vn is not None:
+        st.subheader("📅 Gestione Vincoli")
+        sv = st.selectbox("Squadra:", sorted([x for x in f_vn['Squadra'].unique() if x != "SKIP"]), key="v_sel")
+        det = f_vn[f_vn['Squadra'] == sv].dropna(subset=['Giocatore'])
+        st.dataframe(det.style.background_gradient(subset=['Spesa Complessiva'], cmap='YlOrBr').format({c: "{:g}" for c in det.columns if c != 'Giocatore' and c != 'Squadra'}), hide_index=True, use_container_width=True)
+
+with t[5]: # SIMULATORE SCAMBI MERITOCRATICO
+    st.subheader("🔄 Simulatore Scambi Proporzionale")
     if f_rs is not None:
         sq_l = sorted([x for x in f_rs['Fantasquadra'].unique() if x != "SKIP"])
         
@@ -13,65 +126,54 @@ with t[5]: # SIMULATORE SCAMBI MERITOCRATICO CON RIEPILOGO TOTALI
 
         c1, c2 = st.columns(2)
         with c1:
-            sa = st.selectbox("Squadra A:", sq_l, key="sa_m")
-            ga_list = st.multiselect("Cede da A:", f_rs[f_rs['Fantasquadra']==sa]['Nome'], key="ga_m")
+            sa = st.selectbox("Squadra A:", sq_l, key="sa_sc")
+            ga_list = st.multiselect("Cede da A:", f_rs[f_rs['Fantasquadra']==sa]['Nome'], key="ga_sc")
             df_a = get_details(ga_list)
             if not df_a.empty: 
-                st.dataframe(df_a, hide_index=True, use_container_width=True)
-                val_a_iniziale = df_a['Valore Iniziale'].sum()
-                st.write(f"💰 Totale iniziale ceduto da {sa}: **{val_a_iniziale:g}**")
+                st.dataframe(df_a, hide_index=True)
+                val_a_pre = df_a['Valore Iniziale'].sum()
+                st.write(f"💰 Totale ceduto da {sa}: **{val_a_pre:g}**")
 
         with c2:
-            sb = st.selectbox("Squadra B:", [s for s in sq_l if s != sa], key="sb_m")
-            gb_list = st.multiselect("Cede da B:", f_rs[f_rs['Fantasquadra']==sb]['Nome'], key="gb_m")
+            sb = st.selectbox("Squadra B:", [s for s in sq_l if s != sa], key="sb_sc")
+            gb_list = st.multiselect("Cede da B:", f_rs[f_rs['Fantasquadra']==sb]['Nome'], key="gb_sc")
             df_b = get_details(gb_list)
             if not df_b.empty: 
-                st.dataframe(df_b, hide_index=True, use_container_width=True)
-                val_b_iniziale = df_b['Valore Iniziale'].sum()
-                st.write(f"💰 Totale iniziale ceduto da {sb}: **{val_b_iniziale:g}**")
+                st.dataframe(df_b, hide_index=True)
+                val_b_pre = df_b['Valore Iniziale'].sum()
+                st.write(f"💰 Totale ceduto da {sb}: **{val_b_pre:g}**")
 
         if not df_a.empty and not df_b.empty:
             st.write("---")
-            val_tot_scambio = val_a_iniziale + val_b_iniziale
-            punto_pareggio = val_tot_scambio / 2
+            val_tot = val_a_pre + val_b_pre
+            punto_pareggio = val_tot / 2
             
-            # Calcolo dei nuovi valori singoli (arrotondati)
-            c_a = punto_pareggio / val_a_iniziale if val_a_iniziale > 0 else 1
-            c_b = punto_pareggio / val_b_iniziale if val_b_iniziale > 0 else 1
+            c_a = punto_pareggio / val_a_pre if val_a_pre > 0 else 1
+            c_b = punto_pareggio / val_b_pre if val_b_pre > 0 else 1
 
-            # Liste per calcolare i totali post-scambio effettivi (dopo arrotondamento)
-            nuovi_val_a_per_b = []
-            nuovi_val_b_per_a = []
-
-            st.markdown(f"### 🤝 Esito Scambio (Dettaglio e Riepilogo)")
-            r1, r2 = st.columns(2)
-            
-            with r1:
+            vals_a_post, vals_b_post = [], []
+            st.markdown(f"### 🤝 Esito Scambio (Arrotondato)")
+            res1, res2 = st.columns(2)
+            with res1:
                 st.write(f"**Vanno a {sb}:**")
                 for _, r in df_a.iterrows():
                     nv = round(r['Valore Iniziale'] * c_a)
-                    nuovi_val_a_per_b.append(nv)
-                    st.success(f"🔹 {r['Giocatore']}: da {r['Valore Iniziale']:g} a **{nv}**")
-            
-            with r2:
+                    vals_a_post.append(nv)
+                    st.success(f"🔹 {r['Giocatore']}: {r['Valore Iniziale']:g} → **{nv}**")
+            with res2:
                 st.write(f"**Vanno a {sa}:**")
                 for _, r in df_b.iterrows():
                     nv = round(r['Valore Iniziale'] * c_b)
-                    nuovi_val_b_per_a.append(nv)
-                    st.success(f"🔸 {r['Giocatore']}: da {r['Valore Iniziale']:g} a **{nv}**")
+                    vals_b_post.append(nv)
+                    st.success(f"🔸 {r['Giocatore']}: {r['Valore Iniziale']:g} → **{nv}**")
 
             st.write("---")
-            # TABELLA DI CONFRONTO FINALE
-            val_post_a = sum(nuovi_val_b_per_a)
-            val_post_b = sum(nuovi_val_a_per_b)
-            
             st.markdown("#### 📈 Riepilogo Valore Pacchetti")
-            comp_data = {
+            val_a_post, val_b_post = sum(vals_b_post), sum(vals_a_post)
+            comp = pd.DataFrame({
                 "Squadra": [sa, sb],
-                "Valore Ceduto (Pre)": [val_a_iniziale, val_b_iniziale],
-                "Valore Ricevuto (Post)": [val_post_a, val_post_b],
-                "Differenza": [val_post_a - val_a_iniziale, val_post_b - val_b_iniziale]
-            }
-            st.table(pd.DataFrame(comp_data))
-            st.info(f"NB: Il valore totale dell'operazione è di **{val_tot_scambio:g}** crediti. "
-                    f"Dopo lo scambio, ogni squadra detiene un pacchetto di circa **{punto_pareggio:g}** crediti.")
+                "Valore Ceduto (PRE)": [val_a_pre, val_b_pre],
+                "Valore Ricevuto (POST)": [val_a_post, val_b_post],
+                "Differenza": [val_a_post - val_a_pre, val_b_post - val_b_pre]
+            })
+            st.table(comp)
