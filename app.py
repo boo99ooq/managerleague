@@ -2,10 +2,13 @@ import streamlit as st
 import pandas as pd
 import os
 
-# 1. SETUP UI E SIDEBAR (Dichiarata subito per massima visibilità)
-st.set_page_config(page_title="MuyFantaManager", layout="wide")
+# 1. SETUP UI E SIDEBAR (Forzata l'apertura con expanded)
+st.set_page_config(
+    page_title="MuyFantaManager", 
+    layout="wide", 
+    initial_sidebar_state="expanded"
+)
 
-# CSS Migliorato
 st.markdown("""
 <style>
     .stApp { background-color: white; }
@@ -13,10 +16,10 @@ st.markdown("""
     header { visibility: hidden; }
     .search-box {
         background-color: #f1f3f4;
-        padding: 15px;
-        border-radius: 10px;
+        padding: 12px;
+        border-radius: 8px;
         border-left: 5px solid #1a73e8;
-        margin-bottom: 20px;
+        margin-bottom: 15px;
         color: #1a1a1a;
     }
     .cut-box {
@@ -67,36 +70,35 @@ if f_vn is not None:
     f_vn['Anni_T'] = f_vn[v_cols].gt(0).sum(axis=1).astype(str) + " anni"
     f_vn = f_vn.drop_duplicates(subset=['Sq_N', 'Giocatore'])
 
-# --- LOGICA SIDEBAR (CERCA GIOCATORE) ---
-st.sidebar.title("🔍 Cerca Giocatore")
-if f_rs is not None:
-    tutti_giocatori = sorted(f_rs['Nome'].unique())
-    cerca = st.sidebar.selectbox("Scrivi il nome:", [""] + tutti_giocatori)
-    
-    if cerca != "":
-        # Dati Rose
-        dr = f_rs[f_rs['Nome'] == cerca].iloc[0]
-        # Dati Vincoli
-        vv = f_vn[f_vn['Giocatore'] == cerca]['Tot_Vincolo'].iloc[0] if (f_vn is not None and cerca in f_vn['Giocatore'].values) else 0
-        # Dati Classifica (Media e Punti)
-        media, punti = "N.D.", "N.D."
-        if f_pt is not None and cerca in f_pt['Giocatore'].astype(str).str.upper().values:
-            dp = f_pt[f_pt['Giocatore'].astype(str).str.upper() == cerca].iloc[0]
-            media = dp['Media'] if 'Media' in dp else "N.D."
-            punti = dp['Punti Totali'] if 'Punti Totali' in dp else "N.D."
+# --- SIDEBAR: CONFRONTO MULTIPLO ---
+# 
+with st.sidebar:
+    st.title("🔍 Confronto Giocatori")
+    if f_rs is not None:
+        tutti_giocatori = sorted(f_rs['Nome'].unique())
+        scelte = st.multiselect("Cerca e aggiungi giocatori:", tutti_giocatori)
+        
+        if st.button("Pulisci Confronto"):
+            st.rerun()
 
-        st.sidebar.markdown(f"""
-        <div class="search-box">
-            <h3 style='margin:0; color:#1a73e8;'>{cerca}</h3>
-            <p style='margin:0;'>👕 Squadra: <b>{dr['Squadra_N']}</b></p>
-            <p style='margin:0;'>🏃 Ruolo: <b>{dr['Ruolo']}</b></p>
-            <hr style='margin:10px 0;'>
-            <p style='margin:0;'>💰 Prezzo Rosa: <b>{int(dr['Prezzo_N'])}</b></p>
-            <p style='margin:0;'>📅 Vincoli Tot: <b>{int(vv)}</b></p>
-            <p style='margin:0;'>📈 Media: <b>{media}</b> | Punti: <b>{punti}</b></p>
-            <p style='margin:5px 0 0 0; font-size:1.1em;'>💎 Valore Reale: <b>{int(dr['Prezzo_N'] + vv)}</b></p>
-        </div>
-        """, unsafe_allow_html=True)
+        for nome_scelto in scelte:
+            dr = f_rs[f_rs['Nome'] == nome_scelto].iloc[0]
+            vv = f_vn[f_vn['Giocatore'] == nome_scelto]['Tot_Vincolo'].iloc[0] if (f_vn is not None and nome_scelto in f_vn['Giocatore'].values) else 0
+            media, punti = "N.D.", "N.D."
+            if f_pt is not None and nome_scelto in f_pt['Giocatore'].astype(str).str.upper().values:
+                dp = f_pt[f_pt['Giocatore'].astype(str).str.upper() == nome_scelto].iloc[0]
+                media = dp['Media'] if 'Media' in dp else "N.D."
+                punti = dp['Punti Totali'] if 'Punti Totali' in dp else "N.D."
+
+            st.markdown(f"""
+            <div class="search-box">
+                <b style='color:#1a73e8; font-size:1.1em;'>{nome_scelto}</b> ({dr['Squadra_N']})<br>
+                <small>Ruolo: {dr['Ruolo']} | Media: {media}</small>
+                <hr style='margin:8px 0;'>
+                Prezzo: <b>{int(dr['Prezzo_N'])}</b> | Vinc: <b>{int(vv)}</b><br>
+                <b>💎 Valore Reale: {int(dr['Prezzo_N'] + vv)}</b>
+            </div>
+            """, unsafe_allow_html=True)
 
 # --- MAIN CONTENT ---
 st.title("⚽ MuyFantaManager")
