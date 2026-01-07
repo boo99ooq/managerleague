@@ -12,8 +12,9 @@ def get_df(n):
     for f in os.listdir("."):
         if f.lower() == n.lower():
             try:
-                df = pd.read_csv(f, sep=',', encoding='utf-8-sig').dropna(how='all')
-                df.columns = df.columns.str.strip()
+                # Rileva automaticamente se usa , o ;
+                df = pd.read_csv(f, sep=None, engine='python', encoding='utf-8-sig').dropna(how='all')
+                df.columns = df.columns.str.strip().str.lower()
                 return df
             except: return None
     return None
@@ -24,19 +25,12 @@ def stl(obj):
 
 f_sc, f_pt, f_rs, f_vn = get_df("scontridiretti.csv"), get_df("classificapunti.csv"), get_df("rose_complete.csv"), get_df("vincoli.csv")
 
-st.sidebar.write("Scontri:", "✅" if f_sc is not None else "❌")
-st.sidebar.write("Punti:", "✅" if f_pt is not None else "❌")
-st.sidebar.write("Rose:", "✅" if f_rs is not None else "❌")
-st.sidebar.write("Vincoli:", "✅" if f_vn is not None else "❌")
-
 if any([f_sc is not None, f_pt is not None, f_rs is not None, f_vn is not None]):
     tabs = []
     if f_sc is not None or f_pt is not None: tabs.append("🏆 Classifiche")
     if f_rs is not None: tabs.extend(["💰 Budget", "🧠 Strategia", "🏃 Rose"])
     if f_vn is not None: tabs.append("📅 Vincoli")
-    
-    t = st.tabs(tabs)
-    i = 0
+    t = st.tabs(tabs); i = 0
 
     if f_sc is not None or f_pt is not None:
         with t[i]:
@@ -46,24 +40,23 @@ if any([f_sc is not None, f_pt is not None, f_rs is not None, f_vn is not None])
             if f_pt is not None:
                 with c2:
                     st.write("**Punti**")
-                    for c in ['Punti Totali', 'Media']:
-                        if c in f_pt.columns: f_pt[c] = f_pt[c].astype(str).str.replace(',','.').apply(pd.to_numeric, errors='coerce')
-                    st.dataframe(stl(f_pt[['Posizione','Giocatore','Punti Totali','Media']]), hide_index=True)
+                    cols = [c for c in f_pt.columns if 'punti' in c or 'media' in c or 'giocatore' in c or 'pos' in c]
+                    st.dataframe(stl(f_pt[cols]), hide_index=True)
         i += 1
 
     if f_rs is not None:
         c = f_rs.columns
+        # Mappa le colonne basandosi sulla posizione se i nomi cambiano
         fc, nc, rc, pc = c[0], c[1], c[2], c[-1]
-        f_rs[pc] = pd.to_numeric(f_rs[pc], errors='coerce').fillna(0).astype(int)
+        f_rs[pc] = pd.to_numeric(f_rs[pc].astype(str).str.replace(',','.'), errors='coerce').fillna(0).astype(int)
         with t[i]:
             st.write("**Crediti**")
             e = f_rs.groupby(fc)[pc].sum().reset_index()
-            e['Extra'] = e[fc].str.upper().map(bg).fillna(0)
-            e['Totale'] = (e[pc] + e['Extra']).astype(int)
-            st.dataframe(stl(e.sort_values('Totale', ascending=False)), hide_index=True)
+            e['extra'] = e[fc].str.upper().map(bg).fillna(0)
+            e['totale'] = (e[pc] + e['extra']).astype(int)
+            st.dataframe(stl(e.sort_values('totale', ascending=False)), hide_index=True)
         with t[i+1]:
             st.write("**Ruoli**")
-            f_rs[rc] = f_rs[rc].replace({'P':'Portiere','D':'Difensore','C':'Centrocampista','A':'Attaccante'})
             st.dataframe(stl(f_rs.pivot_table(index=fc, columns=rc, values=nc, aggfunc='count').fillna(0).astype(int)))
         with t[i+2]:
             s = st.selectbox("Squadra:", sorted(f_rs[fc].unique()))
@@ -75,12 +68,12 @@ if any([f_sc is not None, f_pt is not None, f_rs is not None, f_vn is not None])
         with t[i]:
             v = f_vn.columns
             sv, gv, cv, dv = v[0], v[1], v[2], v[-1]
-            f_vn[cv] = f_vn[cv].astype(str).str.replace(',','.').apply(pd.to_numeric, errors='coerce').fillna(0).astype(int)
+            f_vn[cv] = pd.to_numeric(f_vn[cv].astype(str).str.replace(',','.'), errors='coerce').fillna(0).astype(int)
             vx, vy = st.columns([1, 2])
-            with vx: st.dataframe(stl(f_vn.groupby(sv)[cv].sum().reset_index().sort_values(cv, ascending=False)), hide_index=True)
+            with vx: st.dataframe(stl(f_vn.groupby(sv)[cv].sum().reset_index()), hide_index=True)
             with vy:
                 sl = st.selectbox("Dettaglio:", sorted(f_vn[sv].unique()), key="v")
                 dfv = f_vn[f_vn[sv] == sl][[gv, cv, dv]].copy()
                 dfv[dv] = pd.to_numeric(dfv[dv], errors='coerce').fillna(0).astype(int)
-                st.dataframe(stl(dfv.sort_values(dv, ascending=False).style.map(lambda x: 'background-color: #ffcdd2' if x == 1 else '', subset=[dv])), hide_index=True)
-else: st.warning("Carica i CSV su GitHub.")
+                st.dataframe(stl(dfv.style.map(lambda x: 'background-color: #ffcdd2' if x == 1 else '', subset=[dv])), hide_index=True)
+else: st.warning("File non trovati. Verifica i nomi su GitHub.")
