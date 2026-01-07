@@ -26,7 +26,6 @@ def clean_n(df, c):
     return df
 
 def style_c(df):
-    # Allineamento centrale per celle e intestazioni
     return df.style.set_properties(**{'text-align': 'center'}).set_table_styles([dict(selector='th', props=[('text-align', 'center')])])
 
 # 4. CARICAMENTO
@@ -54,29 +53,8 @@ if any([f_sc is not None, f_pt is not None, f_rs is not None, f_vn is not None])
                 st.dataframe(style_c(f_pt[['Posizione','Giocatore','Punti Totali','Media']]), hide_index=True, use_container_width=True)
 
     if f_rs is not None:
-        f_rs.columns = [c.lower() for c in f_rs.columns]
-        f_rs = clean_n(f_rs, 'fantasquadra')
-        f_rs['prezzo'] = pd.to_numeric(f_rs['prezzo'], errors='coerce').fillna(0).astype(int)
-
-        with t[1]:
-            st.write("💰 **Bilancio**")
-            eco = f_rs.groupby('fantasquadra')['prezzo'].sum().reset_index()
-            eco['Extra'] = eco['fantasquadra'].map(budgets).fillna(0)
-            eco['Totale'] = (eco['prezzo'] + eco['Extra']).astype(int)
-            st.dataframe(style_c(eco.sort_values('Totale', ascending=False)), hide_index=True, use_container_width=True)
-
-        with t[2]:
-            st.write("🧠 **Strategia**")
-            cx, cy = st.columns([1.5, 1])
-            with cx:
-                f_rs['ruolo'] = f_rs['ruolo'].replace({'P':'Portiere','D':'Difensore','C':'Centrocampista','A':'Attaccante'})
-                piv = f_rs.pivot_table(index='fantasquadra', columns='ruolo', values='nome', aggfunc='count').fillna(0).astype(int)
-                st.dataframe(style_c(piv), use_container_width=True)
-            with cy:
-                st.write("**💎 Top Player**")
-                top = f_rs.loc[f_rs.groupby('fantasquadra')['prezzo'].idxmax()].sort_values('prezzo', ascending=False)
-                st.dataframe(style_c(top[['fantasquadra','nome','prezzo']]), hide_index=True, use_container_width=True)
-
-        with t[3]:
-            sq = st.selectbox("Squadra:", sorted(f_rs['fantasquadra'].unique()))
-            df_sq = f_rs
+        # Identificazione automatica colonne Rose
+        c_rs = f_rs.columns
+        f_c = next((c for c in c_rs if 'fanta' in c.lower() or 'squadra' in c.lower()), c_rs[0])
+        n_c = next((c for c in c_rs if 'nome' in c.lower() or 'giocatore' in c.lower()), c_rs[1])
+        r_c = next((
