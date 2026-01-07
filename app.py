@@ -2,26 +2,31 @@ import streamlit as st
 import pandas as pd
 import os
 
-# 1. SETUP UI E SIDEBAR (Configurazione iniziale)
+# 1. SETUP UI E SIDEBAR
 st.set_page_config(
     page_title="MuyFantaManager", 
     layout="wide", 
     initial_sidebar_state="expanded"
 )
 
-# CSS Corretto: NON nascondiamo più l'header per evitare che sparisca il tasto sidebar
+# CSS POTENZIATO
 st.markdown("""
 <style>
     .stApp { background-color: white; }
     div[data-testid="stDataFrame"] * { color: #1a1a1a !important; font-weight: bold !important; }
-    .search-box {
-        background-color: #f1f3f4;
+    
+    /* Stile Schede Giocatori */
+    .player-card {
         padding: 12px;
         border-radius: 8px;
-        border-left: 5px solid #1a73e8;
-        margin-bottom: 15px;
+        margin-bottom: 10px;
         color: #1a1a1a;
+        border-left: 6px solid;
     }
+    .card-blue { background-color: #e3f2fd; border-color: #1a73e8; }
+    .card-red { background-color: #fbe9e7; border-color: #d32f2f; }
+    .card-grey { background-color: #f1f3f4; border-color: #9e9e9e; }
+    
     .cut-box {
         background-color: #f8f9fa;
         padding: 20px;
@@ -29,11 +34,6 @@ st.markdown("""
         border-left: 5px solid #ff4b4b;
         margin-bottom: 20px;
         color: #1a1a1a;
-    }
-    /* Rende la sidebar più leggibile */
-    section[data-testid="stSidebar"] {
-        background-color: #f8f9fa;
-        min-width: 300px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -83,34 +83,17 @@ with st.sidebar:
         scelte = st.multiselect("Aggiungi al confronto:", tutti_giocatori)
         
         if scelte:
-            if st.button("Svuota lista"):
-                st.rerun()
-
+            if st.button("Svuota lista"): st.rerun()
             for nome_scelto in scelte:
                 dr = f_rs[f_rs['Nome'] == nome_scelto].iloc[0]
                 vv = f_vn[f_vn['Giocatore'] == nome_scelto]['Tot_Vincolo'].iloc[0] if (f_vn is not None and nome_scelto in f_vn['Giocatore'].values) else 0
-                media, punti = "N.D.", "N.D."
-                if f_pt is not None and nome_scelto in f_pt['Giocatore'].astype(str).str.upper().values:
-                    dp = f_pt[f_pt['Giocatore'].astype(str).str.upper() == nome_scelto].iloc[0]
-                    media = dp['Media'] if 'Media' in dp else "N.D."
-                    punti = dp['Punti Totali'] if 'Punti Totali' in dp else "N.D."
-
-                st.markdown(f"""
-                <div class="search-box">
-                    <b style='color:#1a73e8;'>{nome_scelto}</b> ({dr['Squadra_N']})<br>
-                    <small>Ruolo: {dr['Ruolo']} | Media: {media}</small><br>
-                    Base: <b>{int(dr['Prezzo_N'])}</b> + Vinc: <b>{int(vv)}</b><br>
-                    <b>Tot Reale: {int(dr['Prezzo_N'] + vv)}</b>
-                </div>
-                """, unsafe_allow_html=True)
-        else:
-            st.info("Seleziona uno o più giocatori per vederne i dettagli qui.")
+                st.markdown(f"""<div class="player-card card-grey"><b>{nome_scelto}</b> ({dr['Squadra_N']})<br>Base: {int(dr['Prezzo_N'])} | Vinc: {int(vv)}<br><b>Tot Reale: {int(dr['Prezzo_N'] + vv)}</b></div>""", unsafe_allow_html=True)
 
 # --- MAIN CONTENT ---
 st.title("⚽ MuyFantaManager")
-
 t = st.tabs(["🏆 Classifiche", "💰 Budget", "🏃 Rose", "📅 Vincoli", "🔄 Scambi", "✂️ Tagli"])
 
+# [TAB 0-1-2-3 RIMANGONO INVARIATE]
 with t[0]: # CLASSIFICHE
     c1, c2 = st.columns(2)
     if f_pt is not None:
@@ -157,7 +140,7 @@ with t[3]: # VINCOLI
         df_v_display = f_vn if sq_v == "TUTTE" else f_vn[f_vn['Sq_N'] == sq_v]
         st.dataframe(df_v_display[['Squadra', 'Giocatore', 'Tot_Vincolo', 'Anni_T']].sort_values('Tot_Vincolo', ascending=False).style.background_gradient(subset=['Tot_Vincolo'], cmap='Purples').format({"Tot_Vincolo": "{:g}"}), hide_index=True, use_container_width=True)
 
-with t[4]: # SCAMBI
+with t[4]: # SCAMBI CON EFFETTO SCHEDA
     if f_rs is not None:
         st.subheader("🔄 Simulatore Scambi")
         c1, c2 = st.columns(2)
@@ -168,28 +151,33 @@ with t[4]: # SCAMBI
         with c2:
             sb = st.selectbox("Squadra B:", [s for s in lista_n_sq if s != sa], key="sb_f")
             gb = st.multiselect("Escono da B:", f_rs[f_rs['Squadra_N']==sb]['Nome'].tolist(), key="gb_f")
+        
         if ga and gb:
             def get_info(nome):
                 p = f_rs[f_rs['Nome']==nome]['Prezzo_N'].iloc[0] if nome in f_rs['Nome'].values else 0
                 v = f_vn[f_vn['Giocatore']==nome]['Tot_Vincolo'].iloc[0] if (f_vn is not None and nome in f_vn['Giocatore'].values) else 0
                 return {'p': p, 'v': v, 't': p + v}
+            
             dict_a = {n: get_info(n) for n in ga}; dict_b = {n: get_info(n) for n in gb}
-            tot_ante_a = sum(d['t'] for d in dict_a.values()); tot_ante_b = sum(d['t'] for d in dict_b.values())
+            tot_ante_a, tot_ante_b = sum(d['t'] for d in dict_a.values()), sum(d['t'] for d in dict_b.values())
             nuovo_tot = round((tot_ante_a + tot_ante_b) / 2)
+            
             st.divider()
-            m1, m2 = st.columns(2); m1.metric(f"In {sa}", f"{nuovo_tot}", delta=f"ex {int(tot_ante_a)}"); m2.metric(f"In {sb}", f"{nuovo_tot}", delta=f"ex {int(tot_ante_b)}")
-            st.divider()
+            m1, m2 = st.columns(2); m1.metric(f"Valore Acquisito da {sa}", f"{nuovo_tot}", delta=f"ex {int(tot_ante_a)}"); m2.metric(f"Valore Acquisito da {sb}", f"{nuovo_tot}", delta=f"ex {int(tot_ante_b)}")
+            
             res_a, res_b = st.columns(2)
             with res_a:
+                st.write(f"### ➡️ In {sa}")
                 for n, info in dict_b.items():
-                    peso = info['t'] / tot_ante_b if tot_ante_b > 0 else 1/len(gb); nuovo_t = round(peso * nuovo_tot)
-                    st.markdown(f"**{n}** | POST: **Base {max(0, nuovo_t-int(info['v']))} + Vinc {int(info['v'])}**")
-                    st.caption(f"PRE: Base {int(info['p'])} + Vinc {int(info['v'])} (Tot: {int(info['t'])})")
+                    peso = info['t'] / tot_ante_b if tot_ante_b > 0 else 1/len(gb)
+                    nuovo_t = round(peso * nuovo_tot)
+                    st.markdown(f"""<div class="player-card card-blue"><b>{n}</b><br>📦 POST: Base <b>{max(0, nuovo_t-int(info['v']))}</b> + Vinc <b>{int(info['v'])}</b><br><small>📜 PRE: Base {int(info['p'])} + Vinc {int(info['v'])} (Tot: {int(info['t'])})</small></div>""", unsafe_allow_html=True)
             with res_b:
+                st.write(f"### ➡️ In {sb}")
                 for n, info in dict_a.items():
-                    peso = info['t'] / tot_ante_a if tot_ante_a > 0 else 1/len(ga); nuovo_t = round(peso * nuovo_tot)
-                    st.markdown(f"**{n}** | POST: **Base {max(0, nuovo_t-int(info['v']))} + Vinc {int(info['v'])}**")
-                    st.caption(f"PRE: Base {int(info['p'])} + Vinc {int(info['v'])} (Tot: {int(info['t'])})")
+                    peso = info['t'] / tot_ante_a if tot_ante_a > 0 else 1/len(ga)
+                    nuovo_t = round(peso * nuovo_tot)
+                    st.markdown(f"""<div class="player-card card-red"><b>{n}</b><br>📦 POST: Base <b>{max(0, nuovo_t-int(info['v']))}</b> + Vinc <b>{int(info['v'])}</b><br><small>📜 PRE: Base {int(info['p'])} + Vinc {int(info['v'])} (Tot: {int(info['t'])})</small></div>""", unsafe_allow_html=True)
 
 with t[5]: # TAGLI
     st.subheader("✂️ Simulatore Tagli")
@@ -203,9 +191,4 @@ with t[5]: # TAGLI
         v_p = f_rs[(f_rs['Squadra_N'] == sq_t) & (f_rs['Nome'] == gioc_t)]['Prezzo_N'].iloc[0]
         v_v = f_vn[f_vn['Giocatore'] == gioc_t]['Tot_Vincolo'].iloc[0] if (f_vn is not None and gioc_t in f_vn['Giocatore'].values) else 0
         rimborso = round((v_p + v_v) * 0.6)
-        c_res1, c_res2 = st.columns([2,1])
-        with c_res1:
-            st.markdown(f"""<div class="cut-box"><h3>💰 Calcolo Rimborso: {gioc_t}</h3><p>Prezzo Rosa: {int(v_p)} | Vincoli: {int(v_v)}</p><h2 style="color: #ff4b4b;">Crediti Restituiti (60%): {rimborso}</h2></div>""", unsafe_allow_html=True)
-        with c_res2:
-            cred_att = bu[bu['Squadra'] == sq_t]['Crediti Disponibili'].iloc[0] if sq_t in bu['Squadra'].values else 0
-            st.metric("Nuovo Budget Teorico", f"{int(cred_att + rimborso)}", delta=f"+{rimborso}")
+        st.markdown(f"""<div class="cut-box"><h3>💰 Calcolo Rimborso: {gioc_t}</h3><p>Prezzo Rosa: {int(v_p)} | Vincoli: {int(v_v)}</p><h2 style="color: #ff4b4b;">Crediti Restituiti (60%): {rimborso}</h2></div>""", unsafe_allow_html=True)
