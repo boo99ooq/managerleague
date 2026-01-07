@@ -41,6 +41,14 @@ if f_rs is not None:
 
 t = st.tabs(["🏆 Classifiche", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
 
+# --- PRE-ELABORAZIONE VINCOLI PER BUDGET ---
+v_clean = None
+if f_vn is not None:
+    v_clean = f_vn.copy()
+    # Pulizia profonda: togli asterischi, spazi e uniforma nomi
+    v_clean['Squadra'] = v_clean['Squadra'].astype(str).str.replace('*', '', regex=False).str.upper().str.strip().replace(map_n)
+    v_clean['Costo 2026-27'] = v_clean['Costo 2026-27'].apply(cv)
+
 with t[0]: # CLASSIFICHE
     c1, c2 = st.columns(2)
     with c1:
@@ -59,23 +67,18 @@ if f_rs is not None:
     f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
     f_rs['Fantasquadra'] = f_rs['Fantasquadra'].str.upper().str.strip().replace(map_n)
     
-    with t[1]: # BUDGET INTEGRATO CON VINCOLI
-        st.subheader("💰 Bilancio Globale (Rose + Extra + Vincoli)")
+    with t[1]: # BUDGET INTEGRATO
+        st.subheader("💰 Bilancio Globale")
         eco = f_rs.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
         eco['Extra'] = eco['Fantasquadra'].map(bg_ex).fillna(0)
         
-        # Calcolo Vincoli da sommare
-        if f_vn is not None:
-            f_vn['Squadra'] = f_vn['Squadra'].str.upper().str.strip().replace(map_n)
-            f_vn['Costo 2026-27'] = f_vn['Costo 2026-27'].apply(cv)
-            vin_sum = f_vn.groupby('Squadra')['Costo 2026-27'].sum().reset_index()
+        if v_clean is not None:
+            vin_sum = v_clean.groupby('Squadra')['Costo 2026-27'].sum().reset_index()
             vin_sum.columns = ['Fantasquadra', 'Vincoli']
             eco = pd.merge(eco, vin_sum, on='Fantasquadra', how='left').fillna(0)
-        else:
-            eco['Vincoli'] = 0
+        else: eco['Vincoli'] = 0
             
         eco['Totale'] = eco['Prezzo'] + eco['Extra'] + eco['Vincoli']
-        
         st.dataframe(eco.sort_values('Totale', ascending=False).style.background_gradient(subset=['Totale'], cmap='RdYlGn').format({"Prezzo": "{:g}", "Extra": "{:g}", "Vincoli": "{:g}", "Totale": "{:g}"}), hide_index=True, use_container_width=True)
     
     with t[2]: # STRATEGIA
@@ -94,12 +97,16 @@ if f_rs is not None:
         sq = st.selectbox("Squadra:", sorted(f_rs['Fantasquadra'].unique()))
         st.dataframe(f_rs[f_rs['Fantasquadra'] == sq][['Ruolo', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False).style.format({"Prezzo": "{:g}"}), hide_index=True, use_container_width=True)
 
-with t[4]: # VINCOLI
-    st.subheader("📅 Vincoli")
-    if f_vn is not None:
-        # Nota: il calcolo sopra usa già i dati puliti qui sotto
+with t[4]: # VINCOLI (FIXED)
+    st.subheader("📅 Gestione Vincoli")
+    if v_clean is not None:
         v1, v2 = st.columns([1, 2])
-        with v1: st.dataframe(f_vn.groupby('Squadra')['Costo 2026-27'].sum().reset_index().sort_values('Costo 2026-27', ascending=False).style.format({"Costo 2026-27": "{:g}"}), hide_index=True, use_container_width=True)
+        with v1:
+            st.write("**Riepilogo Investimenti**")
+            deb = v_clean.groupby('Squadra')['Costo 2026-27'].sum().reset_index().sort_values('Costo 2026-27', ascending=False)
+            st.dataframe(deb.style.format({"Costo 2026-27": "{:g}"}), hide_index=True, use_container_width=True)
         with v2:
-            sv = st.selectbox("Squadra:", sorted(f_vn['Squadra'].unique()), key="v_sel")
-            st.dataframe(f_vn[f_vn['Squadra'] == sv][['Giocatore', 'Costo 2026-27', 'Durata (anni)']].style.format({"Costo 2026-27": "{:g}"}), hide_index=True, use_container_width=True)
+            lista_sq = sorted(v_clean['Squadra'].unique())
+            sv = st.selectbox("Seleziona Squadra per Dettaglio:", lista_sq, key="v_sel")
+            det = v_clean[v_clean['Squadra'] == sv][['Giocatore', 'Costo 2026-27', 'Durata (anni)']]
+            st.dataframe(det.style.format({"Costo 2026-27": "{:g}"}), hide_index=True, use_container_width=True)
