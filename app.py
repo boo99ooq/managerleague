@@ -90,7 +90,7 @@ with t[2]: # ROSE
             return [f'background-color: {bg}; color: black; font-weight: bold;'] * len(row)
         st.dataframe(df_sq[['Ruolo', 'Nome', 'Prezzo_N']].style.apply(color_ruoli, axis=1).format({"Prezzo_N":"{:g}"}), hide_index=True, use_container_width=True)
 
-with t[3]: # VINCOLI (FIXED sorted error)
+with t[3]: # VINCOLI
     if f_vn is not None:
         st.subheader("📅 Dettaglio Vincoli")
         sq_list_v = sorted([s for s in f_vn['Sq_N'].unique() if s])
@@ -98,18 +98,18 @@ with t[3]: # VINCOLI (FIXED sorted error)
         df_v_display = f_vn if sq_v == "TUTTE" else f_vn[f_vn['Sq_N'] == sq_v]
         st.dataframe(df_v_display[['Squadra', 'Giocatore', 'Tot_Vincolo', 'Anni_T']].sort_values('Tot_Vincolo', ascending=False).style.background_gradient(subset=['Tot_Vincolo'], cmap='Purples').format({"Tot_Vincolo": "{:g}"}), hide_index=True, use_container_width=True)
 
-with t[4]: # SCAMBI CON TOTALI SQUADRA
+with t[4]: # SCAMBI (ARROTONDATI)
     if f_rs is not None:
-        st.subheader("🔄 Simulatore Scambi: Analisi Quote")
+        st.subheader("🔄 Simulatore Scambi: Analisi Quote (Arrotondato)")
         c1, c2 = st.columns(2)
         lista_n_sq = sorted([s for s in f_rs['Squadra_N'].unique() if s])
         
         with c1:
-            sa = st.selectbox("Squadra A:", lista_n_sq, key="sa_t")
-            ga = st.multiselect("Escono da A:", f_rs[f_rs['Squadra_N']==sa]['Nome'].tolist(), key="ga_t")
+            sa = st.selectbox("Squadra A:", lista_n_sq, key="sa_rnd")
+            ga = st.multiselect("Escono da A:", f_rs[f_rs['Squadra_N']==sa]['Nome'].tolist(), key="ga_rnd")
         with c2:
-            sb = st.selectbox("Squadra B:", [s for s in lista_n_sq if s != sa], key="sb_t")
-            gb = st.multiselect("Escono da B:", f_rs[f_rs['Squadra_N']==sb]['Nome'].tolist(), key="gb_t")
+            sb = st.selectbox("Squadra B:", [s for s in lista_n_sq if s != sa], key="sb_rnd")
+            gb = st.multiselect("Escono da B:", f_rs[f_rs['Squadra_N']==sb]['Nome'].tolist(), key="gb_rnd")
         
         if ga and gb:
             def get_info(nome):
@@ -119,24 +119,36 @@ with t[4]: # SCAMBI CON TOTALI SQUADRA
 
             dict_a = {n: get_info(n) for n in ga}
             dict_b = {n: get_info(n) for n in gb}
-            tot_ante_a, tot_ante_b = sum(d['t'] for d in dict_a.values()), sum(d['t'] for d in dict_b.values())
-            nuovo_tot = (tot_ante_a + tot_ante_b) / 2
+            tot_ante_a = sum(d['t'] for d in dict_a.values())
+            tot_ante_b = sum(d['t'] for d in dict_b.values())
             
-            # TOTALI SQUADRA
+            # NUOVO TOTALE ARROTONDATO
+            nuovo_tot = round((tot_ante_a + tot_ante_b) / 2)
+            
             st.divider()
             m1, m2 = st.columns(2)
-            m1.metric(f"Totale Scambiato {sa}", f"{nuovo_tot:.1f}", delta=f"ex {tot_ante_a:g}")
-            m2.metric(f"Totale Scambiato {sb}", f"{nuovo_tot:.1f}", delta=f"ex {tot_ante_b:g}")
+            m1.metric(f"Valore Acquisito da {sa}", f"{nuovo_tot}", delta=f"ex {int(tot_ante_a)}")
+            m2.metric(f"Valore Acquisito da {sb}", f"{nuovo_tot}", delta=f"ex {int(tot_ante_b)}")
             st.divider()
 
             res_a, res_b = st.columns(2)
             with res_a:
-                st.write(f"### ➡️ In {sa}")
+                st.write(f"### ➡️ Giocatori in entrata a {sa}")
                 for n, info in dict_b.items():
-                    nuovo_t = (info['t'] / tot_ante_b) * nuovo_tot
-                    st.write(f"**{n}** | Nuovo: **{nuovo_t:.1f}** (Base: {max(0, nuovo_t-info['v']):.1f}, Vinc: {info['v']:g})")
+                    # Ripartizione proporzionale arrotondata
+                    peso = info['t'] / tot_ante_b if tot_ante_b > 0 else 1/len(gb)
+                    nuovo_t = round(peso * nuovo_tot)
+                    quota_v = int(info['v'])
+                    quota_b = max(0, nuovo_t - quota_v)
+                    st.write(f"**{n}** | Nuovo Totale: **{nuovo_t}**")
+                    st.caption(f"↳ Base: {quota_b} | Vincolo: {quota_v}")
+                    
             with res_b:
-                st.write(f"### ➡️ In {sb}")
+                st.write(f"### ➡️ Giocatori in entrata a {sb}")
                 for n, info in dict_a.items():
-                    nuovo_t = (info['t'] / tot_ante_a) * nuovo_tot
-                    st.write(f"**{n}** | Nuovo: **{nuovo_t:.1f}** (Base: {max(0, nuovo_t-info['v']):.1f}, Vinc: {info['v']:g})")
+                    peso = info['t'] / tot_ante_a if tot_ante_a > 0 else 1/len(ga)
+                    nuovo_t = round(peso * nuovo_tot)
+                    quota_v = int(info['v'])
+                    quota_b = max(0, nuovo_t - quota_v)
+                    st.write(f"**{n}** | Nuovo Totale: **{nuovo_t}**")
+                    st.caption(f"↳ Base: {quota_b} | Vincolo: {quota_v}")
