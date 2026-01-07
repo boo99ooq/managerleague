@@ -17,7 +17,7 @@ st.title("⚽ MuyFantaManager")
 
 # Configurazione Budget e Mappature
 bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
-map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS", "DANI ROBI": "DANI ROBI"}
+map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS"}
 map_r = {"P": "PORTIERE", "D": "DIFENSORE", "C": "CENTROCAMPISTA", "A": "ATTACCANTE"}
 
 # --- UTILITY DI PULIZIA ---
@@ -33,48 +33,55 @@ def clean_text(s):
     return " ".join(str(s).upper().replace('-', ' ').replace('.', '').split()).strip()
 
 def get_match_key(name):
-    """Estrae il cognome per il match (es. 'MARTINEZ' da 'MARTINEZ L.')"""
+    """Prende il primo pezzo del nome (Cognome) per il match"""
     s = clean_text(name)
     if not s: return ""
     parts = s.split()
     # Se abbiamo 'MARTINEZ L.', prendiamo 'MARTINEZ'
-    # Se abbiamo 'LAUTARO MARTINEZ', prendiamo 'MARTINEZ'
-    return parts[0] if len(parts[0]) > 2 else (parts[1] if len(parts) > 1 else parts[0])
+    return parts[0]
 
 def ld(f):
     if not os.path.exists(f): return None
     try:
-        # Legge saltando righe vuote iniziali
+        # Carica saltando righe vuote iniziali
         df = pd.read_csv(f, sep=',', engine='python', encoding='utf-8-sig', skip_blank_lines=True)
-        # Se la prima colonna è "Unnamed", riprova saltando la prima riga
-        if df.columns[0].startswith('Unnamed'):
+        # Se la prima riga era vuota, a volte pandas mette 'Unnamed' come colonna. Riprova:
+        if df.columns[0].startswith('Unnamed') or len(df.columns) < 2:
             df = pd.read_csv(f, sep=',', engine='python', encoding='utf-8-sig', skiprows=1)
         df.columns = [c.strip() for c in df.columns]
         return df.dropna(how='all')
     except: return None
 
 # --- CARICAMENTO ---
-f_rs, f_vn, f_qt = ld("rose_complete.csv"), ld("vincoli.csv"), ld("quotazioni.csv")
-f_sc, f_pt = ld("scontridiretti.csv"), ld("classificapunti.csv")
+f_rs = ld("rose_complete.csv")
+f_vn = ld("vincoli.csv")
+f_qt = ld("quotazioni.csv")
+f_sc = ld("scontridiretti.csv")
+f_pt = ld("classificapunti.csv")
 
-# --- ELABORAZIONE ---
+# --- ELABORAZIONE ROSE E QUOTAZIONI ---
 if f_rs is not None:
-    f_rs['Nome_Match'] = f_rs['Nome'].apply(get_match_key)
-    f_rs['Ruolo_Clean'] = f_rs['Ruolo'].apply(lambda x: map_r.get(str(x)[0].upper(), clean_text(x)))
+    # Pulizia colonne fondamentali
+    f_rs['Nome'] = f_rs['Nome'].apply(clean_text)
+    f_rs['Ruolo'] = f_rs['Ruolo'].apply(lambda x: map_r.get(str(x)[0].upper(), clean_text(x)))
     f_rs['Fantasquadra'] = f_rs['Fantasquadra'].apply(clean_text).replace(map_n)
     f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
+    f_rs['MatchKey'] = f_rs['Nome'].apply(get_match_key)
 
     if f_qt is not None:
-        f_qt['Nome_Match'] = f_qt['Nome'].apply(get_match_key)
-        f_qt['Ruolo_Match'] = f_qt['R'].map(map_r)
+        f_qt['MatchKey'] = f_qt['Nome'].apply(get_match_key)
+        f_qt['Ruolo_QT'] = f_qt['R'].map(map_r)
         f_qt['Quotazione'] = f_qt['Qt.A'].apply(cv)
-        # Match intelligente su Cognome e Ruolo
-        f_rs = pd.merge(f_rs, f_qt[['Nome_Match', 'Ruolo_Match', 'Quotazione']], 
-                        left_on=['Nome_Match', 'Ruolo_Clean'], right_on=['Nome_Match', 'Ruolo_Match'], 
-                        how='left').drop('Ruolo_Match', axis=1)
+        # Match su Cognome + Ruolo
+        f_rs = pd.merge(f_rs, f_qt[['MatchKey', 'Ruolo_QT', 'Quotazione']], 
+                        left_on=['MatchKey', 'Ruolo'], right_on=['MatchKey', 'Ruolo_QT'], 
+                        how='left').drop('Ruolo_QT', axis=1)
         f_rs['Quotazione'] = f_rs['Quotazione'].fillna(0)
         f_rs['Plusvalenza'] = f_rs['Quotazione'] - f_rs['Prezzo']
+    else:
+        f_rs['Quotazione'], f_rs['Plusvalenza'] = 0.0, 0.0
 
+# Elaborazione Vincoli
 if f_vn is not None:
     f_vn['Squadra'] = f_vn['Squadra'].apply(clean_text).replace(map_n)
     v_cols = [c for c in ['Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29'] if c in f_vn.columns]
@@ -91,10 +98,9 @@ with t[0]: # CLASSIFICHE
             st.subheader("🎯 Punti")
             f_pt['Punti Totali'] = f_pt['Punti Totali'].apply(cv)
             st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali']].sort_values('Posizione').style.background_gradient(subset=['Punti Totali'], cmap='Greens'), hide_index=True)
-        # Grafico Classifica
-        p_min = f_pt['Punti Totali'].min() - 10
+        # Grafico
         chart = alt.Chart(f_pt).mark_line(point=True, color='green').encode(
-            x=alt.X('Giocatore:N', sort='-y'), y=alt.Y('Punti Totali:Q', scale=alt.Scale(domainMin=p_min))
+            x=alt.X('Giocatore:N', sort='-y'), y=alt.Y('Punti Totali:Q', scale=alt.Scale(domainMin=f_pt['Punti Totali'].min()-10))
         ).properties(height=300)
         st.altair_chart(chart, use_container_width=True)
 
@@ -117,14 +123,13 @@ with t[3]: # ROSE COLORATE
         df_sq = f_rs[f_rs['Fantasquadra'] == sq].copy()
         
         def color_ruoli(row):
-            bg = {'PORTIERE':'#E3F2FD','DIFENSORE':'#E8F5E9','CENTROCAMPISTA':'#FFFDE7','ATTACCANTE':'#FFEBEE'}.get(row['Ruolo_Clean'], '#FFFFFF')
+            bg = {'PORTIERE':'#E3F2FD','DIFENSORE':'#E8F5E9','CENTROCAMPISTA':'#FFFDE7','ATTACCANTE':'#FFEBEE'}.get(row['Ruolo'], '#FFFFFF')
             return [f'background-color: {bg}; color: black; font-weight: bold;'] * len(row)
             
         st.dataframe(df_sq[['Ruolo', 'Nome', 'Prezzo', 'Quotazione', 'Plusvalenza']].style.apply(color_ruoli, axis=1).background_gradient(subset=['Plusvalenza'], cmap='RdYlGn').format({"Prezzo":"{:g}","Quotazione":"{:g}","Plusvalenza":"{:+g}"}), hide_index=True, use_container_width=True)
-        st.metric("Plusvalenza Rosa", f"{df_sq['Plusvalenza'].sum():+g}")
 
-with t[5]: # SCAMBI MERITOCRATICI
-    st.subheader("🔄 Simulatore Scambi Proporzionale")
+with t[5]: # SCAMBI
+    st.subheader("🔄 Simulatore Scambi Meritocratico")
     if f_rs is not None:
         c1, c2 = st.columns(2)
         with c1:
@@ -135,7 +140,6 @@ with t[5]: # SCAMBI MERITOCRATICI
             gb = st.multiselect("Cede da B:", f_rs[f_rs['Fantasquadra']==sb]['Nome'], key="gb")
         
         if ga and gb:
-            # Calcolo valori reali (Prezzo + Vincoli)
             def get_v(n):
                 p = f_rs[f_rs['Nome']==n]['Prezzo'].iloc[0]
                 v = f_vn[f_vn['Giocatore'].apply(clean_text)==clean_text(n)]['Spesa Complessiva'].sum() if f_vn is not None else 0
@@ -146,6 +150,6 @@ with t[5]: # SCAMBI MERITOCRATICI
             st.write("---")
             col_a, col_b = st.columns(2)
             with col_a:
-                for n in ga: st.success(f"{n} -> Nuovo Valore: **{round(get_v(n)*ca)}**")
+                for n in ga: st.success(f"{n} -> Post-Scambio: **{round(get_v(n)*ca)}**")
             with col_b:
-                for n in gb: st.success(f"{n} -> Nuovo Valore: **{round(get_v(n)*cb)}**")
+                for n in gb: st.success(f"{n} -> Post-Scambio: **{round(get_v(n)*cb)}**")
