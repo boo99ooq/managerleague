@@ -1,0 +1,330 @@
+
+Ruolo,Fantasquadra,Nome,Prezzo
+Portiere,GIANNI,di gregorio,11.0
+Portiere,DANI ROBI,BUTEZ,15.0
+Portiere,MARCO,CARNESECCHI,16.0
+Portiere,PIETRO,LEALI,6.0
+Portiere,PIERLUIGI,Maignan,22.0
+Portiere,GIGI,PROVEDEL,21.0
+Portiere,ANDREA,MERET,45.0
+Portiere,GIUSEPPE,Sommer,34.0
+Portiere,MATTEO,DE GEA,30.0
+Portiere,NICHOLAS,Svilar,40.0
+Portiere,GIANNI,PERIN,1.0
+Portiere,DANI ROBI,MONTIPO,1.0
+Portiere,MARCO,MANDAS,3.0
+Portiere,PIETRO,SIEGRIST,1.0
+Portiere,PIERLUIGI,TERRACCIANO,1.0
+Portiere,GIGI,SKORUPSKI,17.0
+Portiere,ANDREA,MILINKOVIC SAVIC,35.0
+Portiere,GIUSEPPE,Martinez,1.0
+Portiere,MATTEO,MARTINELLI,1.0
+Portiere,NICHOLAS,ISRAEL,8.0
+Portiere,GIANNI,PINSOGLIO,1.0
+Portiere,DANI ROBI,okoye,1.0
+Portiere,MARCO,CAPRILE,5.0
+Portiere,PIETRO,SOMMARIVA,1.0
+Portiere,PIERLUIGI,TORRIANI,1.0
+Portiere,GIGI,RAVAGLIA,1.0
+Portiere,ANDREA,contini,1.0
+Portiere,GIUSEPPE,muric,1.0
+Portiere,MATTEO,SEMPER,1.0
+Portiere,NICHOLAS,SAVA,2.0
+Portiere,MARCO,SPORTIELLO,1.0
+Portiere,GIGI,FURLANETTO,1.0
+Portiere,GIUSEPPE,TURATI,1.0
+Portiere,MATTEO,AUDERO,1.0
+Portiere,NICHOLAS,FALCONE,2.0
+Difensore,GIANNI,de winter,15.0
+Difensore,DANI ROBI,Cambiaso,5.0
+Difensore,MARCO,KEMPF,1.0
+Difensore,PIETRO,bremer,16.0
+Difensore,PIERLUIGI,Kalulu,1.0
+Difensore,GIGI,di lorenzo,15.0
+Difensore,ANDREA,NDICKA,7.0
+Difensore,GIUSEPPE,ROMAGNOLI,4.0
+Difensore,MATTEO,buongiorno,17.0
+Difensore,NICHOLAS,Bellanova,40.0
+Difensore,GIANNI,MARTIN,15.0
+Difensore,DANI ROBI,thiago gabriel,1.0
+Difensore,MARCO,GOSENS,31.0
+Difensore,PIETRO,ANGELINO,13.0
+Difensore,PIERLUIGI,HERMOSO,4.0
+Difensore,GIGI,BASCHIROTTO,5.0
+Difensore,ANDREA,LUCUMI,5.0
+Difensore,GIUSEPPE,SCALVINI,1.0
+Difensore,MATTEO,DI MARCO,40.0
+Difensore,NICHOLAS,NORTON CUFFY,6.0
+Difensore,GIANNI,MARIPAN,1.0
+Difensore,DANI ROBI,VALERI,7.0
+Difensore,MARCO,SOLET,9.0
+Difensore,PIETRO,AKANJI,8.0
+Difensore,PIERLUIGI,HEGGEM,1.0
+Difensore,GIGI,PALESTRA,9.0
+Difensore,ANDREA,PAVLOVIC,7.0
+Difensore,GIUSEPPE,LUPERTO,6.0
+Difensore,MATTEO,GABBIA,3.0
+Difensore,NICHOLAS,PEZZELLA,2.0
+Difensore,GIANNI,RRAHMANI,6.0
+Difensore,DANI ROBI,KRISTENSEN,3.0
+Difensore,MARCO,TERRACCIANO,4.0
+Difensore,PIETRO,DODO,15.0
+Difensore,PIERLUIGI,MIRANDA,10.0
+Difensore,GIGI,ZAPPACOSTA,11.0
+Difensore,ANDREA,MARUSIC,3.0
+Difensore,GIUSEPPE,GILA,4.0
+Difensore,MATTEO,ANGORI,11.0
+Difensore,NICHOLAS,ESTUPINAN,18.0
+Difensore,GIANNI,RENSCH,2.0
+Difensore,DANI ROBI,BASTONI,12.0
+Difensore,MARCO,VOJVODA,9.0
+Difensore,PIETRO,WESLEY,28.0
+Difensore,PIERLUIGI,KOUSSOUNOU,1.0
+Difensore,GIGI,GATTI,6.0
+Difensore,ANDREA,bartesaghi,15.0
+Difensore,GIUSEPPE,NUNO TAVARES,20.0
+Difensore,MATTEO,COMUZZO,3.0
+Difensore,NICHOLAS,DUMFRIES,41.0
+Difensore,GIANNI,Kamara H.,1.0
+Difensore,DANI ROBI,ZAPPA,3.0
+Difensore,MARCO,VITIK,4.0
+Difensore,PIETRO,KELLY,1.0
+Difensore,PIERLUIGI,MUHAREMOVIC,1.0
+Difensore,GIGI,DOIG,4.0
+Difensore,ANDREA,MANCINI,12.0
+Difensore,GIUSEPPE,BEUKEMA,2.0
+Difensore,MATTEO,RANIERI,1.0
+Difensore,NICHOLAS,DELPRATO,9.0
+Difensore,GIANNI,COCO,1.0
+Difensore,DANI ROBI,ZANOLI,3.0
+Difensore,MARCO,GUTIERREZ,1.0
+Difensore,PIETRO,MINA,7.0
+Difensore,PIERLUIGI,RAMON,15.0
+Difensore,GIGI,BARBIERI,1.0
+Difensore,ANDREA,ACERBI,1.0
+Difensore,GIUSEPPE,HIEN,8.0
+Difensore,MATTEO,DARMIAN,4.0
+Difensore,NICHOLAS,FRESE,4.0
+Difensore,GIANNI,VASQUEZ,5.0
+Difensore,DANI ROBI,CARLOS AUGU,4.0
+Difensore,MARCO,GALLO,2.0
+Difensore,PIETRO,OBERT,1.0
+Difensore,PIERLUIGI,BERTOLA,7.0
+Difensore,GIGI,PONGRACIC,1.0
+Difensore,ANDREA,DJIMSITI,1.0
+Difensore,GIUSEPPE,zortea,5.0
+Difensore,MATTEO,CUADRADO,8.0
+Difensore,NICHOLAS,HOLM,8.0
+Difensore,GIANNI,GASPAR,2.0
+Difensore,DANI ROBI,POSCH,4.0
+Difensore,MARCO,TOMORI,1.0
+Difensore,PIETRO,ZIOLKOWSKI,1.0
+Difensore,PIERLUIGI,IDZES,1.0
+Difensore,GIGI,CELIK,1.0
+Difensore,ANDREA,JUAN JESUS,4.0
+Difensore,GIUSEPPE,OSTIGAARD,2.0
+Difensore,MATTEO,SPINAZZOLA,7.0
+Difensore,NICHOLAS,LAZARO,5.0
+Centrocampista,GIANNI,Ederson,21.0
+Centrocampista,DANI ROBI,Conceicao,31.0
+Centrocampista,MARCO,Samardzic,1.0
+Centrocampista,PIETRO,Prati,7.0
+Centrocampista,PIERLUIGI,de roon,9.0
+Centrocampista,GIGI,Zaniolo,30.0
+Centrocampista,ANDREA,K THURAM,30.0
+Centrocampista,GIUSEPPE,Frattesi,15.0
+Centrocampista,MATTEO,da cunha,18.0
+Centrocampista,NICHOLAS,Barella,27.0
+Centrocampista,GIANNI,Zaccagni,54.0
+Centrocampista,DANI ROBI,perrone,17.0
+Centrocampista,MARCO,CALHANOGLU,60.0
+Centrocampista,PIETRO,Odgaard,1.0
+Centrocampista,PIERLUIGI,Gudmundsson,37.0
+Centrocampista,GIGI,ZIELINSKI,1.0
+Centrocampista,ANDREA,MODRIC,35.0
+Centrocampista,GIUSEPPE,ferguson,1.0
+Centrocampista,MATTEO,Lovric,13.0
+Centrocampista,NICHOLAS,nicolussi caviglia,2.0
+Centrocampista,GIANNI,Maldini,3.0
+Centrocampista,DANI ROBI,POBEGA,1.0
+Centrocampista,MARCO,Brescianini,30.0
+Centrocampista,PIETRO,Ricci,20.0
+Centrocampista,PIERLUIGI,loftus cheek,27.0
+Centrocampista,GIGI,nico paz,24.0
+Centrocampista,ANDREA,ZHEGROVA,40.0
+Centrocampista,GIUSEPPE,Neres,74.0
+Centrocampista,MATTEO,DE BRUYNE,151.0
+Centrocampista,NICHOLAS,felici,5.0
+Centrocampista,GIANNI,RABIOT,42.0
+Centrocampista,DANI ROBI,TRAMONI,30.0
+Centrocampista,MARCO,Koopmeiners,20.5
+Centrocampista,PIETRO,FOLORUNSHO,20.0
+Centrocampista,PIERLUIGI,Fofana,25.0
+Centrocampista,GIGI,Mctominay,43.0
+Centrocampista,ANDREA,FAGIOLI,14.0
+Centrocampista,GIUSEPPE,THORSVEDT,13.0
+Centrocampista,MATTEO,HARROUI,11.0
+Centrocampista,NICHOLAS,vlasic,23.0
+Centrocampista,GIANNI,POLITANO,41.0
+Centrocampista,DANI ROBI,FRENDRUP,3.0
+Centrocampista,MARCO,orsolini,42.0
+Centrocampista,PIETRO,Anguissa,31.0
+Centrocampista,PIERLUIGI,BATURINA,30.0
+Centrocampista,GIGI,Saelemakers,12.0
+Centrocampista,ANDREA,ELMAS,9.0
+Centrocampista,GIUSEPPE,CASADEI,1.0
+Centrocampista,MATTEO,ILIC,1.0
+Centrocampista,NICHOLAS,KONE SASSUOLO,1.0
+Centrocampista,GIANNI,L.PELLEGRINI,55.0
+Centrocampista,DANI ROBI,PASALIC,35.0
+Centrocampista,MARCO,Malinovskyi,18.0
+Centrocampista,PIETRO,VAZQUEZ,22.0
+Centrocampista,PIERLUIGI,VENTURINO,7.0
+Centrocampista,GIGI,pulisic,85.0
+Centrocampista,ANDREA,LOBOTKA,1.0
+Centrocampista,GIUSEPPE,PIEROTTI,2.0
+Centrocampista,MATTEO,SUCIC,10.0
+Centrocampista,NICHOLAS,TOURE,6.0
+Centrocampista,GIANNI,CRISTANTE,13.0
+Centrocampista,DANI ROBI,ORISTANIO,13.0
+Centrocampista,MARCO,ISAKSEN,51.0
+Centrocampista,PIETRO,GUENDOUZI,18.0
+Centrocampista,PIERLUIGI,LOCATELLI,3.0
+Centrocampista,GIGI,ZALEWSKI,11.0
+Centrocampista,ANDREA,M KONE,15.0
+Centrocampista,GIUSEPPE,BAILEY,1.0
+Centrocampista,MATTEO,BONDO,1.0
+Centrocampista,NICHOLAS,DELE BASHIRU,7.0
+Centrocampista,GIANNI,Karlstrom,1.0
+Centrocampista,DANI ROBI,BERNARDESCHI,5.0
+Centrocampista,MARCO,Bernabè,1.0
+Centrocampista,PIETRO,MKHTARYAN,15.0
+Centrocampista,PIERLUIGI,COLLOCOLO,6.0
+Centrocampista,GIGI,SOTTIL,12.0
+Centrocampista,ANDREA,KOSTIC,3.0
+Centrocampista,GIUSEPPE,MANDRAGORA,1.0
+Centrocampista,MATTEO,ADOPO,1.0
+Centrocampista,NICHOLAS,VANDEPUTTE,14.0
+Centrocampista,GIANNI,FREULER,1.0
+Centrocampista,DANI ROBI,ATTA,20.0
+Centrocampista,MARCO,STANCIU,27.0
+Centrocampista,PIETRO,matic,5.0
+Centrocampista,PIERLUIGI,BOLOCA,5.0
+Centrocampista,GIGI,ROWE,19.0
+Centrocampista,ANDREA,BERISHA,14.0
+Centrocampista,GIUSEPPE,SORENSEN,1.0
+Centrocampista,MATTEO,COULIBALY,1.0
+Centrocampista,NICHOLAS,GAETANO,3.0
+Attaccante,GIANNI,Lucca,23.0
+Attaccante,DANI ROBI,Zapata,1.0
+Attaccante,MARCO,Yildiz,17.5
+Attaccante,PIETRO,Soulè,1.0
+Attaccante,PIERLUIGI,lukaku,106.0
+Attaccante,GIGI,Lookman,22.0
+Attaccante,ANDREA,Dybala,64.0
+Attaccante,GIUSEPPE,Lautaro,97.0
+Attaccante,MATTEO,HOJLUND,176.0
+Attaccante,NICHOLAS,Thuram,126.0
+Attaccante,GIANNI,DAVIS,31.0
+Attaccante,DANI ROBI,Piccoli,67.0
+Attaccante,MARCO,Castro,11.0
+Attaccante,PIETRO,SIMEONE,27.0
+Attaccante,PIERLUIGI,Krstovic,25.0
+Attaccante,GIGI,LAURIENTE,32.0
+Attaccante,ANDREA,Dominguez,85.0
+Attaccante,GIUSEPPE,de ketelaere,25.0
+Attaccante,MATTEO,DZEKO,50.0
+Attaccante,NICHOLAS,kean,106.0
+Attaccante,GIANNI,Adams,49.0
+Attaccante,DANI ROBI,Gimenez,241.0
+Attaccante,MARCO,f. esposito,7.5
+Attaccante,PIETRO,LANG,31.0
+Attaccante,PIERLUIGI,Castellanos,26.0
+Attaccante,GIGI,s esposito,1.0
+Attaccante,ANDREA,IMMOBILE,40.0
+Attaccante,GIUSEPPE,Vlahovic,141.0
+Attaccante,MATTEO,LUVUMBO,1.0
+Attaccante,NICHOLAS,NZOLA,30.0
+Attaccante,GIANNI,Cancellieri,1.0
+Attaccante,DANI ROBI,CAMARDA,1.0
+Attaccante,MARCO,Dovbyk,158.0
+Attaccante,PIETRO,CUTRONE,11.0
+Attaccante,PIERLUIGI,leao,85.0
+Attaccante,GIGI,SANABRIA,16.0
+Attaccante,ANDREA,BELOTTI,26.0
+Attaccante,GIUSEPPE,SCAMACCA,102.0
+Attaccante,MATTEO,MOREO,1.0
+Attaccante,NICHOLAS,PELLEGRINO,95.0
+Attaccante,GIANNI,Douvikas,20.0
+Attaccante,DANI ROBI,BRAVO,14.0
+Attaccante,MARCO,pinamonti,21.0
+Attaccante,PIETRO,noslin,10.0
+Attaccante,PIERLUIGI,KILICSOY,13.0
+Attaccante,GIGI,GIOVANE,16.0
+Attaccante,ANDREA,VARDY,60.0
+Attaccante,GIUSEPPE,BERARDI,90.0
+Attaccante,MATTEO,CHEDDIRA,7.0
+Attaccante,NICHOLAS,NGONGE,6.0
+Attaccante,GIANNI,Benedyczak,1.0
+Attaccante,DANI ROBI,ORBAN,26.0
+Attaccante,MARCO,J RODRIGUEZ,11.0
+Attaccante,PIETRO,MEISTER,17.0
+Attaccante,PIERLUIGI,OPENDA,70.0
+Attaccante,GIGI,CAMBIAGHI,5.0
+Attaccante,ANDREA,DIA,30.0
+Attaccante,GIUSEPPE,NKUNKU,64.0
+Attaccante,MATTEO,BONAZZOLI,1.0
+Attaccante,NICHOLAS,PEDRO,14.0
+Attaccante,GIANNI,colombo,1.0
+Attaccante,DANI ROBI,ADDAI,5.0
+Attaccante,MARCO,STULIC,33.0
+Attaccante,PIETRO,K SULEMANA,17.0
+Attaccante,PIERLUIGI,ABOUKHLAL,1.0
+Attaccante,GIGI,MORATA,38.0
+Attaccante,ANDREA,DAVID,160.0
+Attaccante,GIUSEPPE,MOUMBAGNA,1.0
+Attaccante,NICHOLAS,ndri,1.0
+Attaccante,GIANNI,FERGUSON,153.0
+Attaccante,DANI ROBI,BUKSA,6.0
+Attaccante,MARCO,KUHN,20.0
+Attaccante,PIETRO,BORRELLI,5.0
+Attaccante,PIERLUIGI,VITINHA,6.0
+Attaccante,GIGI,DALLINGA,2.0
+Attaccante,ANDREA,buffon,1.0
+Attaccante,GIUSEPPE,BANDA,1.0
+Attaccante,MATTEO,BONNY,7.5
+Attaccante,NICHOLAS,EKUBAN,3.0
+Giovani,GIANNI,Loumbarde,1.0
+Giovani,DANI ROBI,ONDREJKA,5.0
+Giovani,MARCO,Diao,51.0
+Giovani,PIETRO,Mulattieri,1.0
+Giovani,PIERLUIGI,renato veiga,1.0
+Giovani,GIGI,dagasso,1.0
+Giovani,GIUSEPPE,Miretti,1.0
+Giovani,MATTEO,Plizzari,1.0
+Giovani,NICHOLAS,AKINSAMIRO,1.0
+Giovani,GIANNI,Pizarro,1.0
+Giovani,DANI ROBI,Hasa,2.0
+Giovani,MARCO,JASHARI,5.0
+Giovani,PIETRO,Faticanti,1.0
+Giovani,GIGI,EKATOR,1.0
+Giovani,GIUSEPPE,Gnonto,1.0
+Giovani,MATTEO,r moro,1.0
+Giovani,NICHOLAS,anjorin,1.0
+Giovani,DANI ROBI,NUNZIANTE,1.0
+Giovani,MARCO,vlahovic ata,1.0
+Giovani,PIETRO,Cavuoti,1.0
+Giovani,GIGI,AHANOR,1.0
+Giovani,GIUSEPPE,Baldanzi,19.0
+Giovani,NICHOLAS,MILLER,2.0
+Giovani,DANI ROBI,GUEYE,1.0
+Giovani,MARCO,Fabbian,1.0
+Giovani,PIETRO,Vinciguerra,1.0
+Giovani,GIGI,Mutandwa,1.0
+Giovani,GIUSEPPE,fazzini,1.0
+Giovani,NICHOLAS,PISILLI,1.0
+Giovani,DANI ROBI,IDRISSI,1.0
+Giovani,MARCO,cisse,1.0
+Giovani,PIETRO,Semedo,1.0
+Giovani,GIGI,AMBROSINO,1.0
+Giovani,NICHOLAS,CREMASCHI,1.0
