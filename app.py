@@ -1,106 +1,112 @@
 import streamlit as st
 import pandas as pd
 import os
-import altair as alt
+import numpy as np
 
-# 1. SETUP UI ORIGINALE
+# 1. SETUP E STILE
 st.set_page_config(page_title="MuyFantaManager", layout="wide")
 st.markdown("""
 <style>
     .stApp { background-color: white; }
     div[data-testid="stDataFrame"] * { color: #1a1a1a !important; font-weight: bold !important; }
-    header { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
 
 st.title("⚽ MuyFantaManager")
 
-# Configurazione Budget e Mappature
+# Dati Budget Extra (Esempio)
 bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
-map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS", "DANI ROBI": "DANI ROBI"}
 
-# --- FUNZIONI DI CARICAMENTO STABILI ---
 def cv(v):
     if pd.isna(v): return 0.0
     try:
-        return float(str(v).replace('"', '').replace(',', '.').strip())
+        s = str(v).replace('"', '').replace(',', '.').strip()
+        return float(s) if s != "" else 0.0
     except: return 0.0
+
+def clean_name(s):
+    if pd.isna(s) or str(s).strip().upper() == "NONE" or str(s).strip() == "": return "SKIP"
+    return str(s).split(':')[0].replace('*', '').replace('"', '').strip().upper()
 
 def ld(f):
     if not os.path.exists(f): return None
     try:
-        # Questa riga risolve il problema della riga vuota iniziale
-        df = pd.read_csv(f, sep=',', engine='python', skip_blank_lines=True)
-        if df.columns[0].startswith('Unnamed'):
-            df = pd.read_csv(f, sep=',', engine='python', skiprows=1)
+        df = pd.read_csv(f, sep=',', engine='python', encoding='utf-8-sig')
         df.columns = [c.strip() for c in df.columns]
-        return df.dropna(how='all')
+        return df
     except: return None
 
-# 2. CARICAMENTO DATI
-f_sc = ld("scontridiretti.csv")
-f_pt = ld("classificapunti.csv")
-f_rs = ld("rose_complete.csv")
-f_vn = ld("vincoli.csv")
+# CARICAMENTO
+f_rs, f_vn = ld("rose_complete.csv"), ld("vincoli.csv")
 
-# 3. INTERFACCIA A TABS (COME ORIGINALE)
-t = st.tabs(["🏆 Classifiche", "💰 Budget", "🏃 Rose", "📅 Vincoli"])
+if f_rs is not None:
+    f_rs['Nome'] = f_rs['Nome'].apply(clean_name)
+    f_rs['Fantasquadra'] = f_rs['Fantasquadra'].apply(clean_name)
+    f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
 
-with t[0]: # CLASSIFICHE E GRAFICO ZOOM
-    if f_pt is not None:
-        c1, c2 = st.columns([1, 1])
+if f_vn is not None:
+    f_vn['Giocatore'] = f_vn['Giocatore'].apply(clean_name)
+    for c in ['Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29']:
+        if c in f_vn.columns: f_vn[c] = f_vn[c].apply(cv)
+    f_vn['Spesa Complessiva'] = f_vn.get('Costo 2026-27', 0) + f_vn.get('Costo 2027-28', 0) + f_vn.get('Costo 2028-29', 0)
+
+t = st.tabs(["🏆 Classifiche", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli", "🔄 Scambi"])
+
+with t[5]:
+    st.subheader("🔄 Simulatore Scambi Proporzionale (con Arrotondamento)")
+    if f_rs is not None:
+        sq_l = sorted([x for x in f_rs['Fantasquadra'].unique() if x != "SKIP"])
+        
+        def get_details(lista_nomi):
+            dati = []
+            for n in lista_nomi:
+                p = f_rs[f_rs['Nome'] == n]['Prezzo'].values[0]
+                v = f_vn[f_vn['Giocatore'] == n]['Spesa Complessiva'].values[0] if (f_vn is not None and n in f_vn['Giocatore'].values) else 0.0
+                dati.append({'Giocatore': n, 'Valore Iniziale': p + v})
+            return pd.DataFrame(dati)
+
+        c1, c2 = st.columns(2)
         with c1:
-            st.subheader("🎯 Classifica Punti")
-            f_pt['Punti Totali'] = f_pt['Punti Totali'].apply(lambda x: cv(str(x).replace('.', '')))
-            st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali']].sort_values('Posizione').style.background_gradient(subset=['Punti Totali'], cmap='Greens'), hide_index=True, use_container_width=True)
-        
+            sa = st.selectbox("Squadra A:", sq_l, key="sa_prop")
+            ga_list = st.multiselect("Cede da A:", f_rs[f_rs['Fantasquadra']==sa]['Nome'], key="ga_prop")
+            df_a = get_details(ga_list)
+            if not df_a.empty: st.table(df_a)
+
         with c2:
-            st.subheader("📈 Trend")
-            p_min = f_pt['Punti Totali'].min() - 5
-            chart = alt.Chart(f_pt).mark_line(point=True, color='green').encode(
-                x=alt.X('Giocatore:N', sort='-y'),
-                y=alt.Y('Punti Totali:Q', scale=alt.Scale(domainMin=p_min))
-            ).properties(height=300)
-            st.altair_chart(chart, use_container_width=True)
+            sb = st.selectbox("Squadra B:", [s for s in sq_l if s != sa], key="sb_prop")
+            gb_list = st.multiselect("Cede da B:", f_rs[f_rs['Fantasquadra']==sb]['Nome'], key="gb_prop")
+            df_b = get_details(gb_list)
+            if not df_b.empty: st.table(df_b)
 
-with t[1]: # BUDGET E BAR CHART
-    if f_rs is not None:
-        st.subheader("💰 Situazione Crediti")
-        f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
-        f_rs['Fantasquadra'] = f_rs['Fantasquadra'].str.upper().replace(map_n)
-        
-        bu = f_rs.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
-        bu['Extra'] = bu['Fantasquadra'].map(bg_ex).fillna(0)
-        bu['Totale Speso'] = bu['Prezzo'] + bu['Extra']
-        
-        st.dataframe(bu.sort_values('Totale Speso', ascending=False).style.background_gradient(subset=['Totale Speso'], cmap='YlOrRd'), hide_index=True, use_container_width=True)
-        
-        # Grafico a barre
-        st.altair_chart(alt.Chart(bu).mark_bar().encode(
-            x=alt.X('Totale Speso:Q'),
-            y=alt.Y('Fantasquadra:N', sort='-x'),
-            color=alt.value('orange')
-        ).properties(height=400), use_container_width=True)
+        if not df_a.empty and not df_b.empty:
+            val_a = df_a['Valore Iniziale'].sum()
+            val_b = df_b['Valore Iniziale'].sum()
+            val_totale = val_a + val_b
+            
+            # Punto di incontro teorico per squadra (meta del valore totale scambiato)
+            punto_pareggio = val_totale / 2
+            
+            # Calcolo coefficienti di rettifica per mantenere la proporzione iniziale
+            # Se la squadra A cede 200 e deve ricevere 210 (punto pareggio), 
+            # i giocatori che riceve vengono riproporzionati.
+            coeff_per_giocatori_di_a = punto_pareggio / val_a if val_a > 0 else 1
+            coeff_per_giocatori_di_b = punto_pareggio / val_b if val_b > 0 else 1
 
-with t[2]: # ROSE COLORATE
-    if f_rs is not None:
-        lista_sq = sorted(f_rs['Fantasquadra'].unique())
-        sq = st.selectbox("Seleziona Squadra:", lista_sq)
-        
-        df_sq = f_rs[f_rs['Fantasquadra'] == sq].copy()
-        
-        def color_ruoli(row):
-            r = str(row['Ruolo']).upper()
-            if 'PORTIERE' in r: color = '#E3F2FD'
-            elif 'DIFENSORE' in r: color = '#E8F5E9'
-            elif 'CENTROCAMPISTA' in r: color = '#FFFDE7'
-            elif 'ATTACCANTE' in r: color = '#FFEBEE'
-            else: color = '#FFFFFF'
-            return [f'background-color: {color}; color: black; font-weight: bold;'] * len(row)
+            st.write("---")
+            st.markdown("### 📊 Esito dello Scambio (Valori Arrotondati)")
+            
+            col_res1, col_res2 = st.columns(2)
+            
+            with col_res1:
+                st.write(f"**Giocatori che vanno a {sb}:**")
+                for _, row in df_a.iterrows():
+                    nuovo_val = round(row['Valore Iniziale'] * coeff_per_giocatori_di_a)
+                    st.write(f"🔹 {row['Giocatore']}: da {row['Valore Iniziale']:g} a **{nuovo_val}**")
 
-        st.dataframe(df_sq[['Ruolo', 'Nome', 'Prezzo']].style.apply(color_ruoli, axis=1), hide_index=True, use_container_width=True)
-
-with t[3]: # VINCOLI
-    if f_vn is not None:
-        st.subheader("📅 Contratti e Vincoli")
-        st.dataframe(f_vn.style.set_properties(**{'font-weight': 'bold'}), hide_index=True, use_container_width=True)
+            with col_res2:
+                st.write(f"**Giocatori che vanno a {sa}:**")
+                for _, row in df_b.iterrows():
+                    nuovo_val = round(row['Valore Iniziale'] * coeff_per_giocatori_di_b)
+                    st.write(f"🔸 {row['Giocatore']}: da {row['Valore Iniziale']:g} a **{nuovo_val}**")
+            
+            st.info("💡 I nuovi valori tengono conto del peso iniziale del giocatore e sono arrotondati all'intero.")
