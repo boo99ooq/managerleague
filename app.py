@@ -3,7 +3,7 @@ import pandas as pd
 import os
 import altair as alt
 
-# 1. SETUP E STILE GOLDEN
+# 1. SETUP UI ORIGINALE
 st.set_page_config(page_title="MuyFantaManager", layout="wide")
 st.markdown("""
 <style>
@@ -17,139 +17,90 @@ st.title("⚽ MuyFantaManager")
 
 # Configurazione Budget e Mappature
 bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
-map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS"}
-map_r = {"P": "PORTIERE", "D": "DIFENSORE", "C": "CENTROCAMPISTA", "A": "ATTACCANTE"}
+map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS", "DANI ROBI": "DANI ROBI"}
 
-# --- UTILITY DI PULIZIA ---
+# --- FUNZIONI DI CARICAMENTO STABILI ---
 def cv(v):
     if pd.isna(v): return 0.0
     try:
-        s = str(v).replace('"', '').replace(',', '.').strip()
-        return float(s) if s != "" else 0.0
+        return float(str(v).replace('"', '').replace(',', '.').strip())
     except: return 0.0
-
-def clean_text(s):
-    if pd.isna(s): return ""
-    return " ".join(str(s).upper().replace('-', ' ').replace('.', '').split()).strip()
-
-def get_match_key(name):
-    """Prende il primo pezzo del nome (Cognome) per il match"""
-    s = clean_text(name)
-    if not s: return ""
-    parts = s.split()
-    # Se abbiamo 'MARTINEZ L.', prendiamo 'MARTINEZ'
-    return parts[0]
 
 def ld(f):
     if not os.path.exists(f): return None
     try:
-        # Carica saltando righe vuote iniziali
-        df = pd.read_csv(f, sep=',', engine='python', encoding='utf-8-sig', skip_blank_lines=True)
-        # Se la prima riga era vuota, a volte pandas mette 'Unnamed' come colonna. Riprova:
-        if df.columns[0].startswith('Unnamed') or len(df.columns) < 2:
-            df = pd.read_csv(f, sep=',', engine='python', encoding='utf-8-sig', skiprows=1)
+        # Questa riga risolve il problema della riga vuota iniziale
+        df = pd.read_csv(f, sep=',', engine='python', skip_blank_lines=True)
+        if df.columns[0].startswith('Unnamed'):
+            df = pd.read_csv(f, sep=',', engine='python', skiprows=1)
         df.columns = [c.strip() for c in df.columns]
         return df.dropna(how='all')
     except: return None
 
-# --- CARICAMENTO ---
-f_rs = ld("rose_complete.csv")
-f_vn = ld("vincoli.csv")
-f_qt = ld("quotazioni.csv")
+# 2. CARICAMENTO DATI
 f_sc = ld("scontridiretti.csv")
 f_pt = ld("classificapunti.csv")
+f_rs = ld("rose_complete.csv")
+f_vn = ld("vincoli.csv")
 
-# --- ELABORAZIONE ROSE E QUOTAZIONI ---
-if f_rs is not None:
-    # Pulizia colonne fondamentali
-    f_rs['Nome'] = f_rs['Nome'].apply(clean_text)
-    f_rs['Ruolo'] = f_rs['Ruolo'].apply(lambda x: map_r.get(str(x)[0].upper(), clean_text(x)))
-    f_rs['Fantasquadra'] = f_rs['Fantasquadra'].apply(clean_text).replace(map_n)
-    f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
-    f_rs['MatchKey'] = f_rs['Nome'].apply(get_match_key)
+# 3. INTERFACCIA A TABS (COME ORIGINALE)
+t = st.tabs(["🏆 Classifiche", "💰 Budget", "🏃 Rose", "📅 Vincoli"])
 
-    if f_qt is not None:
-        f_qt['MatchKey'] = f_qt['Nome'].apply(get_match_key)
-        f_qt['Ruolo_QT'] = f_qt['R'].map(map_r)
-        f_qt['Quotazione'] = f_qt['Qt.A'].apply(cv)
-        # Match su Cognome + Ruolo
-        f_rs = pd.merge(f_rs, f_qt[['MatchKey', 'Ruolo_QT', 'Quotazione']], 
-                        left_on=['MatchKey', 'Ruolo'], right_on=['MatchKey', 'Ruolo_QT'], 
-                        how='left').drop('Ruolo_QT', axis=1)
-        f_rs['Quotazione'] = f_rs['Quotazione'].fillna(0)
-        f_rs['Plusvalenza'] = f_rs['Quotazione'] - f_rs['Prezzo']
-    else:
-        f_rs['Quotazione'], f_rs['Plusvalenza'] = 0.0, 0.0
-
-# Elaborazione Vincoli
-if f_vn is not None:
-    f_vn['Squadra'] = f_vn['Squadra'].apply(clean_text).replace(map_n)
-    v_cols = [c for c in ['Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29'] if c in f_vn.columns]
-    for c in v_cols: f_vn[c] = f_vn[c].apply(cv)
-    f_vn['Spesa Complessiva'] = f_vn[v_cols].sum(axis=1)
-
-# --- UI TABS ---
-t = st.tabs(["🏆 Classifiche", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli", "🔄 Scambi"])
-
-with t[0]: # CLASSIFICHE
-    c1, c2 = st.columns(2)
+with t[0]: # CLASSIFICHE E GRAFICO ZOOM
     if f_pt is not None:
+        c1, c2 = st.columns([1, 1])
+        with c1:
+            st.subheader("🎯 Classifica Punti")
+            f_pt['Punti Totali'] = f_pt['Punti Totali'].apply(lambda x: cv(str(x).replace('.', '')))
+            st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali']].sort_values('Posizione').style.background_gradient(subset=['Punti Totali'], cmap='Greens'), hide_index=True, use_container_width=True)
+        
         with c2:
-            st.subheader("🎯 Punti")
-            f_pt['Punti Totali'] = f_pt['Punti Totali'].apply(cv)
-            st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali']].sort_values('Posizione').style.background_gradient(subset=['Punti Totali'], cmap='Greens'), hide_index=True)
-        # Grafico
-        chart = alt.Chart(f_pt).mark_line(point=True, color='green').encode(
-            x=alt.X('Giocatore:N', sort='-y'), y=alt.Y('Punti Totali:Q', scale=alt.Scale(domainMin=f_pt['Punti Totali'].min()-10))
-        ).properties(height=300)
-        st.altair_chart(chart, use_container_width=True)
+            st.subheader("📈 Trend")
+            p_min = f_pt['Punti Totali'].min() - 5
+            chart = alt.Chart(f_pt).mark_line(point=True, color='green').encode(
+                x=alt.X('Giocatore:N', sort='-y'),
+                y=alt.Y('Punti Totali:Q', scale=alt.Scale(domainMin=p_min))
+            ).properties(height=300)
+            st.altair_chart(chart, use_container_width=True)
 
-with t[1]: # BUDGET
+with t[1]: # BUDGET E BAR CHART
     if f_rs is not None:
-        st.subheader("💰 Bilancio e Valore Rosa")
-        eco = f_rs.groupby('Fantasquadra').agg({'Prezzo': 'sum', 'Quotazione': 'sum'}).reset_index()
-        eco.columns = ['Squadra', 'Spesa Rose', 'Valore Mercato']
-        eco['Crediti'] = eco['Squadra'].map(bg_ex).fillna(0)
-        if f_vn is not None:
-            v_sum = f_vn.groupby('Squadra')['Spesa Complessiva'].sum().reset_index()
-            eco = pd.merge(eco, v_sum, left_on='Squadra', right_on='Squadra', how='left').fillna(0)
-            eco.rename(columns={'Spesa Complessiva': 'Vincoli'}, inplace=True)
-        eco['Patrimonio'] = eco['Valore Mercato'] + eco['Crediti'] + eco.get('Vincoli', 0)
-        st.dataframe(eco.sort_values('Patrimonio', ascending=False).style.background_gradient(subset=['Valore Mercato'], cmap='YlGn').format({c: "{:g}" for c in eco.columns if c != 'Squadra'}), hide_index=True, use_container_width=True)
+        st.subheader("💰 Situazione Crediti")
+        f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
+        f_rs['Fantasquadra'] = f_rs['Fantasquadra'].str.upper().replace(map_n)
+        
+        bu = f_rs.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
+        bu['Extra'] = bu['Fantasquadra'].map(bg_ex).fillna(0)
+        bu['Totale Speso'] = bu['Prezzo'] + bu['Extra']
+        
+        st.dataframe(bu.sort_values('Totale Speso', ascending=False).style.background_gradient(subset=['Totale Speso'], cmap='YlOrRd'), hide_index=True, use_container_width=True)
+        
+        # Grafico a barre
+        st.altair_chart(alt.Chart(bu).mark_bar().encode(
+            x=alt.X('Totale Speso:Q'),
+            y=alt.Y('Fantasquadra:N', sort='-x'),
+            color=alt.value('orange')
+        ).properties(height=400), use_container_width=True)
 
-with t[3]: # ROSE COLORATE
+with t[2]: # ROSE COLORATE
     if f_rs is not None:
-        sq = st.selectbox("Seleziona Squadra:", sorted(f_rs['Fantasquadra'].unique()))
+        lista_sq = sorted(f_rs['Fantasquadra'].unique())
+        sq = st.selectbox("Seleziona Squadra:", lista_sq)
+        
         df_sq = f_rs[f_rs['Fantasquadra'] == sq].copy()
         
         def color_ruoli(row):
-            bg = {'PORTIERE':'#E3F2FD','DIFENSORE':'#E8F5E9','CENTROCAMPISTA':'#FFFDE7','ATTACCANTE':'#FFEBEE'}.get(row['Ruolo'], '#FFFFFF')
-            return [f'background-color: {bg}; color: black; font-weight: bold;'] * len(row)
-            
-        st.dataframe(df_sq[['Ruolo', 'Nome', 'Prezzo', 'Quotazione', 'Plusvalenza']].style.apply(color_ruoli, axis=1).background_gradient(subset=['Plusvalenza'], cmap='RdYlGn').format({"Prezzo":"{:g}","Quotazione":"{:g}","Plusvalenza":"{:+g}"}), hide_index=True, use_container_width=True)
+            r = str(row['Ruolo']).upper()
+            if 'PORTIERE' in r: color = '#E3F2FD'
+            elif 'DIFENSORE' in r: color = '#E8F5E9'
+            elif 'CENTROCAMPISTA' in r: color = '#FFFDE7'
+            elif 'ATTACCANTE' in r: color = '#FFEBEE'
+            else: color = '#FFFFFF'
+            return [f'background-color: {color}; color: black; font-weight: bold;'] * len(row)
 
-with t[5]: # SCAMBI
-    st.subheader("🔄 Simulatore Scambi Meritocratico")
-    if f_rs is not None:
-        c1, c2 = st.columns(2)
-        with c1:
-            sa = st.selectbox("Squadra A:", sorted(f_rs['Fantasquadra'].unique()), key="sa")
-            ga = st.multiselect("Cede da A:", f_rs[f_rs['Fantasquadra']==sa]['Nome'], key="ga")
-        with c2:
-            sb = st.selectbox("Squadra B:", [s for s in sorted(f_rs['Fantasquadra'].unique()) if s != sa], key="sb")
-            gb = st.multiselect("Cede da B:", f_rs[f_rs['Fantasquadra']==sb]['Nome'], key="gb")
-        
-        if ga and gb:
-            def get_v(n):
-                p = f_rs[f_rs['Nome']==n]['Prezzo'].iloc[0]
-                v = f_vn[f_vn['Giocatore'].apply(clean_text)==clean_text(n)]['Spesa Complessiva'].sum() if f_vn is not None else 0
-                return p + v
-            v_a, v_b = sum(get_v(n) for n in ga), sum(get_v(n) for n in gb)
-            target = (v_a + v_b) / 2
-            ca, cb = target/v_a if v_a > 0 else 1, target/v_b if v_b > 0 else 1
-            st.write("---")
-            col_a, col_b = st.columns(2)
-            with col_a:
-                for n in ga: st.success(f"{n} -> Post-Scambio: **{round(get_v(n)*ca)}**")
-            with col_b:
-                for n in gb: st.success(f"{n} -> Post-Scambio: **{round(get_v(n)*cb)}**")
+        st.dataframe(df_sq[['Ruolo', 'Nome', 'Prezzo']].style.apply(color_ruoli, axis=1), hide_index=True, use_container_width=True)
+
+with t[3]: # VINCOLI
+    if f_vn is not None:
+        st.subheader("📅 Contratti e Vincoli")
+        st.dataframe(f_vn.style.set_properties(**{'font-weight': 'bold'}), hide_index=True, use_container_width=True)
