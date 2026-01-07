@@ -4,7 +4,7 @@ import os
 
 st.set_page_config(page_title="Lega Manager", layout="wide")
 st.markdown("<style>.stApp{background-color:#f4f7f6;} .stTabs{background-color:white; border-radius:10px; padding:10px;}</style>", unsafe_allow_html=True)
-st.title("⚽ Centro Direzionale Fantalega")
+st.title("⚽ MuyFantaManager")
 
 # 1. SETUP DATI E MAPPATURA
 bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
@@ -100,3 +100,4 @@ with t[4]:
         with v2:
             sq_v = st.selectbox("Dettaglio:", sorted(f_vn['Squadra'].unique()), key="v_sel")
             st.dataframe(f_vn[f_vn['Squadra'] == sq_v][['Giocatore', 'Costo 2026-27', 'Durata (anni)']], hide_index=True, use_container_width=True)
+
