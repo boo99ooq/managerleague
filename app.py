@@ -6,7 +6,7 @@ from datetime import datetime
 # 1. SETUP UI
 st.set_page_config(page_title="MuyFantaManager", layout="wide", initial_sidebar_state="expanded")
 
-# CSS PER GRASSETTO SU INTERFACCIA
+# CSS PER GRASSETTO SU INTERFACCIA (MENU, SIDEBAR, CARD)
 st.markdown("""
 <style>
     html, body, [data-testid="stAppViewContainer"] * {
@@ -47,11 +47,6 @@ f_sc, f_pt, f_rs, f_vn = ld("scontridiretti.csv"), ld("classificapunti.csv"), ld
 bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
 map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS", "DANI ROBI": "DANI ROBI"}
 
-# --- STILE INTELLIGENTE PER DATAFRAME ---
-# Questa funzione forza il grassetto e gestisce il colore del testo per il contrasto
-def style_bold_contrast(df):
-    return df.style.map(lambda x: 'font-weight: 900; color: black;')
-
 # --- ELABORAZIONE ---
 if f_rs is not None:
     f_rs['Squadra_N'] = f_rs['Fantasquadra'].apply(clean_string).replace(map_n)
@@ -67,33 +62,33 @@ if f_vn is not None:
     f_vn['Anni_T'] = f_vn[v_cols].gt(0).sum(axis=1).astype(str) + " ANNI"
 
 # --- MAIN ---
-st.title("⚽ MUYFANTAMANAGER")
-t = st.tabs(["🏆 CLASSIFICHE", "💰 BUDGET", "🏃 ROSE", "📅 VINCOLI", "🔄 SCAMBI", "✂️ TAGLI"])
+st.title("⚽ **MUYFANTAMANAGER**")
+t = st.tabs(["🏆 **CLASSIFICHE**", "💰 **BUDGET**", "🏃 **ROSE**", "📅 **VINCOLI**", "🔄 **SCAMBI**", "✂️ **TAGLI**"])
 
 with t[0]: # CLASSIFICHE
     c1, c2 = st.columns(2)
     if f_pt is not None:
         with c1:
-            st.subheader("🎯 CLASSIFICA PUNTI")
+            st.subheader("🎯 **CLASSIFICA PUNTI**")
             f_pt['P_N'] = f_pt['Punti Totali'].apply(to_num)
             f_pt['FM'] = f_pt['Media'].apply(to_num)
-            # Usiamo bar_chart_color per gestire il contrasto del testo automaticamente
+            # Rimosso color:black per permettere il contrasto automatico
             st.dataframe(f_pt[['Posizione','Giocatore','P_N','FM']].sort_values('Posizione').style\
                 .background_gradient(subset=['P_N', 'FM'], cmap='YlGn')\
                 .format({"P_N": "{:g}", "FM": "{:.2f}"})\
-                .set_properties(**{'font-weight': '900', 'color': 'black'}), hide_index=True, use_container_width=True)
+                .set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
     if f_sc is not None:
         with c2:
-            st.subheader("⚔️ SCONTRI DIRETTI")
+            st.subheader("⚔️ **SCONTRI DIRETTI**")
             f_sc['P_S'] = f_sc['Punti'].apply(to_num)
             st.dataframe(f_sc[['Posizione','Giocatore','P_S','Gol Fatti','Gol Subiti']].style\
                 .background_gradient(subset=['P_S'], cmap='Blues')\
                 .format({"P_S": "{:g}"})\
-                .set_properties(**{'font-weight': '900', 'color': 'black'}), hide_index=True, use_container_width=True)
+                .set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
 with t[1]: # BUDGET
     if f_rs is not None:
-        st.subheader("💰 BUDGET E PATRIMONIO")
+        st.subheader("💰 **BUDGET E PATRIMONIO**")
         bu = f_rs.groupby('Squadra_N')['Prezzo_N'].sum().reset_index().rename(columns={'Prezzo_N': 'SPESA ROSE'})
         v_sum = f_vn.groupby('Sq_N')['Tot_Vincolo'].sum().reset_index() if f_vn is not None else pd.DataFrame(columns=['Sq_N', 'Tot_Vincolo'])
         bu = pd.merge(bu, v_sum, left_on='Squadra_N', right_on='Sq_N', how='left').fillna(0).drop('Sq_N', axis=1).rename(columns={'Tot_Vincolo': 'SPESA VINCOLI'})
@@ -103,23 +98,23 @@ with t[1]: # BUDGET
         st.dataframe(bu.sort_values("TOTALE", ascending=False).style\
             .background_gradient(cmap='YlOrRd', subset=['TOTALE'])\
             .format({c: "{:g}" for c in bu.columns if c != 'Squadra_N'})\
-            .set_properties(**{'font-weight': '900', 'color': 'black'}), hide_index=True, use_container_width=True)
+            .set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
 with t[2]: # ROSE
     if f_rs is not None:
-        sq = st.selectbox("SQUADRA", sorted(f_rs['Squadra_N'].unique()), key="r_s")
+        sq = st.selectbox("**SQUADRA**", sorted(f_rs['Squadra_N'].unique()), key="r_s")
         df_sq = f_rs[f_rs['Squadra_N'] == sq][['Ruolo', 'Nome', 'Prezzo_N']]
         st.dataframe(df_sq.style.format({"Prezzo_N":"{:g}"})\
-            .set_properties(**{'font-weight': '900', 'color': 'black'}), hide_index=True, use_container_width=True)
+            .set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
 with t[3]: # VINCOLI
     if f_vn is not None:
-        st.subheader("📅 DETTAGLIO VINCOLI")
-        sq_v = st.selectbox("FILTRA", ["TUTTE"] + sorted([s for s in f_vn['Sq_N'].unique() if s]), key="v_s")
+        st.subheader("📅 **DETTAGLIO VINCOLI**")
+        sq_v = st.selectbox("**FILTRA**", ["TUTTE"] + sorted([s for s in f_vn['Sq_N'].unique() if s]), key="v_s")
         df_v = f_vn if sq_v == "TUTTE" else f_vn[f_vn['Sq_N'] == sq_v]
         st.dataframe(df_v[['Squadra', 'Giocatore', 'Tot_Vincolo', 'Anni_T']].style\
             .background_gradient(subset=['Tot_Vincolo'], cmap='Purples')\
             .format({"Tot_Vincolo": "{:g}"})\
-            .set_properties(**{'font-weight': '900', 'color': 'black'}), hide_index=True, use_container_width=True)
+            .set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
-# ... [RESTO DEL CODICE INVARIATO]
+# ... [RESTO DEL CODICE PER SCAMBI E TAGLI INVARIATO]
