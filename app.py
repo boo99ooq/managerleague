@@ -36,7 +36,7 @@ if f_rs is not None:
         res = f_rs[f_rs['Nome'].str.upper().str.contains(s, na=False)].copy()
         if not res.empty:
             res['Fantasquadra'] = res['Fantasquadra'].str.upper().str.strip().replace(map_n)
-            st.sidebar.dataframe(res[['Nome', 'Fantasquadra', 'Prezzo']], hide_index=True)
+            st.sidebar.dataframe(res[['Nome', 'Fantasquadra', 'Prezzo']].style.format({"Prezzo": "{:g}"}), hide_index=True)
         else: st.sidebar.warning("Nessuno trovato")
 
 t = st.tabs(["🏆 Classifiche", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
@@ -53,19 +53,19 @@ with t[0]: # CLASSIFICHE
         if f_pt is not None:
             f_pt['Giocatore'] = f_pt['Giocatore'].str.upper().str.strip().replace(map_n)
             f_pt['Punti Totali'] = f_pt['Punti Totali'].apply(cv)
-            st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali','Media']].sort_values('Punti Totali', ascending=False), hide_index=True, use_container_width=True)
+            st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali','Media']].sort_values('Punti Totali', ascending=False).style.format({"Punti Totali": "{:g}", "Media": "{:.2f}"}), hide_index=True, use_container_width=True)
 
 if f_rs is not None:
     f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
     f_rs['Fantasquadra'] = f_rs['Fantasquadra'].str.upper().str.strip().replace(map_n)
     
-    with t[1]: # BUDGET CON COLORI
+    with t[1]: # BUDGET PULITO
         st.subheader("💰 Bilancio")
         eco = f_rs.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
         eco['Extra'] = eco['Fantasquadra'].map(bg_ex).fillna(0)
-        eco['Totale'] = (eco['Prezzo'] + eco['Extra']).astype(int)
-        # Applicazione gradiente: Rosso (poveri) -> Giallo -> Verde (ricchi)
-        st.dataframe(eco.sort_values('Totale', ascending=False).style.background_gradient(subset=['Totale'], cmap='RdYlGn'), hide_index=True, use_container_width=True)
+        eco['Totale'] = eco['Prezzo'] + eco['Extra']
+        # Formattazione :g rimuove gli zeri inutili mantenendo il .5 se esiste
+        st.dataframe(eco.sort_values('Totale', ascending=False).style.background_gradient(subset=['Totale'], cmap='RdYlGn').format({"Prezzo": "{:g}", "Extra": "{:g}", "Totale": "{:g}"}), hide_index=True, use_container_width=True)
     
     with t[2]: # STRATEGIA
         st.subheader("🧠 Strategia")
@@ -77,11 +77,11 @@ if f_rs is not None:
         with cs2:
             st.write("**💎 Top Player**")
             idx = f_rs.groupby('Fantasquadra')['Prezzo'].idxmax()
-            st.dataframe(f_rs.loc[idx, ['Fantasquadra', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False), hide_index=True, use_container_width=True)
+            st.dataframe(f_rs.loc[idx, ['Fantasquadra', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False).style.format({"Prezzo": "{:g}"}), hide_index=True, use_container_width=True)
 
     with t[3]: # ROSE
         sq = st.selectbox("Squadra:", sorted(f_rs['Fantasquadra'].unique()))
-        st.dataframe(f_rs[f_rs['Fantasquadra'] == sq][['Ruolo', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False), hide_index=True, use_container_width=True)
+        st.dataframe(f_rs[f_rs['Fantasquadra'] == sq][['Ruolo', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False).style.format({"Prezzo": "{:g}"}), hide_index=True, use_container_width=True)
 
 with t[4]: # VINCOLI
     st.subheader("📅 Vincoli")
@@ -90,7 +90,7 @@ with t[4]: # VINCOLI
         f_vn = f_vn[f_vn['Squadra'].isin(bg_ex.keys())].copy()
         f_vn['Costo 2026-27'] = f_vn['Costo 2026-27'].apply(cv)
         v1, v2 = st.columns([1, 2])
-        with v1: st.dataframe(f_vn.groupby('Squadra')['Costo 2026-27'].sum().reset_index().sort_values('Costo 2026-27', ascending=False), hide_index=True, use_container_width=True)
+        with v1: st.dataframe(f_vn.groupby('Squadra')['Costo 2026-27'].sum().reset_index().sort_values('Costo 2026-27', ascending=False).style.format({"Costo 2026-27": "{:g}"}), hide_index=True, use_container_width=True)
         with v2:
             sv = st.selectbox("Squadra:", sorted(f_vn['Squadra'].unique()), key="v_sel")
-            st.dataframe(f_vn[f_vn['Squadra'] == sv][['Giocatore', 'Costo 2026-27', 'Durata (anni)']], hide_index=True, use_container_width=True)
+            st.dataframe(f_vn[f_vn['Squadra'] == sv][['Giocatore', 'Costo 2026-27', 'Durata (anni)']].style.format({"Costo 2026-27": "{:g}"}), hide_index=True, use_container_width=True)
