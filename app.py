@@ -18,7 +18,6 @@ st.title("⚽ MuyFantaManager")
 # Configurazione Budget e Mappature
 bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
 map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS", "NICHO:79": "NICHOLAS"}
-# Mappatura specifica per il tuo file quotazioni.csv
 map_r = {"P": "PORTIERE", "D": "DIFENSORE", "C": "CENTROCAMPISTA", "A": "ATTACCANTE"}
 
 def cv(v):
@@ -36,7 +35,6 @@ def clean_name(s):
 def clean_role(r):
     if pd.isna(r): return "NONE"
     r = str(r).strip().upper()
-    # Se il ruolo è una singola lettera (P, D, C, A), lo espandiamo
     return map_r.get(r, r)
 
 def ld(f):
@@ -57,7 +55,6 @@ if f_rs is not None:
     f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
 
 if f_qt is not None:
-    # Adattiamo alle colonne del tuo file: R, Nome, Qt.A
     f_qt = f_qt.rename(columns={'R': 'Ruolo_QT', 'Nome': 'Nome_QT', 'Qt.A': 'Quotazione'})
     f_qt['Nome_QT'] = f_qt['Nome_QT'].apply(clean_name)
     f_qt['Ruolo_QT'] = f_qt['Ruolo_QT'].apply(clean_role)
@@ -72,45 +69,111 @@ if f_vn is not None:
 
 # 3. UNIONE DATI (PLUSVALENZE)
 if f_rs is not None and f_qt is not None:
-    f_rs = pd.merge(f_rs, f_qt, left_on=['Nome', 'Ruolo'], right_on=['Nome_QT', 'Ruolo_QT'], how='left')
+    f_rs = pd.merge(f_rs, f_qt[['Nome_QT', 'Ruolo_QT', 'Quotazione']], left_on=['Nome', 'Ruolo'], right_on=['Nome_QT', 'Ruolo_QT'], how='left')
     f_rs['Plusvalenza'] = f_rs['Quotazione'] - f_rs['Prezzo']
+
+def style_rose(row):
+    colors = {'PORTIERE':'#E3F2FD','DIFENSORE':'#E8F5E9','CENTROCAMPISTA':'#FFFDE7','ATTACCANTE':'#FFEBEE'}
+    return [f'background-color: {colors.get(row["Ruolo"], "#FFFFFF")}; color: black; font-weight: bold;'] * len(row)
 
 # 4. TABS
 t = st.tabs(["🏆 Classifiche", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli", "🔄 Scambi"])
 
-with t[1]: # BUDGET CON VALORE DI MERCATO
+with t[0]: # CLASSIFICHE
+    c1, c2 = st.columns(2)
+    if f_sc is not None:
+        with c1:
+            st.subheader("🔥 Scontri")
+            st.dataframe(f_sc, hide_index=True, use_container_width=True)
+    if f_pt is not None:
+        with c2:
+            st.subheader("🎯 Punti")
+            f_pt['Punti Totali'] = f_pt['Punti Totali'].apply(cv)
+            st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali']].sort_values('Posizione').style.background_gradient(subset=['Punti Totali'], cmap='Greens'), hide_index=True, use_container_width=True)
+
+with t[1]: # BUDGET (FIX KEYERROR)
     if f_rs is not None:
-        st.subheader("💰 Bilancio e Valore Rosa Attuale")
-        # Calcoliamo il costo d'acquisto e il valore attuale (quotazione)
-        eco = f_rs.groupby('Fantasquadra').agg({'Prezzo': 'sum', 'Quotazione': 'sum'}).reset_index()
-        eco.columns = ['Fantasquadra', 'Investimento', 'Valore Mercato']
-        eco['Crediti Disponibili'] = eco['Fantasquadra'].map(bg_ex).fillna(0)
+        st.subheader("💰 Bilancio e Valore Rosa")
+        # Controllo se la colonna Quotazione esiste dopo il merge
+        agg_dict = {'Prezzo': 'sum'}
+        if 'Quotazione' in f_rs.columns:
+            agg_dict['Quotazione'] = 'sum'
+            
+        eco = f_rs.groupby('Fantasquadra').agg(agg_dict).reset_index()
+        eco.columns = ['Fantasquadra', 'Investimento'] + (['Valore Mercato'] if 'Quotazione' in agg_dict else [])
         
+        eco['Crediti Disponibili'] = eco['Fantasquadra'].map(bg_ex).fillna(0)
         if f_vn is not None:
             v_sum = f_vn.groupby('Squadra')['Spesa Complessiva'].sum().reset_index()
             v_sum.columns = ['Fantasquadra', 'Vincoli']
             eco = pd.merge(eco, v_sum, on='Fantasquadra', how='left').fillna(0)
-        else: eco['Vincoli'] = 0
         
-        eco['Patrimonio Totale'] = eco['Valore Mercato'] + eco['Crediti Disponibili'] + eco['Vincoli']
+        col_somma = 'Valore Mercato' if 'Valore Mercato' in eco.columns else 'Investimento'
+        eco['Patrimonio'] = eco[col_somma] + eco['Crediti Disponibili'] + eco.get('Vincoli', 0)
         
-        st.dataframe(eco.sort_values('Patrimonio Totale', ascending=False).style.background_gradient(subset=['Valore Mercato'], cmap='Greens').format({c: "{:g}" for c in eco.columns if c != 'Fantasquadra'}), hide_index=True, use_container_width=True)
+        st.dataframe(eco.sort_values('Patrimonio', ascending=False).style.format({c: "{:g}" for c in eco.columns if c != 'Fantasquadra'}), hide_index=True, use_container_width=True)
 
-with t[3]: # ROSE CON DETTAGLIO QUOTAZIONI
+with t[2]: # STRATEGIA
+    if f_rs is not None:
+        st.subheader("🧠 Strategia e Numero Giocatori")
+        piv = f_rs.pivot_table(index='Fantasquadra', columns='Ruolo', values='Nome', aggfunc='count').fillna(0).astype(int)
+        st.dataframe(piv, use_container_width=True)
+
+with t[3]: # ROSE
     if f_rs is not None:
         sq_l = sorted([x for x in f_rs['Fantasquadra'].unique() if x != "SKIP"])
         sq = st.selectbox("Seleziona Squadra:", sq_l, key="rose_sel")
         df_sq = f_rs[f_rs['Fantasquadra'] == sq].copy()
         
+        cols_view = ['Ruolo', 'Nome', 'Prezzo']
         if 'Quotazione' in df_sq.columns:
-            # Mostriamo la tabella con i colori per le plusvalenze
-            st.dataframe(df_sq[['Ruolo', 'Nome', 'Prezzo', 'Quotazione', 'Plusvalenza']].style.background_gradient(subset=['Plusvalenza'], cmap='RdYlGn').format({"Prezzo": "{:g}", "Quotazione": "{:g}", "Plusvalenza": "{:+g}"}), hide_index=True, use_container_width=True)
-            
-            p_tot = df_sq['Plusvalenza'].sum()
-            st.metric("Plusvalenza Totale Rosa", f"{p_tot:+g}", delta_color="normal")
+            cols_view += ['Quotazione', 'Plusvalenza']
+            st.dataframe(df_sq[cols_view].style.apply(style_rose, axis=1).format({"Prezzo": "{:g}", "Quotazione": "{:g}", "Plusvalenza": "{:+g}"}), hide_index=True, use_container_width=True)
+            st.metric("Plusvalenza Rosa", f"{df_sq['Plusvalenza'].sum():+g}")
         else:
-            st.dataframe(df_sq[['Ruolo', 'Nome', 'Prezzo']], hide_index=True, use_container_width=True)
+            st.dataframe(df_sq[cols_view].style.apply(style_rose, axis=1).format({"Prezzo": "{:g}"}), hide_index=True, use_container_width=True)
 
-with t[5]: # SIMULATORE SCAMBI (Invariato nella logica proporzionale)
-    # ... (Qui rimane il codice degli scambi che abbiamo perfezionato prima)
-    pass
+with t[4]: # VINCOLI
+    if f_vn is not None:
+        st.subheader("📅 Dettaglio Vincoli Pluriennali")
+        sv = st.selectbox("Squadra:", sorted(f_vn['Squadra'].unique()), key="v_sel")
+        st.dataframe(f_vn[f_vn['Squadra']==sv].drop(columns=['Squadra']), hide_index=True, use_container_width=True)
+
+with t[5]: # SCAMBI (LOGICA MERITOCRATICA)
+    st.subheader("🔄 Simulatore Scambi Proporzionale")
+    if f_rs is not None:
+        sq_l = sorted([x for x in f_rs['Fantasquadra'].unique() if x != "SKIP"])
+        
+        def get_details(lista_nomi):
+            dati = []
+            for n in lista_nomi:
+                p = f_rs[f_rs['Nome'] == n]['Prezzo'].values[0]
+                v = f_vn[f_vn['Giocatore'] == n]['Spesa Complessiva'].values[0] if (f_vn is not None and n in f_vn['Giocatore'].values) else 0.0
+                dati.append({'Giocatore': n, 'Totale': p + v, 'Vincolo': v})
+            return pd.DataFrame(dati)
+
+        c1, c2 = st.columns(2)
+        with c1:
+            sa = st.selectbox("Squadra A:", sq_l, key="sa_f")
+            ga = st.multiselect("Cede da A:", f_rs[f_rs['Fantasquadra']==sa]['Nome'], key="ga_f")
+            df_a = get_details(ga)
+        with c2:
+            sb = st.selectbox("Squadra B:", [s for s in sq_l if s != sa], key="sb_f")
+            gb = st.multiselect("Cede da B:", f_rs[f_rs['Fantasquadra']==sb]['Nome'], key="gb_f")
+            df_b = get_details(gb)
+
+        if not df_a.empty and not df_b.empty:
+            v_a, v_b = df_a['Totale'].sum(), df_b['Totale'].sum()
+            coeff_a, coeff_b = ((v_a+v_b)/2)/v_a, ((v_a+v_b)/2)/v_b
+            
+            st.write("---")
+            st.markdown("#### ✅ Nuovi Valori Calcolati")
+            res1, res2 = st.columns(2)
+            with res1:
+                for _, r in df_a.iterrows():
+                    nt = round(r['Totale'] * coeff_a)
+                    st.success(f"🔹 {r['Giocatore']}: **{nt}** (Cart: {nt-r['Vincolo']} + Vinc: {r['Vincolo']})")
+            with res2:
+                for _, r in df_b.iterrows():
+                    nt = round(r['Totale'] * coeff_b)
+                    st.success(f"🔸 {r['Giocatore']}: **{nt}** (Cart: {nt-r['Vincolo']} + Vinc: {r['Vincolo']})")
