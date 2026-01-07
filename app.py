@@ -15,7 +15,6 @@ st.markdown("""
 
 st.title("⚽ MuyFantaManager")
 
-# Configurazione Budget Extra e Mappatura Nomi
 bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
 map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS", "NICHO:79": "NICHOLAS"}
 
@@ -28,6 +27,7 @@ def cv(v):
 
 def clean_name(s):
     if pd.isna(s) or str(s).strip().upper() == "NONE" or str(s).strip() == "": return "SKIP"
+    # Portiamo tutto in MAIUSCOLO per evitare errori di match tra file diversi
     s = str(s).split(':')[0].replace('*', '').replace('"', '').strip().upper()
     return map_n.get(s, s)
 
@@ -45,17 +45,19 @@ def ld(f):
 # 2. CARICAMENTO E PULIZIA
 f_sc, f_pt, f_rs, f_vn = ld("scontridiretti.csv"), ld("classificapunti.csv"), ld("rose_complete.csv"), ld("vincoli.csv")
 
-def process_df(df, col_name):
-    if df is not None:
-        df = df.dropna(subset=[col_name]).copy()
-        df[col_name] = df[col_name].apply(clean_name)
-        df = df[df[col_name] != "SKIP"]
-        return df
-    return None
+# Pulizia Giocatori e Squadre (TUTTO MAIUSCOLO)
+if f_rs is not None:
+    f_rs['Nome'] = f_rs['Nome'].apply(clean_name)
+    f_rs['Fantasquadra'] = f_rs['Fantasquadra'].apply(clean_name)
 
-f_sc, f_pt, f_rs, f_vn = process_df(f_sc, 'Giocatore'), process_df(f_pt, 'Giocatore'), process_df(f_rs, 'Fantasquadra'), process_df(f_vn, 'Squadra')
+if f_vn is not None:
+    f_vn['Giocatore'] = f_vn['Giocatore'].apply(clean_name)
+    f_vn['Squadra'] = f_vn['Squadra'].apply(clean_name)
 
-# Calcolo preventivo Spesa Complessiva Vincoli
+if f_pt is not None:
+    f_pt['Giocatore'] = f_pt['Giocatore'].apply(clean_name)
+
+# Calcolo Spesa Complessiva Vincoli
 if f_vn is not None:
     for c in ['Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29']:
         if c in f_vn.columns: f_vn[c] = f_vn[c].apply(cv)
@@ -73,17 +75,12 @@ with t[0]: # CLASSIFICHE
     if f_sc is not None:
         with c1:
             st.subheader("🔥 Scontri")
-            cols_sc = f_sc.select_dtypes(include=['number']).columns
-            st.dataframe(f_sc.style.background_gradient(subset=cols_sc, cmap='Blues'), hide_index=True, use_container_width=True)
+            st.dataframe(f_sc.style.set_properties(**{'font-weight': 'bold'}), hide_index=True, use_container_width=True)
     if f_pt is not None:
         with c2:
             st.subheader("🎯 Punti")
             f_pt['Punti Totali'] = f_pt['Punti Totali'].apply(cv)
             st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali','Media']].sort_values('Posizione').style.background_gradient(subset=['Punti Totali'], cmap='Greens').format({"Punti Totali": "{:g}", "Media": "{:.2f}"}), hide_index=True, use_container_width=True)
-        st.write("---")
-        p_min, p_max = f_pt['Punti Totali'].min() - 5, f_pt['Punti Totali'].max() + 5
-        base = alt.Chart(f_pt).encode(x=alt.X('Giocatore:N', sort='-y'), y=alt.Y('Punti Totali:Q', scale=alt.Scale(domain=[p_min, p_max])))
-        st.altair_chart((base.mark_line(point=True, color='green') + base.mark_text(dy=-10).encode(text='Punti Totali:Q')).properties(height=350), use_container_width=True)
 
 with t[1]: # BUDGET
     if f_rs is not None:
@@ -116,72 +113,46 @@ with t[3]: # ROSE
 with t[4]: # VINCOLI
     if f_vn is not None:
         st.subheader("📅 Gestione Vincoli")
-        v1, v2 = st.columns([1, 2.5])
-        with v1:
-            deb = f_vn.groupby('Squadra')['Spesa Complessiva'].sum().reset_index().sort_values('Spesa Complessiva', ascending=False)
-            st.dataframe(deb.style.background_gradient(subset=['Spesa Complessiva'], cmap='Oranges').format({"Spesa Complessiva": "{:g}"}), hide_index=True, use_container_width=True)
-        with v2:
-            sv = st.selectbox("Squadra:", sorted([x for x in f_vn['Squadra'].unique() if x != "SKIP"]), key="v_sel")
-            det = f_vn[f_vn['Squadra'] == sv].dropna(subset=['Giocatore'])
-            st.dataframe(det.style.background_gradient(subset=['Spesa Complessiva'], cmap='YlOrBr').format({c: "{:g}" for c in det.columns if c != 'Giocatore' and c != 'Squadra'}), hide_index=True, use_container_width=True)
+        sv = st.selectbox("Squadra:", sorted([x for x in f_vn['Squadra'].unique() if x != "SKIP"]), key="v_sel")
+        det = f_vn[f_vn['Squadra'] == sv].dropna(subset=['Giocatore'])
+        st.dataframe(det.style.background_gradient(subset=['Spesa Complessiva'], cmap='YlOrBr').format({c: "{:g}" for c in det.columns if c != 'Giocatore' and c != 'Squadra'}), hide_index=True, use_container_width=True)
 
-with t[5]: # SIMULATORE SCAMBI (LOGICA VINCOLI ESPLICITA)
+with t[5]: # SCAMBI (FIX MAIUSCOLO E VINCOLI)
     st.subheader("🔄 Simulatore Scambi (Punto di Incontro)")
     if f_rs is not None:
         sq_l = sorted([x for x in f_rs['Fantasquadra'].unique() if x != "SKIP"])
         
-        # Funzione interna per estrarre Prezzo + Somma Vincoli
-        def get_player_full_value(nome):
-            p_acq = f_rs[f_rs['Nome'] == nome]['Prezzo'].values[0]
-            v_tot = 0.0
+        def get_val(nome):
+            # Prezzo dalle rose
+            p = f_rs[f_rs['Nome'] == nome]['Prezzo'].values[0]
+            # Vincoli (Somma Complessiva)
+            v = 0.0
             if f_vn is not None and nome in f_vn['Giocatore'].values:
-                v_tot = f_vn[f_vn['Giocatore'] == nome]['Spesa Complessiva'].values[0]
-            return p_acq, v_tot
+                v = f_vn[f_vn['Giocatore'] == nome]['Spesa Complessiva'].values[0]
+            return p, v
 
         c1, c2 = st.columns(2)
         with c1:
-            st.markdown("### 🏟️ Squadra A")
-            s_a = st.selectbox("Squadra A:", sq_l, key="sa_sc")
-            g_a = st.selectbox("Cede:", f_rs[f_rs['Fantasquadra']==s_a]['Nome'], key="ga_sc")
-            p_a, v_a = get_player_full_value(g_a)
-            vt_a = p_a + v_a
-            st.write(f"Prezzo acquisto: **{p_a:g}**")
-            st.write(f"Valore Vincoli: **{v_a:g}**")
-            st.metric(f"VALORE REALE {g_a}", f"{vt_a:g}")
+            sa = st.selectbox("Squadra A:", sq_l, key="sa_f")
+            ga = st.selectbox("Cede:", f_rs[f_rs['Fantasquadra']==sa]['Nome'], key="ga_f")
+            pa, va = get_val(ga)
+            vta = pa + va
+            st.metric(f"Valore Reale {ga}", f"{vta:g}")
+            st.caption(f"Base: {pa:g} + Vincoli: {va:g}")
 
         with c2:
-            st.markdown("### 🏟️ Squadra B")
-            s_b = st.selectbox("Squadra B:", [s for s in sq_l if s != s_a], key="sb_sc")
-            g_b = st.selectbox("Cede:", f_rs[f_rs['Fantasquadra']==s_b]['Nome'], key="gb_sc")
-            p_b, v_b = get_player_full_value(g_b)
-            vt_b = p_b + v_b
-            st.write(f"Prezzo acquisto: **{p_b:g}**")
-            st.write(f"Valore Vincoli: **{v_b:g}**")
-            st.metric(f"VALORE REALE {g_b}", f"{vt_b:g}")
+            sb = st.selectbox("Squadra B:", [s for s in sq_l if s != sa], key="sb_f")
+            gb = st.selectbox("Cede:", f_rs[f_rs['Fantasquadra']==sb]['Nome'], key="gb_f")
+            pb, vb = get_val(gb)
+            vtb = pb + vb
+            st.metric(f"Valore Reale {gb}", f"{vtb:g}")
+            st.caption(f"Base: {pb:g} + Vincoli: {vb:g}")
 
         st.write("---")
-        p_incontro = (vt_a + vt_b) / 2
-        st.markdown(f"## 🤝 Punto di Incontro: {p_incontro:g} crediti")
+        pi = (vta + vtb) / 2
+        st.markdown(f"### 🤝 Punto di Incontro: **{pi:g} crediti**")
         
-        # Anteprima impatto bilancio
-        res1, res2 = st.columns(2)
-        with res1:
-            diff_a = p_incontro - vt_a
-            st.info(f"**{s_a}**: Rosa {'+ ' if diff_a > 0 else ''}{diff_a:g} crediti")
-        with res2:
-            diff_b = p_incontro - vt_b
-            st.info(f"**{s_b}**: Rosa {'+ ' if diff_b > 0 else ''}{diff_b:g} crediti")
-
-        # Grafico confronto visivo
-        df_plot = pd.DataFrame({
-            'Fase': ['Attuale', 'Attuale', 'Dopo Scambio', 'Dopo Scambio'],
-            'Giocatore': [g_a, g_b, g_a, g_b],
-            'Valore': [vt_a, vt_b, p_incontro, p_incontro]
-        })
-        sc_chart = alt.Chart(df_plot).mark_bar().encode(
-            x=alt.X('Fase:N', sort=['Attuale', 'Dopo Scambio'], title=None),
-            y=alt.Y('Valore:Q', title='Valore Reale (Prezzo + Vincoli)'),
-            color='Giocatore:N',
-            column='Giocatore:N'
-        ).properties(width=180, height=300)
-        st.altair_chart(sc_chart)
+        # Anteprima impatto
+        da, db = pi - vta, pi - vtb
+        st.info(f"**{sa}**: {ga} (scambio a {pi:g}) → Variazione Rosa: **{da:+g}**")
+        st.info(f"**{sb}**: {gb} (scambio a {pi:g}) → Variazione Rosa: **{db:+g}**")
