@@ -2,83 +2,98 @@ import streamlit as st
 import pandas as pd
 import os
 
-st.set_page_config(layout="wide")
+# 1. CONFIGURAZIONE E STILE
+st.set_page_config(page_title="Fantalega Manageriale", layout="wide")
+
+def apply_style():
+    st.markdown("""
+        <style>
+        .stApp { background-color: #e8f5e9; }
+        [data-testid="stSidebar"] { background-color: #c8e6c9 !important; }
+        h1, h2, h3, h4, h5, p, label, span { color: #1b5e20 !important; font-family: 'Segoe UI', sans-serif; }
+        h1 { text-align: center; font-weight: 800; color: #2e7d32 !important; padding-bottom: 20px; }
+        .stTabs, .stDataFrame, .stTable {
+            background-color: #ffffff !important;
+            padding: 10px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+apply_style()
 st.title("⚽ Centro Direzionale Fantalega")
 
-# 1. FUNZIONE CARICAMENTO BASE (Quella che funzionava all'inizio)
-def load_data(file_name):
-    if os.path.exists(file_name):
+# 2. DATI FISSI
+budgets_fisso = {
+    "GIANNI": 102.5, "DANI ROBI": 164.5, "MARCO": 131.0, "PIETRO": 101.5,
+    "PIERLUIGI": 105.0, "GIGI": 232.5, "ANDREA": 139.0, "GIUSEPPE": 136.5,
+    "MATTEO": 166.5, "NICHOLAS": 113.0
+}
+
+# 3. FUNZIONI DI SUPPORTO
+def pulisci_nomi(df, col):
+    if df is None or col not in df.columns: return df
+    mappa = {"NICO FABIO": "NICHOLAS", "NICHO": "NICHOLAS", "DANI ROBI": "DANI ROBI", "MATTEO STEFANO": "MATTEO"}
+    df[col] = df[col].astype(str).str.strip().str.upper().replace(mappa)
+    return df
+
+def carica_auto(nome_file):
+    """Cerca il file nella cartella locale e lo carica"""
+    if os.path.exists(nome_file):
         try:
-            # Legge il file e basta, senza filtri strani
-            df = pd.read_csv(file_name, sep=None, engine='python', encoding='utf-8-sig')
-            df.columns = [c.strip() for c in df.columns]
-            return df
-        except:
-            return None
+            # Prova vari separatori per sicurezza
+            df = pd.read_csv(nome_file, sep=None, engine='python', encoding='utf-8-sig')
+            df.columns = df.columns.str.strip()
+            return df.dropna(how='all')
+        except: return None
     return None
 
-# Caricamento file
-f_sc = load_data("scontridiretti.csv")
-f_pt = load_data("classificapunti.csv")
-f_rs = load_data("rose_complete.csv")
-f_vn = load_data("vincoli.csv")
+# Caricamento Automatico dei file (assicurati che i nomi siano esatti su GitHub)
+d_sc = carica_auto("scontridiretti.csv")
+d_pt = carica_auto("classificapunti.csv")
+d_rs = carica_auto("rose_complete.csv")
+d_vn = carica_auto("vincoli.csv")
 
-# Dizionario Budget
-budget_fisso = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
+# Sidebar Status
+st.sidebar.header("📂 Stato Database")
+st.sidebar.write("Scontri:", "✅" if d_sc is not None else "❌")
+st.sidebar.write("Punti:", "✅" if d_pt is not None else "❌")
+st.sidebar.write("Rose:", "✅" if d_rs is not None else "❌")
+st.sidebar.write("Vincoli:", "✅" if d_vn is not None else "❌")
 
-# 2. CREAZIONE DELLE PAGINE
-# Se non vede le tab, l'errore è nei nomi dei file su GitHub
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["🏆 Classifiche", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
+# 4. LOGICA TAB
+if any([d_sc is not None, d_pt is not None, d_rs is not None, d_vn is not None]):
+    tabs = st.tabs(["🏆 Classifiche", "📊 Economia", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
 
-with tab1:
-    st.header("Classifiche")
-    col1, col2 = st.columns(2)
-    if f_sc is not None:
-        with col1: st.write("Scontri"); st.dataframe(f_sc, hide_index=True)
-    if f_pt is not None:
-        with col2: st.write("Punti"); st.dataframe(f_pt, hide_index=True)
+    # --- TAB CLASSIFICHE ---
+    with tabs[0]:
+        c1, c2 = st.columns(2)
+        with c1:
+            st.subheader("🔥 Scontri Diretti")
+            if d_sc is not None:
+                d_sc = pulisci_nomi(d_sc, 'Giocatore')
+                st.dataframe(d_sc, hide_index=True, use_container_width=True)
+            else: st.info("File 'scontridiretti.csv' non trovato.")
+        with c2:
+            st.subheader("🎯 Punti Totali")
+            if d_pt is not None:
+                d_pt = pulisci_nomi(d_pt, 'Giocatore')
+                for c in ['Punti Totali', 'Media']:
+                    if c in d_pt.columns:
+                        d_pt[c] = d_pt[c].astype(str).str.replace(',', '.').pipe(pd.to_numeric, errors='coerce').fillna(0)
+                st.dataframe(d_pt[['Posizione', 'Giocatore', 'Punti Totali', 'Media']], hide_index=True, use_container_width=True)
+            else: st.info("File 'classificapunti.csv' non trovato.")
 
-with tab2:
-    st.header("Bilancio Economico")
-    if f_rs is not None:
-        # Assumiamo: 0:Squadra, 3:Prezzo (o ultima colonna)
-        c = f_rs.columns
-        f_rs[c[-1]] = pd.to_numeric(f_rs[c[-1]].astype(str).str.replace(',','.').str.extract('(\d+)', expand=False), errors='coerce').fillna(0)
-        bilancio = f_rs.groupby(c[0])[c[-1]].sum().reset_index()
-        bilancio['Extra'] = bilancio[c[0]].str.upper().map(budget_fisso).fillna(0)
-        bilancio['Totale'] = (bilancio[c[-1]] + bilancio['Extra']).astype(int)
-        st.dataframe(bilancio.sort_values('Totale', ascending=False), hide_index=True)
-
-with tab3:
-    st.header("Analisi Ruoli")
-    if f_rs is not None:
-        c = f_rs.columns
-        pivot = f_rs.pivot_table(index=c[0], columns=c[2], values=c[1], aggfunc='count').fillna(0).astype(int)
-        st.dataframe(pivot)
-
-with tab4:
-    st.header("Rose Complete")
-    if f_rs is not None:
-        c = f_rs.columns
-        lista_sq = sorted(f_rs[c[0]].unique())
-        scelta = st.selectbox("Seleziona Squadra", lista_sq)
-        mostra = f_rs[f_rs[c[0]] == scelta][[c[2], c[1], c[-1]]].sort_values(c[-1], ascending=False)
-        st.dataframe(mostra, hide_index=True)
-
-with tab5:
-    st.header("Vincoli")
-    if f_vn is not None:
-        v = f_vn.columns
-        # Pulizia numeri
-        f_vn[v[2]] = pd.to_numeric(f_vn[v[2]].astype(str).str.replace(',','.').str.extract('(\d+)', expand=False), errors='coerce').fillna(0)
-        
-        c_v1, c_v2 = st.columns([1, 2])
-        with c_v1:
-            st.write("Somma per Squadra")
-            riepilogo = f_vn.groupby(v[0])[v[2]].sum().reset_index().sort_values(v[2], ascending=False)
-            st.dataframe(riepilogo, hide_index=True)
-        with c_v2:
-            st.write("Dettaglio Giocatori")
-            sq_v = st.selectbox("Scegli Squadra", sorted(f_vn[v[0]].unique()), key="vin")
-            dettaglio = f_vn[f_vn[v[0]] == sq_v][[v[1], v[2], v[-1]]]
-            st.dataframe(dettaglio, hide_index=True)
+    # --- TAB ECONOMIA ---
+    with tabs[1]:
+        st.subheader("💰 Bilancio Rose")
+        if d_rs is not None:
+            f_col = next((c for c in d_rs.columns if 'fantasquadra' in c.lower() or 'squadra' in c.lower()), d_rs.columns[0])
+            p_col = next((c for c in d_rs.columns if 'prezzo' in c.lower() or 'costo' in c.lower()), d_rs.columns[-1])
+            d_rs = pulisci_nomi(d_rs, f_col)
+            d_rs[p_col] = pd.to_numeric(d_rs[p_col].astype(str).str.replace(',','.'), errors='coerce').fillna(0)
+            
+            eco = d_rs.groupby(f_col)[p_col].sum().reset_index()
+            eco.columns = ['Fantasquadra', 'Costo Rosa']
+            eco['Extra'] = eco['Fantasquadra'].str.upper().map(budgets_fisso).fillna(0)
+            eco['Totale'] = (eco['Costo Rosa'] + eco['Extra']).astype(int)
+            st.dataframe(eco.sort_values('Totale', ascending=False), hide_index=True, use_
