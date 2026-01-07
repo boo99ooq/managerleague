@@ -18,13 +18,12 @@ st.title("⚽ MuyFantaManager")
 bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
 map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS", "DANI ROBI": "DANI ROBI"}
 
-# --- FUNZIONI DI PULIZIA E MATCHING ---
+# --- FUNZIONI DI PULIZIA ---
 def clean_string(s):
     if pd.isna(s): return None
     s_str = str(s).strip()
-    # Rimuove righe di servizio o sporche
     if "*" in s_str or ":" in s_str or s_str == "": return None
-    return s_str.upper() # Forza MAIUSCOLO per il matching
+    return s_str.upper()
 
 def ld(f):
     if not os.path.exists(f): return None
@@ -39,17 +38,17 @@ def ld(f):
 # CARICAMENTO FILE
 f_sc, f_pt, f_rs, f_vn = ld("scontridiretti.csv"), ld("classificapunti.csv"), ld("rose_complete.csv"), ld("vincoli.csv")
 
-# ELABORAZIONE DATI ROSE
+# ELABORAZIONE ROSE
 if f_rs is not None:
     f_rs['Squadra_N'] = f_rs['Fantasquadra'].apply(clean_string).replace(map_n)
-    f_rs['Nome'] = f_rs['Nome'].apply(clean_string) # Giocatori in MAIUSCOLO
+    f_rs['Nome'] = f_rs['Nome'].apply(clean_string)
     f_rs = f_rs.dropna(subset=['Squadra_N', 'Nome'])
     f_rs['Prezzo_N'] = pd.to_numeric(f_rs['Prezzo'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
 
-# ELABORAZIONE DATI VINCOLI
+# ELABORAZIONE VINCOLI
 if f_vn is not None:
     f_vn['Sq_N'] = f_vn['Squadra'].apply(clean_string).replace(map_n)
-    f_vn['Giocatore'] = f_vn['Giocatore'].apply(clean_string) # Giocatori in MAIUSCOLO
+    f_vn['Giocatore'] = f_vn['Giocatore'].apply(clean_string)
     f_vn = f_vn.dropna(subset=['Sq_N', 'Giocatore'])
     v_cols = [c for c in ['Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29'] if c in f_vn.columns]
     for c in v_cols: 
@@ -58,11 +57,11 @@ if f_vn is not None:
     f_vn['Anni_Testo'] = f_vn[v_cols].gt(0).sum(axis=1).astype(str) + " anni"
     f_vn = f_vn.drop_duplicates(subset=['Sq_N', 'Giocatore'])
 
-# --- CREAZIONE TAB ---
+# --- TABS ---
 t = st.tabs(["🏆 Classifiche", "💰 Budget", "🏃 Rose", "📅 Vincoli", "🔄 Scambi"])
 
-# ... (Le schede Classifiche, Budget, Rose rimangono stabili con i nuovi dati in Maiuscolo) ...
-with t[0]: # CLASSIFICHE
+# [TAB 0, 1, 2, 3 rimangono identici per coerenza di dati]
+with t[0]:
     c1, c2 = st.columns(2)
     if f_pt is not None:
         with c1:
@@ -76,7 +75,7 @@ with t[0]: # CLASSIFICHE
             f_sc['P_S'] = pd.to_numeric(f_sc['Punti'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
             st.dataframe(f_sc[['Posizione','Giocatore','P_S','Gol Fatti','Gol Subiti']].style.background_gradient(subset=['P_S'], cmap='Blues').format({"P_S": "{:g}"}), hide_index=True, use_container_width=True)
 
-with t[1]: # BUDGET
+with t[1]:
     if f_rs is not None:
         st.subheader("💰 Bilancio Globale")
         bu = f_rs.groupby('Squadra_N')['Prezzo_N'].sum().reset_index()
@@ -91,7 +90,7 @@ with t[1]: # BUDGET
         num_cols_b = ['Spesa Rose', 'Spesa Vincoli', 'Crediti Disponibili', 'Patrimonio Reale']
         st.dataframe(bu.sort_values('Patrimonio Reale', ascending=False).style.background_gradient(cmap='YlOrRd', subset=num_cols_b).format({c: "{:g}" for c in num_cols_b}), hide_index=True, use_container_width=True)
 
-with t[2]: # ROSE
+with t[2]:
     if f_rs is not None:
         lista_sq = sorted(f_rs['Squadra_N'].unique())
         sq = st.selectbox("Seleziona Squadra:", lista_sq)
@@ -102,7 +101,7 @@ with t[2]: # ROSE
             return [f'background-color: {bg}; color: black; font-weight: bold;'] * len(row)
         st.dataframe(df_sq[['Ruolo', 'Nome', 'Prezzo_N']].style.apply(color_ruoli, axis=1).format({"Prezzo_N":"{:g}"}), hide_index=True, use_container_width=True)
 
-with t[3]: # VINCOLI
+with t[3]:
     if f_vn is not None:
         st.subheader("📅 Dettaglio Vincoli")
         sq_v = st.selectbox("Filtra Squadra:", ["TUTTE"] + sorted(f_vn['Sq_N'].unique()))
@@ -111,41 +110,56 @@ with t[3]: # VINCOLI
         st.dataframe(df_v_display[cols_v].sort_values('Tot_Vincolo', ascending=False).style.background_gradient(subset=['Tot_Vincolo'], cmap='Purples').format({"Tot_Vincolo": "{:g}"}), hide_index=True, use_container_width=True)
         st.info(f"💰 Totale Impegno Vincoli: **{df_v_display['Tot_Vincolo'].sum():g}** crediti")
 
-with t[4]: # TAB SCAMBI CON RICALCOLO E VINCOLI FISSI
+with t[4]: # TAB SCAMBI - RICALCOLO COMPLETO
     if f_rs is not None:
-        st.subheader("🔄 Simulatore Scambi (Nomi in Maiuscolo & Vincoli Invariati)")
+        st.subheader("🔄 Simulatore Scambi: Analisi Pre/Post")
         c1, c2 = st.columns(2)
         lista_nomi_sq = sorted(f_rs['Squadra_N'].unique())
         
         with c1:
-            sa = st.selectbox("Squadra A:", lista_nomi_sq, key="sa_k")
-            ga = st.multiselect("Cede da A:", f_rs[f_rs['Squadra_N']==sa]['Nome'].tolist(), key="ga_k")
+            sa = st.selectbox("Squadra A:", lista_nomi_sq, key="sa_f")
+            ga = st.multiselect("Giocatori in uscita da A:", f_rs[f_rs['Squadra_N']==sa]['Nome'].tolist(), key="ga_f")
         with c2:
-            sb = st.selectbox("Squadra B:", [s for s in lista_nomi_sq if s != sa], key="sb_k")
-            gb = st.multiselect("Cede da B:", f_rs[f_rs['Squadra_N']==sb]['Nome'].tolist(), key="gb_k")
+            sb = st.selectbox("Squadra B:", [s for s in lista_nomi_sq if s != sa], key="sb_f")
+            gb = st.multiselect("Giocatori in uscita da B:", f_rs[f_rs['Squadra_N']==sb]['Nome'].tolist(), key="gb_f")
         
         if ga and gb:
-            def get_prezzo(nome): return f_rs[f_rs['Nome']==nome]['Prezzo_N'].iloc[0] if nome in f_rs['Nome'].values else 0
-            def get_vincolo(nome): return f_vn[f_vn['Giocatore']==nome]['Tot_Vincolo'].iloc[0] if (f_vn is not None and nome in f_vn['Giocatore'].values) else 0
+            def get_val_reale(nome):
+                p = f_rs[f_rs['Nome']==nome]['Prezzo_N'].iloc[0] if nome in f_rs['Nome'].values else 0
+                v = f_vn[f_vn['Giocatore']==nome]['Tot_Vincolo'].iloc[0] if (f_vn is not None and nome in f_vn['Giocatore'].values) else 0
+                return p + v
 
-            # Valore totale dello scambio (Solo Prezzi Acquisto)
-            somma_prezzi = sum(get_prezzo(n) for n in ga) + sum(get_prezzo(n) for n in gb)
-            media_prezzo = somma_prezzi / (len(ga) + len(gb))
+            # 1. Calcolo Valore Ante
+            ante_a = sum(get_val_reale(n) for n in ga)
+            ante_b = sum(get_val_reale(n) for n in gb)
             
-            st.divider()
-            st.write("### ⚖️ Risultato Ricalcolo")
-            st.write(f"I giocatori coinvolti prenderanno un nuovo valore di base di **{media_prezzo:.1f}**, a cui si sommerà il proprio vincolo personale che resta invariato.")
+            # 2. Ricalcolo Valore Medio (Meritocratico)
+            tot_scambio = ante_a + ante_b
+            nuovo_val_unitario = tot_scambio / (len(ga) + len(gb))
+            
+            # 3. Valore Post Scambio
+            post_a = nuovo_val_unitario * len(gb)
+            post_b = nuovo_val_unitario * len(ga)
 
-            rc1, rc2 = st.columns(2)
-            with rc1:
-                st.write(f"**Nuovi acquisti per {sa}:**")
-                for n in gb:
-                    v_fisso = get_vincolo(n)
-                    st.write(f"👉 {n}")
-                    st.caption(f"Base: {media_prezzo:.1f} + Vincolo: {v_fisso:g} = **Totale: {media_prezzo + v_fisso:.1f}**")
-            with rc2:
-                st.write(f"**Nuovi acquisti per {sb}:**")
-                for n in ga:
-                    v_fisso = get_vincolo(n)
-                    st.write(f"👉 {n}")
-                    st.caption(f"Base: {media_prezzo:.1f} + Vincolo: {v_fisso:g} = **Totale: {media_prezzo + v_fisso:.1f}**")
+            st.divider()
+            st.info(f"✨ **Logica Meritocratica:** Il valore totale degli atleti ({tot_scambio:g}) viene ripartito equamente. Ogni giocatore assumerà un nuovo valore di **{nuovo_val_unitario:.1f}**.")
+
+            # Visualizzazione Tabelle Pre/Post
+            res_a, res_b = st.columns(2)
+            with res_a:
+                st.write(f"### 📊 Bilancio {sa}")
+                st.write(f"**Valore Pacchetto Ceduto:** {ante_a:g}")
+                st.write(f"**Valore Pacchetto Acquisito:** {post_a:.1f}")
+                diff_a = post_a - ante_a
+                st.metric("Impatto Patrimonio", f"{post_a:.1f}", delta=f"{diff_a:.1f}")
+                for n in ga: st.caption(f"OUT: {n} (era {get_val_reale(n):g})")
+                for n in gb: st.caption(f"IN: {n} (diventa {nuovo_val_unitario:.1f})")
+
+            with res_b:
+                st.write(f"### 📊 Bilancio {sb}")
+                st.write(f"**Valore Pacchetto Ceduto:** {ante_b:g}")
+                st.write(f"**Valore Pacchetto Acquisito:** {post_b:.1f}")
+                diff_b = post_b - ante_b
+                st.metric("Impatto Patrimonio", f"{post_b:.1f}", delta=f"{diff_b:.1f}")
+                for n in gb: st.caption(f"OUT: {n} (era {get_val_reale(n):g})")
+                for n in ga: st.caption(f"IN: {n} (diventa {nuovo_val_unitario:.1f})")
