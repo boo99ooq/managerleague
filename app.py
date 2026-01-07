@@ -4,7 +4,7 @@ import pandas as pd
 # 1. CONFIGURAZIONE PAGINA
 st.set_page_config(page_title="Fantalega Manageriale", layout="wide")
 
-# 2. STILE: VERDE PRATO CHIARO PROFESSIONALE
+# 2. STILE: VERDE PRATO CHIARO
 def apply_custom_style():
     st.markdown(
         """
@@ -28,7 +28,7 @@ apply_custom_style()
 
 st.title("⚽ Centro Direzionale Fantalega")
 
-# 3. BUDGET FISSI (Febbraio)
+# 3. BUDGET FISSI
 budgets_fisso = {
     "GIANNI": 102.5, "DANI ROBI": 164.5, "MARCO": 131.0, "PIETRO": 101.5,
     "PIERLUIGI": 105.0, "GIGI": 232.5, "ANDREA": 139.0, "GIUSEPPE": 136.5,
@@ -55,7 +55,7 @@ def carica_csv(file):
         file.seek(0)
         df = pd.read_csv(file, sep=',', skip_blank_lines=True, encoding='utf-8-sig')
         df.columns = df.columns.str.strip()
-        return df
+        return df.dropna(how='all') # Rimuove righe totalmente vuote
     except: return None
 
 df_scontri = carica_csv(f_scontri)
@@ -74,12 +74,39 @@ if any([df_scontri is not None, df_punti_tot is not None, df_rose is not None, d
             st.subheader("🔥 Scontri Diretti")
             if df_scontri is not None:
                 df_scontri = pulisci_nomi(df_scontri, 'Giocatore')
-                st.dataframe(df_scontri.sort_values('Punti', ascending=False), hide_index=True, use_container_width=True)
-            else: st.info("Carica 'scontridiretti.csv'")
+                cols_s = [c for c in ['Posizione', 'Giocatore', 'Punti', 'Gol Fatti', 'Gol Subiti', 'Differenza Reti'] if c in df_scontri.columns]
+                st.dataframe(df_scontri[cols_s].sort_values('Punti', ascending=False), hide_index=True, use_container_width=True)
+            else: st.info("In attesa di scontridiretti.csv")
+        
         with cl2:
             st.subheader("🎯 Punti Totali")
             if df_punti_tot is not None:
                 df_punti_tot = pulisci_nomi(df_punti_tot, 'Giocatore')
+                # FIX ROBUSTO PER NUMERI CON VIRGOLA
                 for cp in ['Punti Totali', 'Media', 'Distacco']:
                     if cp in df_punti_tot.columns:
-                        df_punti_tot[cp] = df_punti_tot[cp].astype(str).str
+                        df_punti_tot[cp] = df_punti_tot[cp].astype(str).str.replace(',', '.', regex=False)
+                        df_punti_tot[cp] = pd.to_numeric(df_punti_tot[cp], errors='coerce').fillna(0)
+                
+                cols_p = [c for c in ['Posizione', 'Giocatore', 'Punti Totali', 'Media'] if c in df_punti_tot.columns]
+                st.dataframe(df_punti_tot[cols_p].sort_values('Punti Totali', ascending=False), hide_index=True, use_container_width=True)
+            else: st.info("In attesa di classificapunti.csv")
+
+    # --- TAB ECONOMIA ---
+    with tabs[1]:
+        st.subheader("💰 Bilancio Rose")
+        if df_rose is not None:
+            c_map = {c.lower(): c for c in df_rose.columns}
+            f_col = c_map.get('fantasquadra', df_rose.columns[0])
+            p_col = c_map.get('prezzo', df_rose.columns[-1])
+            df_rose = pulisci_nomi(df_rose, f_col)
+            eco = df_rose.groupby(f_col)[p_col].sum().reset_index()
+            eco.columns = ['Fantasquadra', 'Costo della Rosa']
+            eco['Costo della Rosa'] = eco['Costo della Rosa'].astype(int)
+            eco['Extra Febbraio'] = eco['Fantasquadra'].map(budgets_fisso).fillna(0)
+            eco['Budget Totale'] = (eco['Costo della Rosa'] + eco['Extra Febbraio']).astype(int)
+            st.dataframe(eco.sort_values('Budget Totale', ascending=False), hide_index=True, use_container_width=True)
+        else: st.warning("Carica il file delle Rose.")
+
+    # --- TAB STRATEGIA ---
+    with
