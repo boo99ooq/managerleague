@@ -4,7 +4,13 @@ import os
 
 # 1. SETUP UI
 st.set_page_config(page_title="MuyFantaManager", layout="wide")
-st.markdown("<style>.stApp { background-color: white; } div[data-testid='stDataFrame'] * { color: #1a1a1a !important; font-weight: bold !important; }</style>", unsafe_allow_html=True)
+st.markdown("""
+<style>
+    .stApp { background-color: white; }
+    div[data-testid="stDataFrame"] * { color: #1a1a1a !important; font-weight: bold !important; }
+    header { visibility: hidden; }
+</style>
+""", unsafe_allow_html=True)
 
 st.title("⚽ MuyFantaManager")
 
@@ -29,7 +35,7 @@ def ld(f):
         return df.dropna(how='all')
     except: return None
 
-# CARICAMENTO
+# CARICAMENTO FILE
 f_sc, f_pt, f_rs, f_vn = ld("scontridiretti.csv"), ld("classificapunti.csv"), ld("rose_complete.csv"), ld("vincoli.csv")
 
 # ELABORAZIONE ROSE
@@ -52,7 +58,21 @@ if f_vn is not None:
 # --- TABS ---
 t = st.tabs(["🏆 Classifiche", "💰 Budget", "🏃 Rose", "📅 Vincoli", "🔄 Scambi"])
 
-with t[1]: # TAB BUDGET (Salvaguardata)
+with t[0]: # TAB CLASSIFICHE
+    c1, c2 = st.columns(2)
+    if f_pt is not None:
+        with c1:
+            st.subheader("🎯 Classifica Punti")
+            f_pt['P_N'] = pd.to_numeric(f_pt['Punti Totali'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+            f_pt['FM'] = pd.to_numeric(f_pt['Media'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+            st.dataframe(f_pt[['Posizione','Giocatore','P_N','FM']].sort_values('Posizione').style.background_gradient(subset=['P_N', 'FM'], cmap='YlGn').format({"P_N": "{:g}", "FM": "{:.2f}"}), hide_index=True, use_container_width=True)
+    if f_sc is not None:
+        with c2:
+            st.subheader("⚔️ Scontri Diretti")
+            f_sc['P_S'] = pd.to_numeric(f_sc['Punti'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+            st.dataframe(f_sc[['Posizione','Giocatore','P_S','Gol Fatti','Gol Subiti']].style.background_gradient(subset=['P_S'], cmap='Blues').format({"P_S": "{:g}"}), hide_index=True, use_container_width=True)
+
+with t[1]: # TAB BUDGET
     if f_rs is not None:
         st.subheader("💰 Bilancio Globale")
         bu = f_rs.groupby('Squadra_N')['Prezzo_N'].sum().reset_index()
@@ -67,18 +87,37 @@ with t[1]: # TAB BUDGET (Salvaguardata)
         num_cols_b = ['Spesa Rose', 'Spesa Vincoli', 'Crediti Disponibili', 'Patrimonio Reale']
         st.dataframe(bu.sort_values('Patrimonio Reale', ascending=False).style.background_gradient(cmap='YlOrRd', subset=num_cols_b).format({c: "{:g}" for c in num_cols_b}), hide_index=True, use_container_width=True)
 
-with t[4]: # TAB SCAMBI - ANALISI DETTAGLIATA PRE/POST
+with t[2]: # TAB ROSE
     if f_rs is not None:
-        st.subheader("🔄 Simulatore Scambi: Analisi Granulare Valori")
+        lista_sq = sorted([s for s in f_rs['Squadra_N'].unique() if s])
+        sq = st.selectbox("Seleziona Squadra:", lista_sq)
+        df_sq = f_rs[f_rs['Squadra_N'] == sq].copy()
+        def color_ruoli(row):
+            r = str(row['Ruolo']).upper()
+            bg = '#E3F2FD' if 'PORT' in r else '#E8F5E9' if 'DIF' in r else '#FFFDE7' if 'CEN' in r else '#FFEBEE' if 'ATT' in r else '#FFFFFF'
+            return [f'background-color: {bg}; color: black; font-weight: bold;'] * len(row)
+        st.dataframe(df_sq[['Ruolo', 'Nome', 'Prezzo_N']].style.apply(color_ruoli, axis=1).format({"Prezzo_N":"{:g}"}), hide_index=True, use_container_width=True)
+
+with t[3]: # TAB VINCOLI
+    if f_vn is not None:
+        st.subheader("📅 Dettaglio Vincoli")
+        sq_list_v = sorted([s for s in f_vn['Sq_N'].unique() if s])
+        sq_v = st.selectbox("Filtra Squadra:", ["TUTTE"] + sq_list_v)
+        df_v_display = f_vn if sq_v == "TUTTE" else f_vn[f_vn['Sq_N'] == sq_v]
+        st.dataframe(df_v_display[['Squadra', 'Giocatore', 'Tot_Vincolo', 'Anni_T']].sort_values('Tot_Vincolo', ascending=False).style.background_gradient(subset=['Tot_Vincolo'], cmap='Purples').format({"Tot_Vincolo": "{:g}"}), hide_index=True, use_container_width=True)
+
+with t[4]: # TAB SCAMBI
+    if f_rs is not None:
+        st.subheader("🔄 Simulatore Scambi: Analisi Pre/Post")
         c1, c2 = st.columns(2)
         lista_n_sq = sorted([s for s in f_rs['Squadra_N'].unique() if s])
         
         with c1:
-            sa = st.selectbox("Squadra A:", lista_n_sq, key="sa_val")
-            ga = st.multiselect("Escono da A:", f_rs[f_rs['Squadra_N']==sa]['Nome'].tolist(), key="ga_val")
+            sa = st.selectbox("Squadra A:", lista_n_sq, key="sa_f")
+            ga = st.multiselect("Escono da A:", f_rs[f_rs['Squadra_N']==sa]['Nome'].tolist(), key="ga_f")
         with c2:
-            sb = st.selectbox("Squadra B:", [s for s in lista_n_sq if s != sa], key="sb_val")
-            gb = st.multiselect("Escono da B:", f_rs[f_rs['Squadra_N']==sb]['Nome'].tolist(), key="gb_val")
+            sb = st.selectbox("Squadra B:", [s for s in lista_n_sq if s != sa], key="sb_f")
+            gb = st.multiselect("Escono da B:", f_rs[f_rs['Squadra_N']==sb]['Nome'].tolist(), key="gb_f")
         
         if ga and gb:
             def get_info(nome):
@@ -94,33 +133,30 @@ with t[4]: # TAB SCAMBI - ANALISI DETTAGLIATA PRE/POST
             
             st.divider()
             m1, m2 = st.columns(2)
-            m1.metric(f"Valore Totale Acquisito da {sa}", f"{nuovo_tot_squadra}", delta=f"ex {int(tot_ante_a)}")
-            m2.metric(f"Valore Totale Acquisito da {sb}", f"{nuovo_tot_squadra}", delta=f"ex {int(tot_ante_b)}")
+            m1.metric(f"Valore Acquisito da {sa}", f"{nuovo_tot_squadra}", delta=f"ex {int(tot_ante_a)}")
+            m2.metric(f"Valore Acquisito da {sb}", f"{nuovo_tot_squadra}", delta=f"ex {int(tot_ante_b)}")
             st.divider()
 
             res_a, res_b = st.columns(2)
             with res_a:
-                st.write(f"### ➡️ Acquisizioni {sa}")
+                st.write(f"### ➡️ In {sa}")
                 for n, info in dict_b.items():
                     peso = info['t'] / tot_ante_b if tot_ante_b > 0 else 1/len(gb)
                     nuovo_t = round(peso * nuovo_tot_squadra)
                     quota_v = int(info['v'])
                     quota_b = max(0, nuovo_t - quota_v)
-                    
                     st.markdown(f"**{n}**")
-                    st.markdown(f"📦 **POST: Base {quota_b} + Vincolo {quota_v}**")
-                    st.caption(f"📜 PRE: Base {int(info['p'])} + Vincolo {quota_v} (Totale: {int(info['t'])})")
+                    st.markdown(f"**POST: Base {quota_b} + Vincolo {quota_v}**")
+                    st.caption(f"PRE: Base {int(info['p'])} + Vincolo {quota_v} (Totale: {int(info['t'])})")
                     st.divider()
-                    
             with res_b:
-                st.write(f"### ➡️ Acquisizioni {sb}")
+                st.write(f"### ➡️ In {sb}")
                 for n, info in dict_a.items():
                     peso = info['t'] / tot_ante_a if tot_ante_a > 0 else 1/len(ga)
                     nuovo_t = round(peso * nuovo_tot_squadra)
                     quota_v = int(info['v'])
                     quota_b = max(0, nuovo_t - quota_v)
-                    
                     st.markdown(f"**{n}**")
-                    st.markdown(f"📦 **POST: Base {quota_b} + Vincolo {quota_v}**")
-                    st.caption(f"📜 PRE: Base {int(info['p'])} + Vincolo {quota_v} (Totale: {int(info['t'])})")
+                    st.markdown(f"**POST: Base {quota_b} + Vincolo {quota_v}**")
+                    st.caption(f"PRE: Base {int(info['p'])} + Vincolo {quota_v} (Totale: {int(info['t'])})")
                     st.divider()
