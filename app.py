@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 
-# 1. SETUP E STILE
+# 1. SETUP
 st.set_page_config(page_title="Lega", layout="wide")
 st.markdown("<style>.stApp{background-color:#e8f5e9;} .stTabs, .stDataFrame{background-color:white; border-radius:10px; padding:5px;}</style>", unsafe_allow_html=True)
 st.title("⚽ Centro Direzionale Fantalega")
@@ -24,10 +24,9 @@ def clean_n(df, c):
     return df
 
 def style_c(df):
-    # Forza allineamento centrale su dati e testate
     return df.style.set_properties(**{'text-align': 'center'}).set_table_styles([dict(selector='th', props=[('text-align', 'center')])])
 
-# 4. DATI
+# 4. CARICAMENTO
 f_sc = get_df("scontridiretti.csv")
 f_pt = get_df("classificapunti.csv")
 f_rs = get_df("rose_complete.csv")
@@ -40,13 +39,30 @@ if any([f_sc is not None, f_pt is not None, f_rs is not None, f_vn is not None])
     with t[0]:
         c1, c2 = st.columns(2)
         if f_sc is not None:
-            with c1: 
+            with c1:
                 st.write("🔥 **Scontri**")
-                st.dataframe(style_c(clean_n(f_sc, 'Giocatore')), hide_index=True, use_container_width=True)
+                df_sc = clean_n(f_sc, 'Giocatore')
+                st.dataframe(style_c(df_sc), hide_index=True, use_container_width=True)
         if f_pt is not None:
             with c2:
                 st.write("🎯 **Punti**")
-                f_pt = clean_n(f_pt, 'Giocatore')
-                for c in ['Punti Totali', 'Media']:
-                    if c in f_pt.columns: f_pt[c] = f_pt[c].astype(str).str.replace(',','.').apply(pd.to_numeric, errors='coerce')
-                st.dataframe(style_c(f_pt[['Posizione','Giocatore','Punti Totali','Media
+                df_pt = clean_n(f_pt, 'Giocatore')
+                for col in ['Punti Totali', 'Media']:
+                    if col in df_pt.columns:
+                        df_pt[col] = df_pt[col].astype(str).str.replace(',','.')
+                        df_pt[col] = pd.to_numeric(df_pt[col], errors='coerce')
+                # Righe spezzate per evitare SyntaxError
+                cols_pt = ['Posizione','Giocatore',
+                           'Punti Totali','Media']
+                st.dataframe(style_c(df_pt[cols_pt]), hide_index=True, use_container_width=True)
+
+    if f_rs is not None:
+        cs = f_rs.columns
+        f_c, n_c, r_c, p_c = cs[0], cs[1], cs[2], cs[-1]
+        f_rs = clean_n(f_rs, f_c)
+        f_rs[p_c] = pd.to_numeric(f_rs[p_c], errors='coerce').fillna(0).astype(int)
+
+        with t[1]:
+            st.write("💰 **Bilancio**")
+            eco = f_rs.groupby(f_c)[p_c].sum().reset_index()
+            eco['Extra
