@@ -6,41 +6,38 @@ from datetime import datetime
 # 1. SETUP UI
 st.set_page_config(page_title="MuyFantaManager", layout="wide", initial_sidebar_state="expanded")
 
-# CSS AGGRESSIVO PER GRASSETTO TOTALE
+# CSS DEFINITIVO PER GRASSETTO TOTALE
 st.markdown("""
 <style>
-    /* 1. Forza il grassetto su tutto il corpo dell'app */
-    html, body, [data-testid="stAppViewContainer"] {
-        font-weight: 900 !important;
+    /* 1. Forza il grassetto su tutto il testo dell'app */
+    * {
+        font-weight: bold !important;
     }
 
-    /* 2. Forza il grassetto sulle tabelle (celle e intestazioni) */
-    div[data-testid="stDataFrame"] * {
-        font-weight: 900 !important;
-        color: #000000 !important;
+    /* 2. Forza il grassetto specifico sulle tabelle e i loro contenuti */
+    div[data-testid="stDataFrame"] div[data-testid="styled-table-container"] * {
+        font-weight: bold !important;
+        color: black !important;
+    }
+    
+    /* 3. Forza il grassetto nei menu a tendina (nomi squadre) e bottoni */
+    div[data-baseweb="select"] * {
+        font-weight: bold !important;
+    }
+    
+    button p {
+        font-weight: bold !important;
     }
 
-    /* 3. Forza il grassetto su Sidebar e testi menu */
-    section[data-testid="stSidebar"] * {
-        font-weight: 900 !important;
+    /* 4. Forza il grassetto nelle card e nei box ricalcolo */
+    .player-card, .patrimonio-box, .cut-box {
+        font-weight: bold !important;
+        border-width: 3px !important;
     }
-
-    /* 4. Forza il grassetto su metriche e numeri */
-    div[data-testid="stMetricValue"] > div {
-        font-weight: 900 !important;
-    }
-
-    /* 5. Miglioramento schede e box */
-    .player-card { 
-        padding: 12px; 
-        border-radius: 8px; 
-        margin-bottom: 10px; 
-        border-left: 6px solid;
-        font-weight: 900 !important;
-    }
-    .card-blue { background-color: #e3f2fd; border-color: #1a73e8; }
-    .card-red { background-color: #fbe9e7; border-color: #d32f2f; }
-    .card-grey { background-color: #f1f3f4; border-color: #9e9e9e; }
+    
+    .card-blue { background-color: #e3f2fd; border-color: #1a73e8; color: black; }
+    .card-red { background-color: #fbe9e7; border-color: #d32f2f; color: black; }
+    .card-grey { background-color: #f1f3f4; border-color: #9e9e9e; color: black; }
     
     .patrimonio-box { 
         background-color: #f0f2f6; 
@@ -48,20 +45,12 @@ st.markdown("""
         border-radius: 10px; 
         border: 2px solid #1a73e8; 
         text-align: center;
-        font-weight: 900 !important;
     }
     
-    .cut-box { 
-        background-color: #f8f9fa; 
-        padding: 20px; 
-        border-radius: 10px; 
-        border-left: 5px solid #ff4b4b;
-        font-weight: 900 !important;
+    /* 5. Forza il grassetto sui numeri nelle metriche */
+    [data-testid="stMetricValue"] {
+        font-weight: bold !important;
     }
-
-    /* Forza grassetto su titoli tab e selectbox */
-    .stTabs [data-baseweb="tab"] p { font-weight: 900 !important; }
-    label p { font-weight: 900 !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -150,6 +139,7 @@ with t[1]: # BUDGET
         bu = pd.merge(bu, v_sum, left_on='Squadra_N', right_on='Sq_N', how='left').fillna(0).drop('Sq_N', axis=1).rename(columns={'Tot_Vincolo': 'SPESA VINCOLI'})
         bu['CREDITI EXTRA'] = bu['Squadra_N'].map(bg_ex).fillna(0)
         bu['PATRIMONIO TOTALE'] = bu['SPESA ROSE'] + bu['SPESA VINCOLI'] + bu['CREDITI EXTRA']
+        
         st.bar_chart(bu.set_index("Squadra_N")[['SPESA ROSE', 'SPESA VINCOLI', 'CREDITI EXTRA']], color=["#1a73e8", "#9c27b0", "#ff9800"])
         st.dataframe(bu.sort_values("PATRIMONIO TOTALE", ascending=False).style.background_gradient(cmap='YlOrRd', subset=['PATRIMONIO TOTALE']).format({c: "{:g}" for c in bu.columns if c != 'Squadra_N'}), hide_index=True, use_container_width=True)
 
@@ -161,7 +151,7 @@ with t[2]: # ROSE
         def color_ruoli(row):
             r = str(row['Ruolo']).upper()
             bg = '#E3F2FD' if 'PORT' in r else '#E8F5E9' if 'DIF' in r else '#FFFDE7' if 'CEN' in r else '#FFEBEE' if 'ATT' in r else '#FFFFFF'
-            return [f'background-color: {bg}; color: black; font-weight: 900;'] * len(row)
+            return [f'background-color: {bg}; color: black; font-weight: bold;'] * len(row)
         st.dataframe(df_sq[['Ruolo', 'Nome', 'Prezzo_N']].style.apply(color_ruoli, axis=1).format({"Prezzo_N":"{:g}"}), hide_index=True, use_container_width=True)
 
 with t[3]: # VINCOLI
