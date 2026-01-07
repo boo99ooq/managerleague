@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 
+# 1. SETUP E STILE
 st.set_page_config(page_title="MuyFantaManager", layout="wide")
 st.markdown("<style>.stApp{background-color:#f4f7f6;} .stTabs{background-color:white; border-radius:10px; padding:10px;}</style>", unsafe_allow_html=True)
 st.title("⚽ MuyFantaManager")
@@ -27,14 +28,14 @@ def ld(f):
 
 f_sc, f_pt, f_rs, f_vn = ld("scontridiretti.csv"), ld("classificapunti.csv"), ld("rose_complete.csv"), ld("vincoli.csv")
 
-# SIDEBAR RICERCA
+# --- RICERCA GIOCATORE NELLA SIDEBAR ---
 if f_rs is not None:
     st.sidebar.header("🔍 Cerca Giocatore")
     s = st.sidebar.text_input("Nome:").upper()
     if s:
         res = f_rs[f_rs['Nome'].str.upper().str.contains(s, na=False)].copy()
         if not res.empty:
-            res['Fantasquadra'] = res['Fantasquadra'].str.upper().replace(map_n)
+            res['Fantasquadra'] = res['Fantasquadra'].str.upper().str.strip().replace(map_n)
             st.sidebar.dataframe(res[['Nome', 'Fantasquadra', 'Prezzo']], hide_index=True)
         else: st.sidebar.warning("Nessuno trovato")
 
@@ -45,18 +46,18 @@ with t[0]: # CLASSIFICHE
     with c1:
         st.subheader("🔥 Scontri")
         if f_sc is not None:
-            f_sc['Giocatore'] = f_sc['Giocatore'].str.upper().replace(map_n)
+            f_sc['Giocatore'] = f_sc['Giocatore'].str.upper().str.strip().replace(map_n)
             st.dataframe(f_sc, hide_index=True, use_container_width=True)
     with c2:
         st.subheader("🎯 Punti")
         if f_pt is not None:
-            f_pt['Giocatore'] = f_pt['Giocatore'].str.upper().replace(map_n)
+            f_pt['Giocatore'] = f_pt['Giocatore'].str.upper().str.strip().replace(map_n)
             f_pt['Punti Totali'] = f_pt['Punti Totali'].apply(cv)
             st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali','Media']].sort_values('Punti Totali', ascending=False), hide_index=True, use_container_width=True)
 
 if f_rs is not None:
     f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
-    f_rs['Fantasquadra'] = f_rs['Fantasquadra'].str.upper().strip().replace(map_n)
+    f_rs['Fantasquadra'] = f_rs['Fantasquadra'].str.upper().str.strip().replace(map_n)
     with t[1]: # BUDGET
         st.subheader("💰 Bilancio")
         eco = f_rs.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
