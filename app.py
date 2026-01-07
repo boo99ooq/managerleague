@@ -22,51 +22,53 @@ def apply_style():
 apply_style()
 st.title("⚽ Centro Direzionale Fantalega")
 
-# 2. DATI FISSI
+# 2. BUDGET FISSI
 budgets_fisso = {
     "GIANNI": 102.5, "DANI ROBI": 164.5, "MARCO": 131.0, "PIETRO": 101.5,
     "PIERLUIGI": 105.0, "GIGI": 232.5, "ANDREA": 139.0, "GIUSEPPE": 136.5,
     "MATTEO": 166.5, "NICHOLAS": 113.0
 }
 
-# 3. FUNZIONI DI CARICAMENTO
+# 3. FUNZIONI DI SUPPORTO
 def pulisci_nomi(df, col):
     if df is None or col not in df.columns: return df
     mappa = {"NICO FABIO": "NICHOLAS", "NICHO": "NICHOLAS", "DANI ROBI": "DANI ROBI", "MATTEO STEFANO": "MATTEO"}
     df[col] = df[col].astype(str).str.strip().str.upper().replace(mappa)
     return df
 
-def carica_dati(file_input, nome_file_locale):
-    # Se l'utente carica un file manualmente, ha la priorità
+def carica_dati(file_input, nomi_possibili):
     if file_input is not None:
-        df = pd.read_csv(file_input, sep=',', skip_blank_lines=True, encoding='utf-8-sig')
-    # Altrimenti prova a leggere quello salvato su GitHub
-    elif os.path.exists(nome_file_locale):
-        df = pd.read_csv(nome_file_locale, sep=',', skip_blank_lines=True, encoding='utf-8-sig')
-    else:
-        return None
-    
-    df.columns = df.columns.str.strip()
-    return df.dropna(how='all')
+        return pd.read_csv(file_input, sep=',', skip_blank_lines=True, encoding='utf-8-sig')
+    for nome in nomi_possibili:
+        if os.path.exists(nome):
+            df = pd.read_csv(nome, sep=',', skip_blank_lines=True, encoding='utf-8-sig')
+            df.columns = df.columns.str.strip()
+            return df.dropna(how='all')
+    return None
 
-# 4. SIDEBAR (Opzionale: puoi ancora caricare file nuovi per testare)
-st.sidebar.header("📂 Aggiorna Dati")
+# 4. SIDEBAR PER STATO DATABASE
+st.sidebar.header("📂 Stato Database")
 f_sc_up = st.sidebar.file_uploader("Aggiorna Scontri", type="csv")
+d_sc = carica_dati(f_sc_up, ["scontridiretti.csv"])
+st.sidebar.write("✅ Scontri" if d_sc is not None else "❌ scontridiretti.csv")
+
 f_pt_up = st.sidebar.file_uploader("Aggiorna Punti", type="csv")
+d_pt = carica_dati(f_pt_up, ["classificapunti.csv"])
+st.sidebar.write("✅ Punti" if d_pt is not None else "❌ classificapunti.csv")
+
 f_rs_up = st.sidebar.file_uploader("Aggiorna Rose", type="csv")
+d_rs = carica_dati(f_rs_up, ["rose_complete.csv"])
+st.sidebar.write("✅ Rose" if d_rs is not None else "❌ rose_complete.csv")
+
 f_vn_up = st.sidebar.file_uploader("Aggiorna Vincoli", type="csv")
+d_vn = carica_dati(f_vn_up, ["vincoli.csv"])
+st.sidebar.write("✅ Vincoli" if d_vn is not None else "❌ vincoli.csv")
 
-# Caricamento effettivo (cerca i file con questi nomi precisi su GitHub)
-d_sc = carica_dati(f_sc_up, "scontridiretti.csv")
-d_pt = carica_dati(f_pt_up, "classificapunti.csv")
-d_rs = carica_dati(f_rs_up, "rose_complete.csv")
-d_vn = carica_dati(f_vn_up, "vincoli.csv")
-
-# 5. LOGICA TAB (Il resto rimane uguale)
+# 5. LOGICA TAB
 if any([d_sc is not None, d_pt is not None, d_rs is not None, d_vn is not None]):
     tabs = st.tabs(["🏆 Classifiche", "📊 Economia", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
 
-    # --- TAB CLASSIFICHE ---
+    # TAB CLASSIFICHE
     with tabs[0]:
         c1, c2 = st.columns(2)
         with c1:
@@ -83,7 +85,7 @@ if any([d_sc is not None, d_pt is not None, d_rs is not None, d_vn is not None])
                         d_pt[c] = d_pt[c].astype(str).str.replace(',', '.').pipe(pd.to_numeric, errors='coerce').fillna(0)
                 st.dataframe(d_pt[['Posizione', 'Giocatore', 'Punti Totali', 'Media']], hide_index=True, use_container_width=True)
 
-    # --- TAB ECONOMIA ---
+    # TAB ECONOMIA
     with tabs[1]:
         st.subheader("💰 Bilancio Rose")
         if d_rs is not None:
@@ -97,7 +99,7 @@ if any([d_sc is not None, d_pt is not None, d_rs is not None, d_vn is not None])
             eco['Totale'] = (eco['Costo Rosa'] + eco['Extra']).astype(int)
             st.dataframe(eco.sort_values('Totale', ascending=False), hide_index=True, use_container_width=True)
 
-    # --- TAB STRATEGIA ---
+    # TAB STRATEGIA
     with tabs[2]:
         st.subheader("📋 Analisi Strategica")
         if d_rs is not None:
@@ -115,34 +117,9 @@ if any([d_sc is not None, d_pt is not None, d_rs is not None, d_vn is not None])
                 idx = d_rs.groupby(f_col)[p_col].idxmax()
                 st.dataframe(d_rs.loc[idx, [f_col, n_col, p_col]].sort_values(p_col, ascending=False), hide_index=True)
 
-    # --- TAB ROSE ---
+    # TAB ROSE
     with tabs[3]:
         st.subheader("🏃 Dettaglio Rose")
         if d_rs is not None:
             f_col = next((c for c in d_rs.columns if 'fantasquadra' in c.lower()), d_rs.columns[0])
-            n_col = next((c for c in d_rs.columns if 'nome' in c.lower()), d_rs.columns[1])
-            p_col = next((c for c in d_rs.columns if 'prezzo' in c.lower()), d_rs.columns[-1])
-            r_col = next((c for c in d_rs.columns if 'ruolo' in c.lower()), 'Ruolo')
-            sq = st.selectbox("Seleziona Squadra:", sorted(d_rs[f_col].unique()))
-            df_sq = d_rs[d_rs[f_col] == sq][[r_col, n_col, p_col]].copy()
-            df_sq[p_col] = df_sq[p_col].astype(int)
-            df_sq_sorted = df_sq.sort_values(p_col, ascending=False)
-            st.dataframe(df_sq_sorted.style.background_gradient(subset=[n_col, p_col], cmap='Greens', gmap=df_sq_sorted[p_col]), hide_index=True, use_container_width=True)
-
-    # --- TAB VINCOLI ---
-    with tabs[4]:
-        st.subheader("📅 Contratti Futuri")
-        if d_vn is not None:
-            d_vn = d_vn[d_vn['Squadra'].notna() & ~d_vn['Squadra'].str.contains(r'\*|`|Riepilogo', na=False)].copy()
-            d_vn = pulisci_nomi(d_vn, 'Squadra')
-            vx, vy = st.columns([1, 2])
-            with vx:
-                c_futuro = 'Costo 2026-27'
-                if c_futuro in d_vn.columns:
-                    d_vn[c_futuro] = d_vn[c_futuro].astype(str).str.replace(',', '.').pipe(pd.to_numeric, errors='coerce').fillna(0).astype(int)
-                    st.dataframe(d_vn.groupby('Squadra')[c_futuro].sum().reset_index().sort_values(c_futuro, ascending=False), hide_index=True)
-            with vy:
-                s_v = st.selectbox("Dettaglio vincoli di:", sorted(d_vn['Squadra'].unique()))
-                st.dataframe(d_vn[d_vn['Squadra'] == s_v][['Giocatore', c_futuro]], hide_index=True, use_container_width=True)
-else:
-    st.warning("⚠️ File non trovati su GitHub. Caricali o usa il menu a sinistra.")
+            n_col = next((c for c in
