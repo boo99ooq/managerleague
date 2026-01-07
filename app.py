@@ -7,15 +7,9 @@ st.set_page_config(page_title="MuyFantaManager", layout="wide")
 st.markdown("<style>.stApp{background-color:#f4f7f6;} .stTabs{background-color:white; border-radius:10px; padding:10px;}</style>", unsafe_allow_html=True)
 st.title("⚽ MuyFantaManager")
 
-# Configurazione Budget (Crediti Disponibili iniziali)
+# Configurazione Budget e Mappatura nomi
 bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
-map_n = {
-    "NICO FABIO": "NICHOLAS", 
-    "MATTEO STEFANO": "MATTEO", 
-    "NICHO": "NICHOLAS", 
-    "NICHO:79": "NICHOLAS",
-    "DANI ROBI": "DANI ROBI"
-}
+map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS", "NICHO:79": "NICHOLAS"}
 
 def cv(v):
     if pd.isna(v): return 0
@@ -24,8 +18,7 @@ def cv(v):
 
 def clean_name(s):
     if pd.isna(s) or str(s).strip().upper() == "NONE" or str(s).strip() == "": return "SKIP"
-    s = str(s).split(':')[0]
-    s = s.replace('*', '').replace('"', '').strip().upper()
+    s = str(s).split(':')[0].replace('*', '').replace('"', '').strip().upper()
     return map_n.get(s, s)
 
 def ld(f):
@@ -50,10 +43,18 @@ def process_df(df, col_name):
         return df
     return None
 
-f_sc = process_df(f_sc, 'Giocatore')
-f_pt = process_df(f_pt, 'Giocatore')
-f_rs = process_df(f_rs, 'Fantasquadra')
-f_vn = process_df(f_vn, 'Squadra')
+f_sc, f_pt, f_rs, f_vn = process_df(f_sc, 'Giocatore'), process_df(f_pt, 'Giocatore'), process_df(f_rs, 'Fantasquadra'), process_df(f_vn, 'Squadra')
+
+# Funzione per colorare i ruoli nelle Rose
+def color_ruolo(row):
+    colors = {
+        'Portiere': 'background-color: #f0f4ff',     # Azzurrino
+        'Difensore': 'background-color: #f0fff0',    # Verdino
+        'Centrocampista': 'background-color: #fffdf0', # Giallino
+        'Attaccante': 'background-color: #fff0f0',     # Rossiccio
+        'Giovani': 'background-color: #fcf0ff'        # Violetto
+    }
+    return [colors.get(row['Ruolo'], '')] * len(row)
 
 # Sidebar Ricerca
 if f_rs is not None:
@@ -80,28 +81,18 @@ with t[0]: # CLASSIFICHE
 
 if f_rs is not None:
     f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
-    with t[1]: # BUDGET CON DOPPIO COLORE
+    with t[1]: # BUDGET
         st.subheader("💰 Bilancio Globale")
         eco = f_rs.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
         eco['Crediti Disponibili'] = eco['Fantasquadra'].map(bg_ex).fillna(0)
-        
         if f_vn is not None:
             f_vn['Costo 2026-27'] = f_vn['Costo 2026-27'].apply(cv)
-            vin_sum = f_vn.groupby('Squadra')['Costo 2026-27'].sum().reset_index()
-            vin_sum.columns = ['Fantasquadra', 'Vincoli']
-            eco = pd.merge(eco, vin_sum, on='Fantasquadra', how='left').fillna(0)
+            v_sum = f_vn.groupby('Squadra')['Costo 2026-27'].sum().reset_index()
+            v_sum.columns = ['Fantasquadra', 'Vincoli']
+            eco = pd.merge(eco, v_sum, on='Fantasquadra', how='left').fillna(0)
         else: eco['Vincoli'] = 0
-        
         eco['Totale'] = eco['Prezzo'] + eco['Crediti Disponibili'] + eco['Vincoli']
-        
-        # Applicazione gradiente a due colonne diverse
-        st.dataframe(
-            eco.sort_values('Totale', ascending=False)
-            .style.background_gradient(subset=['Totale'], cmap='RdYlGn')
-            .background_gradient(subset=['Crediti Disponibili'], cmap='YlGn')
-            .format({"Prezzo": "{:g}", "Crediti Disponibili": "{:g}", "Vincoli": "{:g}", "Totale": "{:g}"}),
-            hide_index=True, use_container_width=True
-        )
+        st.dataframe(eco.sort_values('Totale', ascending=False).style.background_gradient(subset=['Totale'], cmap='RdYlGn').background_gradient(subset=['Crediti Disponibili'], cmap='YlGn').format({"Prezzo": "{:g}", "Crediti Disponibili": "{:g}", "Vincoli": "{:g}", "Totale": "{:g}"}), hide_index=True, use_container_width=True)
     
     with t[2]: # STRATEGIA
         st.subheader("🧠 Strategia")
@@ -115,25 +106,24 @@ if f_rs is not None:
             idx = f_rs.groupby('Fantasquadra')['Prezzo'].idxmax()
             st.dataframe(f_rs.loc[idx, ['Fantasquadra', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False).style.format({"Prezzo": "{:g}"}), hide_index=True, use_container_width=True)
 
-    with t[3]: # ROSE
+    with t[3]: # ROSE COLORATE
+        st.subheader("🏃 Dettaglio Rose")
         sq_list = sorted([x for x in f_rs['Fantasquadra'].unique() if x != "SKIP"])
         sq = st.selectbox("Seleziona Squadra:", sq_list)
-        st.dataframe(f_rs[f_rs['Fantasquadra'] == sq][['Ruolo', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False).style.format({"Prezzo": "{:g}"}), hide_index=True, use_container_width=True)
+        df_sq = f_rs[f_rs['Fantasquadra'] == sq][['Ruolo', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False)
+        # Applicazione colore per ruolo
+        st.dataframe(df_sq.style.apply(color_ruolo, axis=1).format({"Prezzo": "{:g}"}), hide_index=True, use_container_width=True)
 
 with t[4]: # VINCOLI
     st.subheader("📅 Gestione Vincoli")
     if f_vn is not None:
-        if 'Durata (anni)' in f_vn.columns:
-            f_vn['Durata (anni)'] = f_vn['Durata (anni)'].apply(cv)
-            
+        if 'Durata (anni)' in f_vn.columns: f_vn['Durata (anni)'] = f_vn['Durata (anni)'].apply(cv)
         v1, v2 = st.columns([1, 2])
         with v1:
-            st.write("**Riepilogo Investimenti**")
             deb = f_vn.groupby('Squadra')['Costo 2026-27'].sum().reset_index().sort_values('Costo 2026-27', ascending=False)
             st.dataframe(deb.style.format({"Costo 2026-27": "{:g}"}), hide_index=True, use_container_width=True)
         with v2:
             lista_sq = sorted([x for x in f_vn['Squadra'].unique() if x != "SKIP"])
             sv = st.selectbox("Seleziona Squadra per Dettaglio:", lista_sq, key="v_sel")
-            det = f_vn[f_vn['Squadra'] == sv][['Giocatore', 'Costo 2026-27', 'Durata (anni)']]
-            det = det.dropna(subset=['Giocatore'])
+            det = f_vn[f_vn['Squadra'] == sv][['Giocatore', 'Costo 2026-27', 'Durata (anni)']].dropna(subset=['Giocatore'])
             st.dataframe(det.style.format({"Costo 2026-27": "{:g}", "Durata (anni)": "{:g}"}), hide_index=True, use_container_width=True)
