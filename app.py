@@ -22,8 +22,15 @@ def cv(v):
     if pd.isna(v): return 0.0
     try:
         s = str(v).replace('"', '').replace(',', '.').strip()
-        return float(s) if s != "" else 0.0
+        val = float(s) if s != "" else 0.0
+        return val
     except: return 0.0
+
+def fmt_n(x):
+    """Formatta i numeri togliendo gli .0 superflui"""
+    try:
+        return f"{x:g}" if isinstance(x, (int, float)) else x
+    except: return x
 
 def clean_name(s):
     if pd.isna(s) or str(s).strip().upper() == "NONE" or str(s).strip() == "": return "SKIP"
@@ -115,10 +122,10 @@ if f_rs is not None:
         df_sq = f_rs[f_rs['Fantasquadra'] == sq][['Ruolo', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False)
         st.dataframe(df_sq.style.apply(color_ruolo, axis=1).set_properties(**{'font-weight': 'bold'}, subset=['Nome']), hide_index=True, use_container_width=True)
 
-with t[4]: # VINCOLI (FIX DEFINITIVO CRASH)
+with t[4]: # VINCOLI (FIX ZERI E CRASH)
     st.subheader("📅 Gestione Vincoli")
     if f_vn is not None:
-        # Conversione numerica forzata PRIMA della visualizzazione
+        # Pulizia numerica rigorosa
         for c in ['Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29', 'Durata (anni)']:
             if c in f_vn.columns: f_vn[c] = f_vn[c].apply(cv)
             else: f_vn[c] = 0.0
@@ -128,6 +135,8 @@ with t[4]: # VINCOLI (FIX DEFINITIVO CRASH)
         v1, v2 = st.columns([1, 2.5])
         with v1:
             deb = f_vn.groupby('Squadra')['Spesa Complessiva'].sum().reset_index().sort_values('Spesa Complessiva', ascending=False)
+            # Applichiamo fmt_n per togliere gli .0
+            deb['Spesa Complessiva'] = deb['Spesa Complessiva'].apply(fmt_n)
             st.dataframe(deb, hide_index=True, use_container_width=True)
         with v2:
             lista_sq = sorted([x for x in f_vn['Squadra'].unique() if x != "SKIP"])
@@ -136,5 +145,9 @@ with t[4]: # VINCOLI (FIX DEFINITIVO CRASH)
             present_v = [c for c in cols_v if c in f_vn.columns]
             det = f_vn[f_vn['Squadra'] == sv][present_v].dropna(subset=['Giocatore']).copy()
             
-            # Applichiamo SOLO il grassetto. Streamlit gestirà i numeri automaticamente senza crash.
+            # Formattazione "sicura" delle colonne numeriche prima della visualizzazione
+            for col in det.columns:
+                if col != 'Giocatore':
+                    det[col] = det[col].apply(fmt_n)
+            
             st.dataframe(det.style.set_properties(**{'font-weight': 'bold'}, subset=['Giocatore']), hide_index=True, use_container_width=True)
