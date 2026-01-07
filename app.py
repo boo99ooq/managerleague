@@ -15,7 +15,6 @@ st.markdown("""
 
 st.title("⚽ MuyFantaManager")
 
-# Configurazione Budget e Mappatura
 bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
 map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS", "NICHO:79": "NICHOLAS"}
 
@@ -60,11 +59,10 @@ if f_vn is not None:
 # TABS
 t = st.tabs(["🏆 Classifiche", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli", "🔄 Scambi"])
 
-# ... (Le prime 5 tab sono identiche alle precedenti) ...
-# [Note: Ometto le prime 5 per brevità ma sono incluse nel funzionamento logico]
+# (Le tab 0-4 rimangono come prima)
 
 with t[5]:
-    st.subheader("🔄 Simulatore Scambi Multipli")
+    st.subheader("🔄 Simulatore Scambi: Calcolo Nuovi Valori Individuali")
     if f_rs is not None:
         sq_l = sorted([x for x in f_rs['Fantasquadra'].unique() if x != "SKIP"])
         
@@ -73,51 +71,46 @@ with t[5]:
             for n in lista_nomi:
                 p = f_rs[f_rs['Nome'] == n]['Prezzo'].values[0]
                 v = f_vn[f_vn['Giocatore'] == n]['Spesa Complessiva'].values[0] if (f_vn is not None and n in f_vn['Giocatore'].values) else 0.0
-                dati.append({'Nome': n, 'Acquisto': p, 'Vincoli': v, 'Totale': p + v})
+                dati.append({'Giocatore': n, 'Acquisto': p, 'Vincoli': v, 'Valore Reale': p + v})
             return pd.DataFrame(dati)
 
         c1, c2 = st.columns(2)
         with c1:
-            sa = st.selectbox("Squadra A:", sq_l, key="sa_mul")
-            ga_list = st.multiselect("Giocatori ceduti da A:", f_rs[f_rs['Fantasquadra']==sa]['Nome'], key="ga_mul")
+            sa = st.selectbox("Squadra A:", sq_l, key="sa_fin")
+            ga_list = st.multiselect("Giocatori ceduti da A:", f_rs[f_rs['Fantasquadra']==sa]['Nome'], key="ga_fin")
             df_a = get_details(ga_list)
             if not df_a.empty:
                 st.dataframe(df_a, hide_index=True)
-                val_a = df_a['Totale'].sum()
-                st.metric("Valore Totale Ceduto da A", f"{val_a:g}")
-
+        
         with c2:
-            sb = st.selectbox("Squadra B:", [s for s in sq_l if s != sa], key="sb_mul")
-            gb_list = st.multiselect("Giocatori ceduti da B:", f_rs[f_rs['Fantasquadra']==sb]['Nome'], key="gb_mul")
+            sb = st.selectbox("Squadra B:", [s for s in sq_l if s != sa], key="sb_fin")
+            gb_list = st.multiselect("Giocatori ceduti da B:", f_rs[f_rs['Fantasquadra']==sb]['Nome'], key="gb_fin")
             df_b = get_details(gb_list)
             if not df_b.empty:
                 st.dataframe(df_b, hide_index=True)
-                val_b = df_b['Totale'].sum()
-                st.metric("Valore Totale Ceduto da B", f"{val_b:g}")
 
         st.write("---")
-        num_a, num_b = len(ga_list), len(gb_list)
-        num_tot = num_a + num_b
+        num_tot = len(ga_list) + len(gb_list)
         
         if num_tot > 0:
-            val_globale = (df_a['Totale'].sum() if not df_a.empty else 0) + (df_b['Totale'].sum() if not df_b.empty else 0)
-            nuovo_valore_unitario = val_globale / num_tot
+            somma_valori = (df_a['Valore Reale'].sum() if not df_a.empty else 0) + (df_b['Valore Reale'].sum() if not df_b.empty else 0)
+            nuovo_valore = somma_valori / num_tot
             
-            st.success(f"### 💎 Nuovo Valore Unitario: {nuovo_valore_unitario:g} crediti")
-            st.write(f"Ogni giocatore coinvolto nello scambio (sia in entrata che in uscita) varrà ora **{nuovo_valore_unitario:g}**.")
+            st.success(f"### 💎 Punto di Incontro: {nuovo_valore:g} crediti")
             
-            # Riepilogo per Squadra
-            res_a, res_b = st.columns(2)
-            with res_a:
-                val_entrata_a = nuovo_valore_unitario * num_b
-                val_uscita_a = df_a['Totale'].sum() if not df_a.empty else 0
-                bilancio_a = val_entrata_a - val_uscita_a
-                st.metric(f"Saldo {sa}", f"{bilancio_a:+g}", help="Valore ricevuto - Valore ceduto")
-            
-            with res_b:
-                val_entrata_b = nuovo_valore_unitario * num_a
-                val_uscita_b = df_b['Totale'].sum() if not df_b.empty else 0
-                bilancio_b = val_entrata_b - val_uscita_b
-                st.metric(f"Saldo {sb}", f"{bilancio_b:+g}")
+            st.markdown("#### 📋 Nuovo Valore a Bilancio per singolo giocatore:")
+            tutti_giocatori = ga_list + gb_list
+            for g in tutti_giocatori:
+                st.write(f"✅ **{g}**: passerà a un valore di **{nuovo_valore:g}**")
+
+            # Analisi Saldo Squadre
+            st.write("---")
+            col_a, col_b = st.columns(2)
+            with col_a:
+                bilancio_a = (nuovo_valore * len(gb_list)) - (df_a['Valore Reale'].sum() if not df_a.empty else 0)
+                st.metric(f"Saldo Bilancio {sa}", f"{bilancio_a:+g}")
+            with col_b:
+                bilancio_b = (nuovo_valore * len(ga_list)) - (df_b['Valore Reale'].sum() if not df_b.empty else 0)
+                st.metric(f"Saldo Bilancio {sb}", f"{bilancio_b:+g}")
         else:
-            st.info("Seleziona i giocatori per calcolare il nuovo valore di mercato.")
+            st.info("Aggiungi i giocatori per vedere il nuovo valore di Lautaro e degli altri coinvolti.")
