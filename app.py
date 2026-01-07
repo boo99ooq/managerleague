@@ -1,170 +1,87 @@
 import streamlit as st
 import pandas as pd
 import os
+import altair as alt
 
-# 1. SETUP E STILE PULITO
+# 1. FORZATURA STILE E LAYOUT
 st.set_page_config(page_title="MuyFantaManager", layout="wide")
 st.markdown("""
 <style>
     .stApp { background-color: white; }
-    div[data-testid="stDataFrame"] * { color: #1a1a1a !important; }
-    header { visibility: hidden; }
-    .stTabs [data-baseweb="tab"] { font-weight: bold; }
+    div[data-testid="stDataFrame"] * { color: #1a1a1a !important; font-weight: bold !important; }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("⚽ MuyFantaManager")
+st.title("⚽ MuyFantaManager - Versione Ripristinata")
 
-# Configurazione Budget e Mappatura
+# Mappature Squadre
 bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
-map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS", "NICHO:79": "NICHOLAS"}
+map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS", "DANI ROBI": "DANI ROBI"}
 
-def cv(v):
-    if pd.isna(v): return 0.0
+# Funzione di caricamento ultra-sicura
+def load_safe(f):
+    if not os.path.exists(f):
+        return None
     try:
-        s = str(v).replace('"', '').replace(',', '.').strip()
-        return float(s) if s != "" else 0.0
-    except: return 0.0
-
-def fmt_n(x):
-    try: return f"{x:g}" if isinstance(x, (int, float)) else x
-    except: return x
-
-def clean_name(s):
-    if pd.isna(s) or str(s).strip().upper() == "NONE" or str(s).strip() == "": return "SKIP"
-    s = str(s).split(':')[0].replace('*', '').replace('"', '').strip().upper()
-    return map_n.get(s, s)
-
-def ld(f):
-    if not os.path.exists(f): return None
-    try:
-        df = pd.read_csv(f, sep=',', engine='python', encoding='utf-8-sig', skip_blank_lines=True)
-        df.columns = [c.strip() for c in df.columns]
+        # Salta le righe vuote e corregge l'errore del tuo file rose
+        df = pd.read_csv(f, skip_blank_lines=True)
         if df.columns[0].startswith('Unnamed'):
-            df = pd.read_csv(f, sep=',', engine='python', encoding='utf-8-sig', skiprows=1)
-            df.columns = [c.strip() for c in df.columns]
+            df = pd.read_csv(f, skiprows=1)
+        df.columns = [c.strip() for c in df.columns]
         return df.dropna(how='all')
-    except: return None
+    except:
+        return None
 
-# 2. CARICAMENTO E PULIZIA
-f_sc, f_pt, f_rs, f_vn = ld("scontridiretti.csv"), ld("classificapunti.csv"), ld("rose_complete.csv"), ld("vincoli.csv")
+# Caricamento file (ignoriamo volutamente quotazioni.csv per evitare blocchi)
+f_pt = load_safe("classificapunti.csv")
+f_rs = load_safe("rose_complete.csv")
+f_vn = load_safe("vincoli.csv")
 
-def process_df(df, col_name):
-    if df is not None:
-        df = df.dropna(subset=[col_name]).copy()
-        df[col_name] = df[col_name].apply(clean_name)
-        df = df[df[col_name] != "SKIP"]
-        return df
-    return None
+# Se non trova nemmeno le rose, avvisa l'utente
+if f_rs is None and f_pt is None:
+    st.error("⚠️ Non riesco a leggere i file CSV. Controlla che siano presenti su GitHub.")
+else:
+    t = st.tabs(["🏆 Classifiche", "💰 Budget", "🏃 Rose", "📅 Vincoli"])
 
-f_sc, f_pt, f_rs, f_vn = process_df(f_sc, 'Giocatore'), process_df(f_pt, 'Giocatore'), process_df(f_rs, 'Fantasquadra'), process_df(f_vn, 'Squadra')
-
-def style_rose(row):
-    colors = {'Portiere':'#E3F2FD','Difensore':'#E8F5E9','Centrocampista':'#FFFDE7','Attaccante':'#FFEBEE','Giovani':'#F3E5F5'}
-    return [f'background-color: {colors.get(row["Ruolo"], "#FFFFFF")}; color: black; font-weight: bold;'] * len(row)
-
-# Sidebar Ricerca
-if f_rs is not None:
-    st.sidebar.header("🔍 Cerca Giocatore")
-    s = st.sidebar.text_input("Nome:").upper()
-    if s:
-        res = f_rs[f_rs['Nome'].str.upper().str.contains(s, na=False)].copy()
-        if not res.empty:
-            st.sidebar.dataframe(res[['Nome', 'Fantasquadra', 'Prezzo']].style.format({"Prezzo": "{:g}"}).set_properties(**{'font-weight': 'bold'}), hide_index=True)
-
-t = st.tabs(["🏆 Classifiche", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
-
-with t[0]: # CLASSIFICHE + GRAFICO
-    c1, c2 = st.columns(2)
-    with c1:
-        st.subheader("🔥 Scontri")
-        if f_sc is not None:
-            cols_sc = f_sc.select_dtypes(include=['number']).columns
-            st.dataframe(f_sc.style.background_gradient(subset=cols_sc, cmap='Blues').set_properties(**{'font-weight': 'bold'}), hide_index=True, use_container_width=True)
-    with c2:
-        st.subheader("🎯 Punti")
+    with t[0]: # CLASSIFICHE
         if f_pt is not None:
-            f_pt['Punti Totali'] = f_pt['Punti Totali'].apply(cv)
-            f_pt['Media'] = f_pt['Media'].apply(cv)
-            st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali','Media']].sort_values('Posizione').style.background_gradient(subset=['Punti Totali'], cmap='Greens').background_gradient(subset=['Media'], cmap='YlGn').format({"Punti Totali": "{:g}", "Media": "{:.2f}"}).set_properties(**{'font-weight': 'bold'}), hide_index=True, use_container_width=True)
-    
-    if f_pt is not None:
-        st.write("---")
-        st.subheader("📊 Confronto Punti Totali")
-        chart_data = f_pt[['Giocatore', 'Punti Totali']].set_index('Giocatore')
-        st.bar_chart(chart_data, color="#2e7d32")
+            c1, c2 = st.columns(2)
+            with c1:
+                st.subheader("🎯 Classifica Punti")
+                # Pulizia punti (toglie il punto delle migliaia e gestisce la virgola)
+                f_pt['Punti Totali'] = f_pt['Punti Totali'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False).astype(float)
+                st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali']].sort_values('Posizione').style.background_gradient(subset=['Punti Totali'], cmap='Greens'), hide_index=True)
+            with c2:
+                st.subheader("📈 Trend")
+                chart = alt.Chart(f_pt).mark_line(point=True, color='green').encode(
+                    x=alt.X('Giocatore:N', sort='-y'),
+                    y=alt.Y('Punti Totali:Q', scale=alt.Scale(domainMin=float(f_pt['Punti Totali'].min())-10))
+                ).properties(height=300)
+                st.altair_chart(chart, use_container_width=True)
 
-if f_rs is not None:
-    f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
-    with t[1]: # BUDGET + GRAFICO COMPOSIZIONE
-        st.subheader("💰 Bilancio Globale")
-        eco = f_rs.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
-        eco.columns = ['Fantasquadra', 'Valore Rosa']
-        eco['Crediti Disponibili'] = eco['Fantasquadra'].map(bg_ex).fillna(0)
-        
+    with t[1]: # BUDGET
+        if f_rs is not None:
+            st.subheader("💰 Bilancio Crediti")
+            f_rs['Prezzo'] = pd.to_numeric(f_rs['Prezzo'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+            f_rs['Fantasquadra'] = f_rs['Fantasquadra'].str.upper().replace(map_n)
+            bu = f_rs.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
+            bu['Extra'] = bu['Fantasquadra'].map(bg_ex).fillna(0)
+            bu['Totale Speso'] = bu['Prezzo'] + bu['Extra']
+            st.dataframe(bu.sort_values('Totale Speso', ascending=False).style.background_gradient(subset=['Totale Speso'], cmap='YlOrRd'), hide_index=True)
+
+    with t[2]: # ROSE COLORATE
+        if f_rs is not None:
+            sq = st.selectbox("Seleziona Squadra:", sorted(f_rs['Fantasquadra'].unique()))
+            df_sq = f_rs[f_rs['Fantasquadra'] == sq].copy()
+            
+            def color_ruoli(row):
+                r = str(row['Ruolo']).upper()
+                bg = '#E3F2FD' if 'PORT' in r else '#E8F5E9' if 'DIF' in r else '#FFFDE7' if 'CEN' in r else '#FFEBEE' if 'ATT' in r else '#FFFFFF'
+                return [f'background-color: {bg}; color: black; font-weight: bold;'] * len(row)
+            
+            st.dataframe(df_sq[['Ruolo', 'Nome', 'Prezzo']].style.apply(color_ruoli, axis=1), hide_index=True, use_container_width=True)
+
+    with t[3]: # VINCOLI
         if f_vn is not None:
-            c26 = f_vn['Costo 2026-27'].apply(cv); c27 = f_vn.get('Costo 2027-28', pd.Series(0.0, index=f_vn.index)).apply(cv); c28 = f_vn.get('Costo 2028-29', pd.Series(0.0, index=f_vn.index)).apply(cv)
-            f_vn['Vincolo Totale'] = c26 + c27 + c28
-            v_sum = f_vn.groupby('Squadra')['Vincolo Totale'].sum().reset_index()
-            v_sum.columns = ['Fantasquadra', 'Vincoli']
-            eco = pd.merge(eco, v_sum, on='Fantasquadra', how='left').fillna(0)
-        else: eco['Vincoli'] = 0
-        
-        eco['Totale'] = eco['Valore Rosa'] + eco['Crediti Disponibili'] + eco['Vincoli']
-        
-        st.dataframe(
-            eco.sort_values('Totale', ascending=False).style
-            .background_gradient(subset=['Valore Rosa'], cmap='YlOrRd')
-            .background_gradient(subset=['Crediti Disponibili'], cmap='GnBu')
-            .background_gradient(subset=['Vincoli'], cmap='Purples')
-            .background_gradient(subset=['Totale'], cmap='YlGn')
-            .format({"Valore Rosa": "{:g}", "Crediti Disponibili": "{:g}", "Vincoli": "{:g}", "Totale": "{:g}"})
-            .set_properties(**{'font-weight': 'bold'}),
-            hide_index=True, use_container_width=True
-        )
-        
-        st.write("---")
-        st.subheader("📊 Distribuzione del Valore")
-        chart_eco = eco[['Fantasquadra', 'Valore Rosa', 'Crediti Disponibili', 'Vincoli']].set_index('Fantasquadra')
-        st.bar_chart(chart_eco, stack=True)
-
-    with t[2]: # STRATEGIA + GRAFICO RUOLI
-        st.subheader("🧠 Strategia e Ruoli")
-        piv = f_rs.pivot_table(index='Fantasquadra', columns='Ruolo', values='Nome', aggfunc='count').fillna(0).astype(int)
-        r_ord = ['Portiere', 'Difensore', 'Centrocampista', 'Attaccante', 'Giovani']
-        cols_presenti = [r for r in r_ord if r in piv.columns]
-        st.dataframe(piv[cols_presenti].style.set_properties(**{'font-weight': 'bold'}), use_container_width=True)
-        
-        st.write("---")
-        st.subheader("📊 Bilanciamento Squadre")
-        st.bar_chart(piv[cols_presenti])
-
-    with t[3]: # ROSE
-        sq_list = sorted([x for x in f_rs['Fantasquadra'].unique() if x != "SKIP"])
-        sq = st.selectbox("Seleziona Squadra:", sq_list)
-        df_sq = f_rs[f_rs['Fantasquadra'] == sq][['Ruolo', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False).copy()
-        st.dataframe(df_sq.style.apply(style_rose, axis=1).format({"Prezzo": "{:g}"}), hide_index=True, use_container_width=True)
-
-with t[4]: # VINCOLI
-    st.subheader("📅 Gestione Vincoli")
-    if f_vn is not None:
-        for c in ['Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29', 'Durata (anni)']:
-            if c in f_vn.columns: f_vn[c] = f_vn[c].apply(cv)
-            else: f_vn[c] = 0.0
-        f_vn['Spesa Complessiva'] = f_vn['Costo 2026-27'] + f_vn.get('Costo 2027-28', 0) + f_vn.get('Costo 2028-29', 0)
-        
-        v1, v2 = st.columns([1, 2.5])
-        with v1:
-            st.write("**Riepilogo Squadre**")
-            deb = f_vn.groupby('Squadra')['Spesa Complessiva'].sum().reset_index().sort_values('Spesa Complessiva', ascending=False)
-            st.dataframe(deb.style.background_gradient(subset=['Spesa Complessiva'], cmap='Oranges')
-                         .format({"Spesa Complessiva": "{:g}"})
-                         .set_properties(**{'font-weight': 'bold'}), hide_index=True, use_container_width=True)
-        with v2:
-            sv = st.selectbox("Squadra:", sorted([x for x in f_vn['Squadra'].unique() if x != "SKIP"]), key="v_sel")
-            cols_v = ['Giocatore', 'Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29', 'Durata (anni)', 'Spesa Complessiva']
-            present_v = [c for c in cols_v if c in f_vn.columns]
-            det = f_vn[f_vn['Squadra'] == sv][present_v].dropna(subset=['Giocatore']).copy()
-            st.dataframe(det.style.background_gradient(subset=['Spesa Complessiva'], cmap='YlOrBr')
-                         .format({c: "{:g}" for c in present_v if c != 'Giocatore'})
-                         .set_properties(**{'font-weight': 'bold'}), hide_index=True, use_container_width=True)
+            st.subheader("📅 Contratti in corso")
+            st.dataframe(f_vn.style.set_properties(**{'font-weight': 'bold'}), hide_index=True)
