@@ -7,7 +7,7 @@ st.set_page_config(page_title="Lega", layout="wide")
 st.markdown("<style>.stApp{background-color:#e8f5e9;} .stTabs, .stDataFrame{background-color:white; border-radius:10px; padding:5px;}</style>", unsafe_allow_html=True)
 st.title("⚽ Centro Direzionale Fantalega")
 
-# 2. BUDGET FISSI
+# 2. BUDGET
 budgets = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
 
 # 3. FUNZIONI
@@ -26,7 +26,6 @@ def clean_n(df, c):
     return df
 
 def style_c(obj):
-    # Applica centratura sia a DataFrame che a Styler
     s = obj.style if isinstance(obj, pd.DataFrame) else obj
     return s.set_properties(**{'text-align':'center'}).set_table_styles([dict(selector='th', props=[('text-align','center')])])
 
@@ -51,29 +50,4 @@ if any([f_sc is not None, f_pt is not None, f_rs is not None, f_vn is not None])
                     if col in df_pt.columns:
                         df_pt[col] = df_pt[col].astype(str).str.replace(',','.')
                         df_pt[col] = pd.to_numeric(df_pt[col], errors='coerce')
-                st.dataframe(style_c(df_pt[['Posizione','Giocatore','Punti Totali','Media']]), hide_index=True, use_container_width=True)
-
-    if f_rs is not None:
-        cs = f_rs.columns
-        if len(cs) >= 4:
-            f_c, n_c, r_c, p_c = cs[0], cs[1], cs[2], cs[-1]
-            f_rs = clean_n(f_rs, f_c)
-            f_rs[p_c] = pd.to_numeric(f_rs[p_c], errors='coerce').fillna(0).astype(int)
-            
-            with t[1]:
-                st.write("💰 **Bilancio**")
-                eco = f_rs.groupby(f_c)[p_c].sum().reset_index()
-                eco['Extra'] = eco[f_c].map(budgets).fillna(0)
-                eco['Totale'] = (eco[p_c] + eco['Extra']).astype(int)
-                st.dataframe(style_c(eco.sort_values('Totale', ascending=False)), hide_index=True, use_container_width=True)
-            with t[2]:
-                st.write("🧠 **Strategia**")
-                f_rs[r_c] = f_rs[r_c].replace({'P':'Portiere','D':'Difensore','C':'Centrocampista','A':'Attaccante'})
-                piv = f_rs.pivot_table(index=f_c, columns=r_c, values=n_c, aggfunc='count').fillna(0).astype(int)
-                st.dataframe(style_c(piv), use_container_width=True)
-            with t[3]:
-                sq = st.selectbox("Squadra:", sorted(f_rs[f_c].unique()))
-                df_sq = f_rs[f_rs[f_c] == sq][[r_c, n_c, p_c]].sort_values(p_c, ascending=False)
-                # FIX: Gradiente applicato solo alla colonna numerica del prezzo
-                st_sq = df_sq.style.background_gradient(subset=[p_c], cmap='Greens')
-                st.dataframe(style_c(st_sq), hide_
+                st
