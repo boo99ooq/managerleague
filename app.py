@@ -2,8 +2,10 @@ import streamlit as st
 import pandas as pd
 import os
 
-# 1. SETUP UI
+# 1. SETUP UI E SIDEBAR (Dichiarata subito per massima visibilità)
 st.set_page_config(page_title="MuyFantaManager", layout="wide")
+
+# CSS Migliorato
 st.markdown("""
 <style>
     .stApp { background-color: white; }
@@ -15,6 +17,7 @@ st.markdown("""
         border-radius: 10px;
         border-left: 5px solid #1a73e8;
         margin-bottom: 20px;
+        color: #1a1a1a;
     }
     .cut-box {
         background-color: #f8f9fa;
@@ -22,11 +25,12 @@ st.markdown("""
         border-radius: 10px;
         border-left: 5px solid #ff4b4b;
         margin-bottom: 20px;
+        color: #1a1a1a;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- FUNZIONI DI PULIZIA ---
+# --- FUNZIONI DI CARICAMENTO ---
 def clean_string(s):
     if pd.isna(s): return None
     s_str = str(s).strip()
@@ -63,31 +67,40 @@ if f_vn is not None:
     f_vn['Anni_T'] = f_vn[v_cols].gt(0).sum(axis=1).astype(str) + " anni"
     f_vn = f_vn.drop_duplicates(subset=['Sq_N', 'Giocatore'])
 
-# --- SIDEBAR: CERCA GIOCATORE ---
+# --- LOGICA SIDEBAR (CERCA GIOCATORE) ---
 st.sidebar.title("🔍 Cerca Giocatore")
 if f_rs is not None:
     tutti_giocatori = sorted(f_rs['Nome'].unique())
-    cerca = st.sidebar.selectbox("Scrivi o seleziona un nome:", [""] + tutti_giocatori)
+    cerca = st.sidebar.selectbox("Scrivi il nome:", [""] + tutti_giocatori)
     
     if cerca != "":
-        dati_r = f_rs[f_rs['Nome'] == cerca].iloc[0]
-        vinc_val = f_vn[f_vn['Giocatore'] == cerca]['Tot_Vincolo'].iloc[0] if (f_vn is not None and cerca in f_vn['Giocatore'].values) else 0
-        
+        # Dati Rose
+        dr = f_rs[f_rs['Nome'] == cerca].iloc[0]
+        # Dati Vincoli
+        vv = f_vn[f_vn['Giocatore'] == cerca]['Tot_Vincolo'].iloc[0] if (f_vn is not None and cerca in f_vn['Giocatore'].values) else 0
+        # Dati Classifica (Media e Punti)
+        media, punti = "N.D.", "N.D."
+        if f_pt is not None and cerca in f_pt['Giocatore'].astype(str).str.upper().values:
+            dp = f_pt[f_pt['Giocatore'].astype(str).str.upper() == cerca].iloc[0]
+            media = dp['Media'] if 'Media' in dp else "N.D."
+            punti = dp['Punti Totali'] if 'Punti Totali' in dp else "N.D."
+
         st.sidebar.markdown(f"""
         <div class="search-box">
-            <h3 style='margin:0;'>{cerca}</h3>
-            <p style='margin:0;'>👕 Squadra: <b>{dati_r['Squadra_N']}</b></p>
-            <p style='margin:0;'>🏃 Ruolo: <b>{dati_r['Ruolo']}</b></p>
+            <h3 style='margin:0; color:#1a73e8;'>{cerca}</h3>
+            <p style='margin:0;'>👕 Squadra: <b>{dr['Squadra_N']}</b></p>
+            <p style='margin:0;'>🏃 Ruolo: <b>{dr['Ruolo']}</b></p>
             <hr style='margin:10px 0;'>
-            <p style='margin:0;'>💰 Prezzo Rosa: <b>{int(dati_r['Prezzo_N'])}</b></p>
-            <p style='margin:0;'>📅 Vincoli Tot: <b>{int(vinc_val)}</b></p>
-            <p style='margin:0; color:#1a73e8;'>💎 Valore Reale: <b>{int(dati_r['Prezzo_N'] + vinc_val)}</b></p>
+            <p style='margin:0;'>💰 Prezzo Rosa: <b>{int(dr['Prezzo_N'])}</b></p>
+            <p style='margin:0;'>📅 Vincoli Tot: <b>{int(vv)}</b></p>
+            <p style='margin:0;'>📈 Media: <b>{media}</b> | Punti: <b>{punti}</b></p>
+            <p style='margin:5px 0 0 0; font-size:1.1em;'>💎 Valore Reale: <b>{int(dr['Prezzo_N'] + vv)}</b></p>
         </div>
         """, unsafe_allow_html=True)
 
+# --- MAIN CONTENT ---
 st.title("⚽ MuyFantaManager")
 
-# --- TABS ---
 t = st.tabs(["🏆 Classifiche", "💰 Budget", "🏃 Rose", "📅 Vincoli", "🔄 Scambi", "✂️ Tagli"])
 
 with t[0]: # CLASSIFICHE
