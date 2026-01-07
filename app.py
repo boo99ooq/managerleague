@@ -74,4 +74,46 @@ if f_rs is not None:
     with t[1]: # BUDGET
         st.subheader("💰 Bilancio Globale")
         eco = f_rs.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
-        eco['Extra'] = eco['Fantasquadra'].map(bg_ex).fillna(
+        eco['Extra'] = eco['Fantasquadra'].map(bg_ex).fillna(0)
+        if f_vn is not None:
+            f_vn['Costo 2026-27'] = f_vn['Costo 2026-27'].apply(cv)
+            vin_sum = f_vn.groupby('Squadra')['Costo 2026-27'].sum().reset_index()
+            vin_sum.columns = ['Fantasquadra', 'Vincoli']
+            eco = pd.merge(eco, vin_sum, on='Fantasquadra', how='left').fillna(0)
+        else: eco['Vincoli'] = 0
+        eco['Totale'] = eco['Prezzo'] + eco['Extra'] + eco['Vincoli']
+        st.dataframe(eco.sort_values('Totale', ascending=False).style.background_gradient(subset=['Totale'], cmap='RdYlGn').format({"Prezzo": "{:g}", "Extra": "{:g}", "Vincoli": "{:g}", "Totale": "{:g}"}), hide_index=True, use_container_width=True)
+    
+    with t[2]: # STRATEGIA
+        st.subheader("🧠 Strategia")
+        cs1, cs2 = st.columns([1.5, 1])
+        with cs1:
+            piv = f_rs.pivot_table(index='Fantasquadra', columns='Ruolo', values='Nome', aggfunc='count').fillna(0).astype(int)
+            r_ord = ['Portiere', 'Difensore', 'Centrocampista', 'Attaccante', 'Giovani']
+            st.dataframe(piv[[r for r in r_ord if r in piv.columns]], use_container_width=True)
+        with cs2:
+            st.write("**💎 Top Player**")
+            idx = f_rs.groupby('Fantasquadra')['Prezzo'].idxmax()
+            st.dataframe(f_rs.loc[idx, ['Fantasquadra', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False).style.format({"Prezzo": "{:g}"}), hide_index=True, use_container_width=True)
+
+    with t[3]: # ROSE
+        sq = st.selectbox("Seleziona Squadra:", sorted(f_rs['Fantasquadra'].unique()))
+        st.dataframe(f_rs[f_rs['Fantasquadra'] == sq][['Ruolo', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False).style.format({"Prezzo": "{:g}"}), hide_index=True, use_container_width=True)
+
+with t[4]: # VINCOLI (PULIZIA DURATA)
+    st.subheader("📅 Gestione Vincoli")
+    if f_vn is not None:
+        # Assicuriamoci che Durata (anni) sia numerica per la formattazione
+        if 'Durata (anni)' in f_vn.columns:
+            f_vn['Durata (anni)'] = f_vn['Durata (anni)'].apply(cv)
+            
+        v1, v2 = st.columns([1, 2])
+        with v1:
+            st.write("**Riepilogo Investimenti**")
+            deb = f_vn.groupby('Squadra')['Costo 2026-27'].sum().reset_index().sort_values('Costo 2026-27', ascending=False)
+            st.dataframe(deb.style.format({"Costo 2026-27": "{:g}"}), hide_index=True, use_container_width=True)
+        with v2:
+            sv = st.selectbox("Seleziona Squadra per Dettaglio:", sorted(f_vn['Squadra'].unique()), key="v_sel")
+            det = f_vn[f_vn['Squadra'] == sv][['Giocatore', 'Costo 2026-27', 'Durata (anni)']]
+            # Formattazione applicata sia al costo che alla durata
+            st.dataframe(det.style.format({"Costo 2026-27": "{:g}", "Durata (anni)": "{:g}"}), hide_index=True, use_container_width=True)
