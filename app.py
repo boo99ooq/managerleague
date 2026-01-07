@@ -3,7 +3,7 @@ import pandas as pd
 import os
 import altair as alt
 
-# 1. SETUP E STILE (FIX LEGGIBILITÀ E GRASSETTO)
+# 1. SETUP E STILE
 st.set_page_config(page_title="MuyFantaManager", layout="wide")
 st.markdown("""
 <style>
@@ -93,11 +93,11 @@ with t[0]: # CLASSIFICHE + GRAFICO ZOOM
             tooltip=['Giocatore', 'Punti Totali']
         )
         chart = base.mark_line(point=True, color='green', strokeWidth=3) + base.mark_text(align='center', baseline='bottom', dy=-10).encode(text='Punti Totali:Q')
-        st.altair_chart(chart.properties(height=400), use_container_width=True)
+        st.altair_chart(chart.properties(height=350), use_container_width=True)
 
 if f_rs is not None:
     f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
-    with t[1]: # BUDGET + GRADIENTI RIPRISTINATI
+    with t[1]: # BUDGET + GRAFICO BILANCIO
         st.subheader("💰 Bilancio Globale")
         eco = f_rs.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
         eco.columns = ['Fantasquadra', 'Valore Rosa']
@@ -112,7 +112,6 @@ if f_rs is not None:
         else: eco['Vincoli'] = 0
         eco['Totale'] = eco['Valore Rosa'] + eco['Crediti Disponibili'] + eco['Vincoli']
         
-        # Riapplicazione Gradienti e Grassetto
         st.dataframe(
             eco.sort_values('Totale', ascending=False).style
             .background_gradient(subset=['Valore Rosa'], cmap='YlOrRd')
@@ -123,6 +122,26 @@ if f_rs is not None:
             .set_properties(**{'font-weight': 'bold'}),
             hide_index=True, use_container_width=True
         )
+
+        # GRAFICO BILANCI IMPILATI
+        st.write("---")
+        st.subheader("📊 Confronto Risorse Finanziarie")
+        
+        # Trasformiamo i dati per Altair (formato "long")
+        eco_melted = eco.melt(id_vars='Fantasquadra', value_vars=['Valore Rosa', 'Crediti Disponibili', 'Vincoli'], 
+                              var_name='Tipo Spesa', value_name='Crediti')
+        
+        chart_budget = alt.Chart(eco_melted).mark_bar().encode(
+            x=alt.X('sum(Crediti):Q', title='Totale Crediti'),
+            y=alt.Y('Fantasquadra:N', sort='-x', title='Fantasquadra'),
+            color=alt.Color('Tipo Spesa:N', 
+                            scale=alt.Scale(domain=['Valore Rosa', 'Crediti Disponibili', 'Vincoli'], 
+                                          range=['#ff9e9e', '#9ecbff', '#d19eff']),
+                            title='Legenda'),
+            tooltip=['Fantasquadra', 'Tipo Spesa', 'Crediti']
+        ).properties(height=400)
+        
+        st.altair_chart(chart_budget, use_container_width=True)
 
     with t[2]: # STRATEGIA
         st.subheader("🧠 Strategia")
@@ -135,7 +154,7 @@ if f_rs is not None:
         df_sq = f_rs[f_rs['Fantasquadra'] == sq][['Ruolo', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False).copy()
         st.dataframe(df_sq.style.apply(style_rose, axis=1).format({"Prezzo": "{:g}"}), hide_index=True, use_container_width=True)
 
-with t[4]: # VINCOLI + GRADIENTI
+with t[4]: # VINCOLI
     st.subheader("📅 Gestione Vincoli")
     if f_vn is not None:
         for c in ['Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29', 'Durata (anni)']:
