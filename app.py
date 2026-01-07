@@ -87,7 +87,7 @@ with st.sidebar:
             for nome_scelto in scelte:
                 dr = f_rs[f_rs['Nome'] == nome_scelto].iloc[0]
                 vv = f_vn[f_vn['Giocatore'] == nome_scelto]['Tot_Vincolo'].iloc[0] if (f_vn is not None and nome_scelto in f_vn['Giocatore'].values) else 0
-                st.markdown(f"""<div class="player-card card-grey"><b>{nome_scelto}</b> ({dr['Squadra_N']})<br>Base: {int(dr['Prezzo_N'])} | Vinc: {int(vv)}<br><b>Tot Reale: {int(dr['Prezzo_N'] + vv)}</b></div>""", unsafe_allow_html=True)
+                st.markdown(f"""<div class="player-card card-grey"><b>{nome_scelto}</b> ({dr['Squadra_N']})<br>Valutazione: {int(dr['Prezzo_N'])} | Vinc: {int(vv)}<br><b>Tot Reale: {int(dr['Prezzo_N'] + vv)}</b></div>""", unsafe_allow_html=True)
 
 # --- MAIN CONTENT ---
 st.title("⚽ MuyFantaManager")
@@ -140,7 +140,7 @@ with t[3]: # VINCOLI
         df_v_display = f_vn if sq_v == "TUTTE" else f_vn[f_vn['Sq_N'] == sq_v]
         st.dataframe(df_v_display[['Squadra', 'Giocatore', 'Tot_Vincolo', 'Anni_T']].sort_values('Tot_Vincolo', ascending=False).style.background_gradient(subset=['Tot_Vincolo'], cmap='Purples').format({"Tot_Vincolo": "{:g}"}), hide_index=True, use_container_width=True)
 
-with t[4]: # SCAMBI CON EFFETTO SCHEDA
+with t[4]: # SCAMBI CON ETICHETTA "VALUTAZIONE"
     if f_rs is not None:
         st.subheader("🔄 Simulatore Scambi")
         c1, c2 = st.columns(2)
@@ -171,13 +171,13 @@ with t[4]: # SCAMBI CON EFFETTO SCHEDA
                 for n, info in dict_b.items():
                     peso = info['t'] / tot_ante_b if tot_ante_b > 0 else 1/len(gb)
                     nuovo_t = round(peso * nuovo_tot)
-                    st.markdown(f"""<div class="player-card card-blue"><b>{n}</b><br>📦 POST: Base <b>{max(0, nuovo_t-int(info['v']))}</b> + Vinc <b>{int(info['v'])}</b><br><small>📜 PRE: Base {int(info['p'])} + Vinc {int(info['v'])} (Tot: {int(info['t'])})</small></div>""", unsafe_allow_html=True)
+                    st.markdown(f"""<div class="player-card card-blue"><b>{n}</b><br>📦 POST: Valutazione <b>{max(0, nuovo_t-int(info['v']))}</b> + Vinc <b>{int(info['v'])}</b><br><small>📜 PRE: Valutazione {int(info['p'])} + Vinc {int(info['v'])} (Tot: {int(info['t'])})</small></div>""", unsafe_allow_html=True)
             with res_b:
                 st.write(f"### ➡️ In {sb}")
                 for n, info in dict_a.items():
                     peso = info['t'] / tot_ante_a if tot_ante_a > 0 else 1/len(ga)
                     nuovo_t = round(peso * nuovo_tot)
-                    st.markdown(f"""<div class="player-card card-red"><b>{n}</b><br>📦 POST: Base <b>{max(0, nuovo_t-int(info['v']))}</b> + Vinc <b>{int(info['v'])}</b><br><small>📜 PRE: Base {int(info['p'])} + Vinc {int(info['v'])} (Tot: {int(info['t'])})</small></div>""", unsafe_allow_html=True)
+                    st.markdown(f"""<div class="player-card card-red"><b>{n}</b><br>📦 POST: Valutazione <b>{max(0, nuovo_t-int(info['v']))}</b> + Vinc <b>{int(info['v'])}</b><br><small>📜 PRE: Valutazione {int(info['p'])} + Vinc {int(info['v'])} (Tot: {int(info['t'])})</small></div>""", unsafe_allow_html=True)
 
 with t[5]: # TAGLI
     st.subheader("✂️ Simulatore Tagli")
@@ -191,4 +191,4 @@ with t[5]: # TAGLI
         v_p = f_rs[(f_rs['Squadra_N'] == sq_t) & (f_rs['Nome'] == gioc_t)]['Prezzo_N'].iloc[0]
         v_v = f_vn[f_vn['Giocatore'] == gioc_t]['Tot_Vincolo'].iloc[0] if (f_vn is not None and gioc_t in f_vn['Giocatore'].values) else 0
         rimborso = round((v_p + v_v) * 0.6)
-        st.markdown(f"""<div class="cut-box"><h3>💰 Calcolo Rimborso: {gioc_t}</h3><p>Prezzo Rosa: {int(v_p)} | Vincoli: {int(v_v)}</p><h2 style="color: #ff4b4b;">Crediti Restituiti (60%): {rimborso}</h2></div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div class="cut-box"><h3>💰 Calcolo Rimborso: {gioc_t}</h3><p>Valutazione Rosa: {int(v_p)} | Vincoli: {int(v_v)}</p><h2 style="color: #ff4b4b;">Crediti Restituiti (60%): {rimborso}</h2></div>""", unsafe_allow_html=True)
