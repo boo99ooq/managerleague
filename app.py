@@ -6,7 +6,7 @@ from datetime import datetime
 # 1. SETUP UI
 st.set_page_config(page_title="MuyFantaManager", layout="wide", initial_sidebar_state="expanded")
 
-# CSS PER GRASSETTO SU INTERFACCIA (MENU, SIDEBAR, CARD)
+# CSS PER GRASSETTO SU INTERFACCIA
 st.markdown("""
 <style>
     html, body, [data-testid="stAppViewContainer"] * {
@@ -122,14 +122,22 @@ with t[1]: # BUDGET
             .format({c: "{:g}" for c in bu.columns if c != 'Squadra_N'})\
             .set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
-with t[2]: # ROSE
+with t[2]: # ROSE - COLORI AGGIORNATI
     if f_rs is not None:
         sq = st.selectbox("**SELEZIONA SQUADRA**", sorted(f_rs['Squadra_N'].unique()), key="rose_sel")
         df_sq = f_rs[f_rs['Squadra_N'] == sq][['Ruolo', 'Nome', 'Prezzo_N']]
+        
         def color_ruoli(row):
             r = str(row['Ruolo']).upper()
-            bg = '#E3F2FD' if 'PORT' in r else '#E8F5E9' if 'DIF' in r else '#FFFDE7' if 'CEN' in r else '#FFEBEE' if 'ATT' in r else '#FFFFFF'
-            return [f'background-color: {bg}; color: black; font-weight: 900;'] * len(row)
+            # Sequenza: Rosa (P), Verde (D), Blu (C), Giallo (A), Rosa (G)
+            if 'POR' in r: bg = '#FCE4EC' # Rosa
+            elif 'DIF' in r: bg = '#E8F5E9' # Verde
+            elif 'CEN' in r: bg = '#E3F2FD' # Blu
+            elif 'ATT' in r: bg = '#FFFDE7' # Giallo
+            elif 'GIO' in r: bg = '#FCE4EC' # Rosa (Giovani)
+            else: bg = '#FFFFFF'
+            return [f'background-color: {bg}; font-weight: 900;'] * len(row)
+            
         st.dataframe(df_sq.style.apply(color_ruoli, axis=1).format({"Prezzo_N":"{:g}"}), hide_index=True, use_container_width=True)
 
 with t[3]: # VINCOLI
