@@ -56,17 +56,27 @@ if any([f_sc is not None, f_pt is not None, f_rs is not None, f_vn is not None])
     if f_rs is not None:
         f_rs.columns = [c.lower() for c in f_rs.columns]
         f_rs = clean_n(f_rs, 'fantasquadra')
-        cp = next((c for c in f_rs.columns if 'prezzo' in c), 'prezzo')
-        f_rs[cp] = pd.to_numeric(f_rs[cp], errors='coerce').fillna(0).astype(int)
+        f_rs['prezzo'] = pd.to_numeric(f_rs['prezzo'], errors='coerce').fillna(0).astype(int)
 
         with t[1]:
             st.write("💰 **Bilancio**")
-            eco = f_rs.groupby('fantasquadra')[cp].sum().reset_index()
+            eco = f_rs.groupby('fantasquadra')['prezzo'].sum().reset_index()
             eco['Extra'] = eco['fantasquadra'].map(budgets).fillna(0)
-            eco['Totale'] = (eco[cp] + eco['Extra']).astype(int)
+            eco['Totale'] = (eco['prezzo'] + eco['Extra']).astype(int)
             st.dataframe(style_c(eco.sort_values('Totale', ascending=False)), hide_index=True, use_container_width=True)
 
         with t[2]:
             st.write("🧠 **Strategia**")
             cx, cy = st.columns([1.5, 1])
-            cr = next((c for c in f_
+            with cx:
+                f_rs['ruolo'] = f_rs['ruolo'].replace({'P':'Portiere','D':'Difensore','C':'Centrocampista','A':'Attaccante'})
+                piv = f_rs.pivot_table(index='fantasquadra', columns='ruolo', values='nome', aggfunc='count').fillna(0).astype(int)
+                st.dataframe(style_c(piv), use_container_width=True)
+            with cy:
+                st.write("**💎 Top Player**")
+                top = f_rs.loc[f_rs.groupby('fantasquadra')['prezzo'].idxmax()].sort_values('prezzo', ascending=False)
+                st.dataframe(style_c(top[['fantasquadra','nome','prezzo']]), hide_index=True, use_container_width=True)
+
+        with t[3]:
+            sq = st.selectbox("Squadra:", sorted(f_rs['fantasquadra'].unique()))
+            df_sq = f_rs
