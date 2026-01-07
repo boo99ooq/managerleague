@@ -2,18 +2,18 @@ import streamlit as st
 import pandas as pd
 import os
 
-# 1. SETUP UI E SIDEBAR (Forzata l'apertura con expanded)
+# 1. SETUP UI E SIDEBAR (Configurazione iniziale)
 st.set_page_config(
     page_title="MuyFantaManager", 
     layout="wide", 
     initial_sidebar_state="expanded"
 )
 
+# CSS Corretto: NON nascondiamo più l'header per evitare che sparisca il tasto sidebar
 st.markdown("""
 <style>
     .stApp { background-color: white; }
     div[data-testid="stDataFrame"] * { color: #1a1a1a !important; font-weight: bold !important; }
-    header { visibility: hidden; }
     .search-box {
         background-color: #f1f3f4;
         padding: 12px;
@@ -29,6 +29,11 @@ st.markdown("""
         border-left: 5px solid #ff4b4b;
         margin-bottom: 20px;
         color: #1a1a1a;
+    }
+    /* Rende la sidebar più leggibile */
+    section[data-testid="stSidebar"] {
+        background-color: #f8f9fa;
+        min-width: 300px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -71,34 +76,35 @@ if f_vn is not None:
     f_vn = f_vn.drop_duplicates(subset=['Sq_N', 'Giocatore'])
 
 # --- SIDEBAR: CONFRONTO MULTIPLO ---
-# 
 with st.sidebar:
-    st.title("🔍 Confronto Giocatori")
+    st.header("🔍 Cerca Giocatori")
     if f_rs is not None:
         tutti_giocatori = sorted(f_rs['Nome'].unique())
-        scelte = st.multiselect("Cerca e aggiungi giocatori:", tutti_giocatori)
+        scelte = st.multiselect("Aggiungi al confronto:", tutti_giocatori)
         
-        if st.button("Pulisci Confronto"):
-            st.rerun()
+        if scelte:
+            if st.button("Svuota lista"):
+                st.rerun()
 
-        for nome_scelto in scelte:
-            dr = f_rs[f_rs['Nome'] == nome_scelto].iloc[0]
-            vv = f_vn[f_vn['Giocatore'] == nome_scelto]['Tot_Vincolo'].iloc[0] if (f_vn is not None and nome_scelto in f_vn['Giocatore'].values) else 0
-            media, punti = "N.D.", "N.D."
-            if f_pt is not None and nome_scelto in f_pt['Giocatore'].astype(str).str.upper().values:
-                dp = f_pt[f_pt['Giocatore'].astype(str).str.upper() == nome_scelto].iloc[0]
-                media = dp['Media'] if 'Media' in dp else "N.D."
-                punti = dp['Punti Totali'] if 'Punti Totali' in dp else "N.D."
+            for nome_scelto in scelte:
+                dr = f_rs[f_rs['Nome'] == nome_scelto].iloc[0]
+                vv = f_vn[f_vn['Giocatore'] == nome_scelto]['Tot_Vincolo'].iloc[0] if (f_vn is not None and nome_scelto in f_vn['Giocatore'].values) else 0
+                media, punti = "N.D.", "N.D."
+                if f_pt is not None and nome_scelto in f_pt['Giocatore'].astype(str).str.upper().values:
+                    dp = f_pt[f_pt['Giocatore'].astype(str).str.upper() == nome_scelto].iloc[0]
+                    media = dp['Media'] if 'Media' in dp else "N.D."
+                    punti = dp['Punti Totali'] if 'Punti Totali' in dp else "N.D."
 
-            st.markdown(f"""
-            <div class="search-box">
-                <b style='color:#1a73e8; font-size:1.1em;'>{nome_scelto}</b> ({dr['Squadra_N']})<br>
-                <small>Ruolo: {dr['Ruolo']} | Media: {media}</small>
-                <hr style='margin:8px 0;'>
-                Prezzo: <b>{int(dr['Prezzo_N'])}</b> | Vinc: <b>{int(vv)}</b><br>
-                <b>💎 Valore Reale: {int(dr['Prezzo_N'] + vv)}</b>
-            </div>
-            """, unsafe_allow_html=True)
+                st.markdown(f"""
+                <div class="search-box">
+                    <b style='color:#1a73e8;'>{nome_scelto}</b> ({dr['Squadra_N']})<br>
+                    <small>Ruolo: {dr['Ruolo']} | Media: {media}</small><br>
+                    Base: <b>{int(dr['Prezzo_N'])}</b> + Vinc: <b>{int(vv)}</b><br>
+                    <b>Tot Reale: {int(dr['Prezzo_N'] + vv)}</b>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("Seleziona uno o più giocatori per vederne i dettagli qui.")
 
 # --- MAIN CONTENT ---
 st.title("⚽ MuyFantaManager")
