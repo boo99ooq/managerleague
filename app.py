@@ -2,93 +2,86 @@ import streamlit as st
 import pandas as pd
 import os
 
-st.set_page_config(layout="wide", page_title="Fantalega")
-st.title("⚽ Centro Direzionale")
+st.set_page_config(page_title="Lega Manager", layout="wide")
+st.markdown("<style>.stApp{background-color:#f4f7f6;} .stTabs{background-color:white; border-radius:10px; padding:10px;}</style>", unsafe_allow_html=True)
+st.title("⚽ Centro Direzionale Fantalega")
 
-# Budget Extra
-bg = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
+# Configurazione Budget Extra originale
+bg_extra = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
 
-def load_clean(name):
-    """Cerca il file e lo pulisce da righe sporche (asterischi, titoli, ecc.)"""
+def load_data(name):
     for f in os.listdir("."):
         if f.lower() == name.lower():
             try:
-                df = pd.read_csv(f, sep=None, engine='python', encoding='utf-8-sig')
-                # Rimuove righe che contengono troppi asterischi o sono riepiloghi
-                df = df[~df.iloc[:, 0].astype(str).str.contains(r'\*|Riepilogo|SQUADRA', na=False, case=False)]
-                df = df.dropna(how='all').dropna(axis=1, how='all')
-                df.columns = [str(c).strip().upper() for c in df.columns]
-                # Pulisce ogni cella da asterischi residui
-                df = df.apply(lambda x: x.astype(str).str.replace('*', '', regex=False).str.strip())
+                # Lettura con auto-rilevamento separatore (virgola o punto e virgola)
+                df = pd.read_csv(f, sep=None, engine='python', encoding='utf-8-sig').dropna(how='all')
+                df.columns = df.columns.str.strip()
                 return df
-            except: return None
+            except:
+                return None
     return None
 
-def sc(obj):
-    """Centra il testo nelle tabelle"""
-    s = obj if hasattr(obj, 'style') == False else obj.style
-    return s.set_properties(**{'text-align':'center'}).set_table_styles([dict(selector='th', props=[('text-align','center')])])
+def style_df(df):
+    return df.style.set_properties(**{'text-align': 'center'}).set_table_styles([dict(selector='th', props=[('text-align', 'center')])])
 
-# Caricamento
-f_sc = load_clean("scontridiretti.csv")
-f_pt = load_clean("classificapunti.csv")
-f_rs = load_clean("rose_complete.csv")
-f_vn = load_clean("vincoli.csv")
+# Caricamento file
+f_sc = load_data("scontridiretti.csv")
+f_pt = load_data("classificapunti.csv")
+f_rs = load_data("rose_complete.csv")
+f_vn = load_data("vincoli.csv")
 
-# Sidebar Status
-st.sidebar.write("### 📂 Status File")
-st.sidebar.write("Rose:", "✅" if f_rs is not None else "❌")
-st.sidebar.write("Vincoli:", "✅" if f_vn is not None else "❌")
+# Creazione Tab
+tabs_list = []
+if f_sc is not None or f_pt is not None: tabs_list.append("🏆 Classifiche")
+if f_rs is not None: tabs_list.extend(["💰 Budget", "🧠 Strategia", "🏃 Rose"])
+if f_vn is not None: tabs_list.append("📅 Vincoli")
 
-t = st.tabs(["🏆 Classifiche", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
+if tabs_list:
+    t = st.tabs(tabs_list)
+    idx = 0
 
-# --- CLASSIFICHE ---
-with t[0]:
-    c1, c2 = st.columns(2)
-    if f_sc is not None:
-        with c1: st.subheader("🔥 Scontri"); st.dataframe(sc(f_sc), hide_index=True)
-    if f_pt is not None:
-        with c2: st.subheader("🎯 Punti"); st.dataframe(sc(f_pt), hide_index=True)
+    # --- CLASSIFICHE ---
+    if f_sc is not None or f_pt is not None:
+        with t[idx]:
+            c1, c2 = st.columns(2)
+            if f_sc is not None:
+                with c1:
+                    st.subheader("🔥 Scontri Diretti")
+                    st.dataframe(style_df(f_sc), hide_index=True, use_container_width=True)
+            if f_pt is not None:
+                with c2:
+                    st.subheader("🎯 Classifica Punti")
+                    st.dataframe(style_df(f_pt), hide_index=True, use_container_width=True)
+        idx += 1
 
-# --- ROSE / BUDGET / STRATEGIA ---
-if f_rs is not None and len(f_rs.columns) >= 3:
-    c = f_rs.columns
-    f_rs[c[-1]] = pd.to_numeric(f_rs[c[-1]].str.replace(',','.'), errors='coerce').fillna(0)
-    
-    with t[1]: # Budget
-        e = f_rs.groupby(c[0])[c[-1]].sum().reset_index()
-        e['EXTRA'] = e[c[0]].str.upper().map(bg).fillna(0)
-        e['TOTALE'] = (e[c[-1]] + e['EXTRA']).astype(int)
-        st.dataframe(sc(e.sort_values('TOTALE', ascending=False)), hide_index=True)
-    
-    with t[2]: # Strategia
-        piv = f_rs.pivot_table(index=c[0], columns=c[2], values=c[1], aggfunc='count').fillna(0).astype(int)
-        st.dataframe(sc(piv))
+    # --- ROSE E BUDGET ---
+    if f_rs is not None:
+        cols = f_rs.columns
+        sq_col, nom_col, r_col, prz_col = cols[0], cols[1], cols[2], cols[-1]
+        f_rs[prz_col] = pd.to_numeric(f_rs[prz_col].astype(str).str.replace(',','.'), errors='coerce').fillna(0)
 
-    with t[3]: # Rose
-        sq = st.selectbox("Squadra:", sorted(f_rs[c[0]].unique()), key="sq_rose")
-        d_sq = f_rs[f_rs[c[0]] == sq][[c[2], c[1], c[-1]]].sort_values(c[-1], ascending=False)
-        st.dataframe(sc(d_sq.style.background_gradient(subset=[c[-1]], cmap='Greens')), hide_index=True)
-
-# --- VINCOLI (Layout richiesto) ---
-if f_vn is not None and len(f_vn.columns) >= 3:
-    with t[4]:
-        v = f_vn.columns
-        # Assicuriamoci che Costo e Anni siano numeri
-        f_vn[v[2]] = pd.to_numeric(f_vn[v[2]].str.replace(',','.'), errors='coerce').fillna(0)
-        f_vn[v[-1]] = pd.to_numeric(f_vn[v[-1]], errors='coerce').fillna(0).astype(int)
-
-        v_col1, v_col2 = st.columns([1, 2])
+        with t[idx]: # Budget
+            st.subheader("💰 Bilancio Crediti")
+            spesa = f_rs.groupby(sq_col)[prz_col].sum().reset_index()
+            spesa['Extra'] = spesa[sq_col].str.upper().map(bg_extra).fillna(0)
+            spesa['Totale'] = (spesa[prz_col] + spesa['Extra']).astype(int)
+            st.dataframe(style_df(spesa.sort_values('Totale', ascending=False)), hide_index=True, use_container_width=True)
         
-        with v_col1:
-            st.write("### 💰 Crediti Impegnati")
-            deb = f_vn.groupby(v[0])[v[2]].sum().reset_index().sort_values(v[2], ascending=False)
-            st.dataframe(sc(deb), hide_index=True, use_container_width=True)
-        
-        with v_col2:
-            st.write("### 🏃 Dettaglio Giocatori")
-            sv = st.selectbox("Seleziona Squadra:", sorted(f_vn[v[0]].unique()), key="v_s")
-            det = f_vn[f_vn[v[0]] == sv][[v[1], v[2], v[-1]]].copy()
-            # Colore rosso se scade tra 1 anno
-            st_v = det.sort_values(v[-1]).style.map(lambda x: 'background-color:#ffcdd2' if x==1 else '', subset=[v[-1]])
-            st.dataframe(sc(st_v), hide_index=True, use_container_width=True)
+        with t[idx+1]: # Strategia
+            st.subheader("🧠 Distribuzione Ruoli")
+            pivot = f_rs.pivot_table(index=sq_col, columns=r_col, values=nom_col, aggfunc='count').fillna(0).astype(int)
+            st.dataframe(style_df(pivot), use_container_width=True)
+
+        with t[idx+2]: # Rose
+            st.subheader("🏃 Rose Squadre")
+            sel_sq = st.selectbox("Scegli Squadra:", sorted(f_rs[sq_col].unique()))
+            rosa = f_rs[f_rs[sq_col] == sel_sq][[r_col, nom_col, prz_col]].sort_values(prz_col, ascending=False)
+            st.dataframe(style_df(rosa.style.background_gradient(subset=[prz_col], cmap='Greens')), hide_index=True, use_container_width=True)
+        idx += 3
+
+    # --- VINCOLI ---
+    if f_vn is not None:
+        with t[idx]:
+            st.subheader("📅 Gestione Vincoli")
+            v_cols = f_vn.columns
+            v_sq, v_nom, v_costo
