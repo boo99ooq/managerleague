@@ -9,39 +9,15 @@ def apply_custom_style():
     st.markdown(
         """
         <style>
-        /* Sfondo principale verde chiaro */
-        .stApp {
-            background-color: #e8f5e9;
-        }
-        
-        /* Sidebar: colore verde più intenso per staccare */
-        [data-testid="stSidebar"] {
-            background-color: #c8e6c9 !important;
-        }
-
-        /* Testi generali in nero/verde scuro per leggibilità */
-        h1, h2, h3, h4, h5, p, label, span {
-            color: #1b5e20 !important;
-        }
-        
-        /* Titolo principale */
-        h1 {
-            text-align: center;
-            font-weight: 800;
-            padding-bottom: 20px;
-        }
-
-        /* Tabelle e Tab: sfondo bianco pulito */
+        .stApp { background-color: #e8f5e9; }
+        [data-testid="stSidebar"] { background-color: #c8e6c9 !important; }
+        h1, h2, h3, h4, h5, p, label, span { color: #1b5e20 !important; }
+        h1 { text-align: center; font-weight: 800; padding-bottom: 20px; }
         .stTabs, .stDataFrame, .stTable {
             background-color: #ffffff !important;
             padding: 10px;
             border-radius: 10px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-
-        /* Centratura celle tabella */
-        .stDataFrame div[data-testid="stTable"] div {
-            text-align: center !important;
         }
         </style>
         """,
@@ -89,7 +65,6 @@ df_vincoli = carica_csv(f_vinc)
 
 # 5. LOGICA APPLICAZIONE
 if df_rose is not None:
-    # Pre-elaborazione Rose
     df_rose = df_rose.dropna(subset=['Fantasquadra', 'Nome'])
     df_rose = pulisci_nomi(df_rose, 'Fantasquadra')
     df_rose['Prezzo'] = pd.to_numeric(df_rose['Prezzo'], errors='coerce').fillna(0)
@@ -102,64 +77,4 @@ if df_rose is not None:
         with cl1:
             st.subheader("🔥 Scontri Diretti")
             if df_scontri is not None:
-                df_scontri = pulisci_nomi(df_scontri, 'Giocatore')
-                cols = ['Posizione', 'Giocatore', 'Punti', 'Gol Fatti', 'Gol Subiti', 'Differenza Reti']
-                st.dataframe(
-                    df_scontri[cols].sort_values('Punti', ascending=False), 
-                    hide_index=True,
-                    column_config={
-                        "Posizione": st.column_config.Column(width="small"),
-                        "Punti": st.column_config.NumberColumn(format="%d", width="small")
-                    },
-                    use_container_width=True
-                )
-            else: st.info("Carica scontridiretti.csv")
-        
-        with cl2:
-            st.subheader("🎯 Punti Totali")
-            if df_punti_tot is not None:
-                df_punti_tot = pulisci_nomi(df_punti_tot, 'Giocatore')
-                if 'Punti Totali' in df_punti_tot.columns:
-                    df_punti_tot['Punti Totali'] = df_punti_tot['Punti Totali'].astype(str).str.replace(',', '.').astype(float)
-                st.dataframe(
-                    df_punti_tot[['Posizione', 'Giocatore', 'Punti Totali', 'Media']].sort_values('Punti Totali', ascending=False), 
-                    hide_index=True,
-                    column_config={
-                        "Posizione": st.column_config.Column(width="small")
-                    },
-                    use_container_width=True
-                )
-
-    # --- TAB ECONOMIA ---
-    with tabs[1]:
-        st.subheader("💰 Bilancio Rose")
-        eco = df_rose.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
-        eco.columns = ['Fantasquadra', 'Costo della Rosa']
-        eco['Extra Febbraio'] = eco['Fantasquadra'].map(budgets_fisso).fillna(0)
-        eco['Budget Totale'] = eco['Costo della Rosa'] + eco['Extra Febbraio']
-        st.dataframe(eco.sort_values('Budget Totale', ascending=False), hide_index=True, use_container_width=True)
-
-    # --- TAB STRATEGIA ---
-    with tabs[2]:
-        st.subheader("📋 Analisi Reparti")
-        # Ordine ruoli specifico
-        ordine_ruoli = ['Portiere', 'Difensore', 'Centrocampista', 'Attaccante', 'Giovani']
-        pivot_count = df_rose.pivot_table(index='Fantasquadra', columns='Ruolo', values='Nome', aggfunc='count').fillna(0).astype(int)
-        colonne_presenti = [r for r in ordine_ruoli if r in pivot_count.columns]
-        st.dataframe(pivot_count[colonne_presenti], use_container_width=True)
-
-    # --- TAB ROSE ---
-    with tabs[3]:
-        sq_lista = sorted(df_rose['Fantasquadra'].unique())
-        scelta_sq = st.selectbox("Seleziona Squadra:", sq_lista)
-        df_sq = df_rose[df_rose['Fantasquadra'] == scelta_sq][['Ruolo', 'Nome', 'Prezzo']]
-        # Gradiente verde acceso per i prezzi alti
-        st.dataframe(
-            df_sq.sort_values('Prezzo', ascending=False).style.background_gradient(subset=['Prezzo'], cmap='Greens'), 
-            hide_index=True, use_container_width=True
-        )
-
-    # --- TAB VINCOLI (PULIZIA DOPPI E DETTAGLIO) ---
-    with tabs[4]:
-        st.subheader("📅 Contratti 2026/27")
-        if df_vincoli is
+                df_scontri = pulisci_nomi(df_scontri,
