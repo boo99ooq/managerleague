@@ -25,8 +25,10 @@ def clean_n(df, c):
     df[c] = df[c].astype(str).str.strip().str.upper().replace(m)
     return df
 
-def style_c(df):
-    return df.style.set_properties(**{'text-align':'center'}).set_table_styles([dict(selector='th', props=[('text-align','center')])])
+def style_c(obj):
+    # Se è un DataFrame, crea lo Styler. Se è già uno Styler, lo usa direttamente.
+    styler = obj.style if isinstance(obj, pd.DataFrame) else obj
+    return styler.set_properties(**{'text-align':'center'}).set_table_styles([dict(selector='th', props=[('text-align','center')])])
 
 # 4. CARICAMENTO
 f_sc, f_pt, f_rs, f_vn = get_df("scontridiretti.csv"), get_df("classificapunti.csv"), get_df("rose_complete.csv"), get_df("vincoli.csv")
@@ -38,7 +40,7 @@ if any([f_sc is not None, f_pt is not None, f_rs is not None, f_vn is not None])
     with t[0]:
         c1, c2 = st.columns(2)
         if f_sc is not None:
-            with c1: 
+            with c1:
                 st.write("🔥 **Scontri**")
                 st.dataframe(style_c(clean_n(f_sc, 'Giocatore')), hide_index=True, use_container_width=True)
         if f_pt is not None:
@@ -72,29 +74,11 @@ if any([f_sc is not None, f_pt is not None, f_rs is not None, f_vn is not None])
             with t[3]:
                 sq = st.selectbox("Squadra:", sorted(f_rs[f_c].unique()))
                 df_sq = f_rs[f_rs[f_c] == sq][[r_c, n_c, p_c]].sort_values(p_c, ascending=False)
-                st.dataframe(style_c(df_sq.style.background_gradient(subset=[n_c, p_c], cmap='Greens', gmap=df_sq[p_c])), hide_index=True, use_container_width=True)
+                # Applichiamo prima il gradiente e POI la centratura
+                st_sq = df_sq.style.background_gradient(subset=[n_c, p_c], cmap='Greens')
+                st.dataframe(style_c(st_sq), hide_index=True, use_container_width=True)
         else:
-            st.error("Il file rose_complete.csv deve avere almeno 4 colonne: Squadra, Nome, Ruolo, Prezzo.")
+            st.error("Il file rose_complete.csv deve avere almeno 4 colonne.")
 
     if f_vn is not None:
-        with t[4]:
-            st.write("📅 **Vincoli**")
-            v_cs = f_vn.columns
-            if len(v_cs) >= 3:
-                sv, gv, cv, dv = v_cs[0], v_cs[1], v_cs[2], v_cs[-1]
-                f_vn = clean_n(f_vn[f_vn[sv].notna() & ~f_vn[sv].str.contains(r'\*|Riepilogo')].copy(), sv)
-                f_vn[cv] = f_vn[cv].astype(str).str.replace(',','.').apply(pd.to_numeric, errors='coerce').fillna(0).astype(int)
-                
-                vx, vy = st.columns([1, 2])
-                with vx:
-                    deb = f_vn.groupby(sv)[cv].sum().reset_index().sort_values(cv, ascending=False)
-                    st.dataframe(style_c(deb), hide_index=True, use_container_width=True)
-                with vy:
-                    sel = st.selectbox("Dettaglio:", sorted(f_vn[sv].unique()), key="vsel")
-                    df_v = f_vn[f_vn[sv] == sel][[gv, cv, dv]].copy()
-                    df_v[dv] = pd.to_numeric(df_v[dv], errors='coerce').fillna(0).astype(int)
-                    st.dataframe(style_c(df_v.sort_values(dv, ascending=False).style.map(lambda x: 'background-color: #ffcdd2' if x == 1 else '', subset=[dv])), hide_index=True, use_container_width=True)
-            else:
-                st.error("Il file vincoli.csv deve avere almeno 3 colonne.")
-else:
-    st.info("👋 Carica i CSV su GitHub.")
+        with t
