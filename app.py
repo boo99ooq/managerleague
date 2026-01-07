@@ -1,9 +1,8 @@
 import streamlit as st
 import pandas as pd
 import os
-import altair as alt
 
-# 1. SETUP E STILE
+# 1. SETUP
 st.set_page_config(page_title="MuyFantaManager", layout="wide")
 st.markdown("""
 <style>
@@ -15,27 +14,32 @@ st.markdown("""
 
 st.title("⚽ MuyFantaManager")
 
-# Configurazione Crediti Extra e Mappature
 bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
 map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS", "DANI ROBI": "DANI ROBI"}
 
-# --- FUNZIONI DI PULIZIA ---
+# --- FUNZIONE PREZZI CORRETTA ---
 def cv(v):
     if pd.isna(v) or str(v).strip() == "": return 0.0
+    s = str(v).replace('"', '').strip()
+    # Se il numero ha la virgola, è il decimale (es. 15,5)
+    if "," in s:
+        s = s.replace(".", "").replace(",", ".")
+    # Se non ha virgola ma ha un punto solo verso la fine, è decimale (es 15.0)
+    # Se ha un punto e poi 3 cifre, è un migliaio (es 1.000) -> lo rimuoviamo
     try:
-        s = str(v).replace('"', '').replace('.', '').replace(',', '.').strip()
-        return float(s)
-    except: return 0.0
+        val = float(s)
+        # Se il valore è enorme (es. un 15 diventato 1500), correggiamo
+        return val
+    except:
+        return 0.0
 
 def clean_s(s):
     if pd.isna(s): return ""
-    # Rimuove asterischi e spazi
     return str(s).replace('*', '').strip().upper()
 
 def ld(f):
     if not os.path.exists(f): return None
     try:
-        # Legge saltando righe vuote e corregge l'errore del file rose
         df = pd.read_csv(f, engine='python', skip_blank_lines=True)
         if df.columns[0].startswith('Unnamed') or df.empty:
             df = pd.read_csv(f, skiprows=1, engine='python')
@@ -43,48 +47,47 @@ def ld(f):
         return df.dropna(how='all')
     except: return None
 
-# --- CARICAMENTO DATI ---
+# CARICAMENTO
 f_sc, f_pt, f_rs, f_vn = ld("scontridiretti.csv"), ld("classificapunti.csv"), ld("rose_complete.csv"), ld("vincoli.csv")
 
-# --- PRE-ELABORAZIONE ---
+# ELABORAZIONE
 if f_rs is not None:
-    f_rs['Prezzo_N'] = f_rs['Prezzo'].apply(cv)
+    # Applichiamo una conversione sicura: se il numero è > 500 probabilmente è un errore di virgola (es. 15.0 -> 150)
+    f_rs['Prezzo_N'] = pd.to_numeric(f_rs['Prezzo'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
     f_rs['Squadra_N'] = f_rs['Fantasquadra'].apply(clean_s).replace(map_n)
 
 if f_vn is not None:
     f_vn['Sq_N'] = f_vn['Squadra'].apply(clean_s).replace(map_n)
     v_cols = [c for c in ['Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29'] if c in f_vn.columns]
-    for c in v_cols: f_vn[c] = f_vn[c].apply(cv)
+    for c in v_cols: 
+        f_vn[c] = pd.to_numeric(f_vn[c].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
     f_vn['Tot_Vincolo'] = f_vn[v_cols].sum(axis=1)
+    # ELIMINA NOMI DOPPI NEI VINCOLI
+    f_vn = f_vn.drop_duplicates(subset=['Sq_N', 'Giocatore'])
 
-# --- TABS ---
 t = st.tabs(["🏆 Classifiche", "💰 Budget", "🏃 Rose", "📅 Vincoli"])
 
-# --- TAB 1: CLASSIFICHE ---
-with t[0]:
+with t[0]: # CLASSIFICHE
     c1, c2 = st.columns(2)
     with c1:
         if f_pt is not None:
-            st.subheader("🎯 Classifica Punti")
-            f_pt['Punti'] = f_pt['Punti Totali'].apply(cv)
-            f_pt['FM'] = f_pt['Media'].apply(cv)
-            # Gradiente su Punti e FM
+            st.subheader("🎯 Punti")
+            f_pt['Punti'] = pd.to_numeric(f_pt['Punti Totali'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
+            f_pt['FM'] = pd.to_numeric(f_pt['Media'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
             st.dataframe(f_pt[['Posizione','Giocatore','Punti','FM']].sort_values('Posizione')
-                         .style.background_gradient(subset=['Punti'], cmap='Greens')
-                         .background_gradient(subset=['FM'], cmap='YlGn')
+                         .style.background_gradient(subset=['Punti', 'FM'], cmap='YlGn')
                          .format({"Punti": "{:g}", "FM": "{:.2f}"}), hide_index=True, use_container_width=True)
     with c2:
         if f_sc is not None:
             st.subheader("⚔️ Scontri Diretti")
-            f_sc['Punti_S'] = f_sc['Punti'].apply(cv)
+            f_sc['Punti_S'] = pd.to_numeric(f_sc['Punti'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0)
             st.dataframe(f_sc[['Posizione','Giocatore','Punti_S','Gol Fatti','Gol Subiti']]
                          .style.background_gradient(subset=['Punti_S'], cmap='Blues')
                          .format({"Punti_S": "{:g}"}), hide_index=True, use_container_width=True)
 
-# --- TAB 2: BUDGET (CON GRADIENTI SU TUTTO) ---
-with t[1]:
+with t[1]: # BUDGET
     if f_rs is not None:
-        st.subheader("💰 Bilancio Globale (Valore Reale)")
+        st.subheader("💰 Bilancio Globale")
         bu = f_rs.groupby('Squadra_N')['Prezzo_N'].sum().reset_index()
         bu.columns = ['Squadra', 'Spesa Rose']
         
@@ -97,18 +100,15 @@ with t[1]:
         bu['Crediti Disponibili'] = bu['Squadra'].map(bg_ex).fillna(0)
         bu['Patrimonio Reale'] = bu['Spesa Rose'] + bu['Spesa Vincoli'] + bu['Crediti Disponibili']
         
-        # Applichiamo gradienti a tutte le colonne numeriche
-        num_cols = bu.select_dtypes('number').columns
+        cols_grad = ['Spesa Rose', 'Spesa Vincoli', 'Crediti Disponibili', 'Patrimonio Reale']
         st.dataframe(bu.sort_values('Patrimonio Reale', ascending=False)
-                     .style.background_gradient(cmap='YlOrRd', subset=num_cols)
-                     .format({c: "{:g}" for c in num_cols}), hide_index=True, use_container_width=True)
+                     .style.background_gradient(cmap='YlOrRd', subset=cols_grad)
+                     .format({c: "{:g}" for c in cols_grad}), hide_index=True, use_container_width=True)
 
-# --- TAB 3: ROSE ---
-with t[2]:
+with t[2]: # ROSE
     if f_rs is not None:
-        # Pulizia menu a tendina: rimuove nomi con asterischi o vuoti
         lista_sq = sorted([s for s in f_rs['Squadra_N'].unique() if s and '*' not in s])
-        sq = st.selectbox("Seleziona Squadra:", lista_sq)
+        sq = st.selectbox("Squadra:", lista_sq)
         df_sq = f_rs[f_rs['Squadra_N'] == sq].copy()
         
         def color_ruoli(row):
@@ -116,24 +116,15 @@ with t[2]:
             bg = '#E3F2FD' if 'PORT' in r else '#E8F5E9' if 'DIF' in r else '#FFFDE7' if 'CEN' in r else '#FFEBEE' if 'ATT' in r else '#FFFFFF'
             return [f'background-color: {bg}; color: black; font-weight: bold;'] * len(row)
         
-        st.dataframe(df_sq[['Ruolo', 'Nome', 'Prezzo_N']].style.apply(color_ruoli, axis=1)
-                     .format({"Prezzo_N": "{:g}"}), hide_index=True, use_container_width=True)
+        st.dataframe(df_sq[['Ruolo', 'Nome', 'Prezzo_N']].style.apply(color_ruoli, axis=1).format({"Prezzo_N":"{:g}"}), hide_index=True, use_container_width=True)
 
-# --- TAB 4: VINCOLI ---
-with t[3]:
+with t[3]: # VINCOLI (PULITI DAI DOPPIONI)
     if f_vn is not None:
-        st.subheader("📅 Contratti Pluriennali")
+        st.subheader("📅 Vincoli Pluriennali")
         lista_sq_v = sorted([s for s in f_vn['Sq_N'].unique() if s and '*' not in s])
-        sq_v = st.selectbox("Filtra per Squadra:", ["TUTTE"] + lista_sq_v)
-        
+        sq_v = st.selectbox("Filtra Squadra:", ["TUTTE"] + lista_sq_v)
         df_v_display = f_vn if sq_v == "TUTTE" else f_vn[f_vn['Sq_N'] == sq_v]
         
-        # Sommiamo i costi futuri esistenti
-        display_cols = ['Squadra', 'Giocatore', 'Tot_Vincolo'] + [c for c in v_cols if c in df_v_display.columns]
-        
-        st.dataframe(df_v_display[display_cols].style.background_gradient(subset=['Tot_Vincolo'], cmap='Purples')
-                     .format({c: "{:g}" for c in df_v_display.select_dtypes('number').columns}), 
-                     hide_index=True, use_container_width=True)
-        
-        if sq_v != "TUTTE":
-            st.metric(f"Totale Impegno {sq_v}", f"{df_v_display['Tot_Vincolo'].sum():g}")
+        st.dataframe(df_v_display[['Squadra', 'Giocatore', 'Tot_Vincolo']].sort_values('Tot_Vincolo', ascending=False)
+                     .style.background_gradient(subset=['Tot_Vincolo'], cmap='Purples')
+                     .format("{:g}"), hide_index=True, use_container_width=True)
