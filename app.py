@@ -59,28 +59,25 @@ if f_rs is not None:
     f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
     f_rs['Fantasquadra'] = f_rs['Fantasquadra'].str.upper().str.strip().replace(map_n)
     
-    with t[1]: # BUDGET
+    with t[1]: # BUDGET CON COLORI
         st.subheader("💰 Bilancio")
         eco = f_rs.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
         eco['Extra'] = eco['Fantasquadra'].map(bg_ex).fillna(0)
         eco['Totale'] = (eco['Prezzo'] + eco['Extra']).astype(int)
-        st.dataframe(eco.sort_values('Totale', ascending=False), hide_index=True, use_container_width=True)
+        # Applicazione gradiente: Rosso (poveri) -> Giallo -> Verde (ricchi)
+        st.dataframe(eco.sort_values('Totale', ascending=False).style.background_gradient(subset=['Totale'], cmap='RdYlGn'), hide_index=True, use_container_width=True)
     
     with t[2]: # STRATEGIA
         st.subheader("🧠 Strategia")
         cs1, cs2 = st.columns([1.5, 1])
         with cs1:
-            st.write("**Distribuzione Ruoli**")
             piv = f_rs.pivot_table(index='Fantasquadra', columns='Ruolo', values='Nome', aggfunc='count').fillna(0).astype(int)
-            # Ordinamento ruoli richiesto
             r_ord = ['Portiere', 'Difensore', 'Centrocampista', 'Attaccante', 'Giovani']
-            col_esistenti = [r for r in r_ord if r in piv.columns]
-            st.dataframe(piv[col_esistenti], use_container_width=True)
+            st.dataframe(piv[[r for r in r_ord if r in piv.columns]], use_container_width=True)
         with cs2:
-            st.write("**💎 Top Player per Squadra**")
+            st.write("**💎 Top Player**")
             idx = f_rs.groupby('Fantasquadra')['Prezzo'].idxmax()
-            top = f_rs.loc[idx, ['Fantasquadra', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False)
-            st.dataframe(top, hide_index=True, use_container_width=True)
+            st.dataframe(f_rs.loc[idx, ['Fantasquadra', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False), hide_index=True, use_container_width=True)
 
     with t[3]: # ROSE
         sq = st.selectbox("Squadra:", sorted(f_rs['Fantasquadra'].unique()))
@@ -93,8 +90,7 @@ with t[4]: # VINCOLI
         f_vn = f_vn[f_vn['Squadra'].isin(bg_ex.keys())].copy()
         f_vn['Costo 2026-27'] = f_vn['Costo 2026-27'].apply(cv)
         v1, v2 = st.columns([1, 2])
-        with v1:
-            st.dataframe(f_vn.groupby('Squadra')['Costo 2026-27'].sum().reset_index().sort_values('Costo 2026-27', ascending=False), hide_index=True, use_container_width=True)
+        with v1: st.dataframe(f_vn.groupby('Squadra')['Costo 2026-27'].sum().reset_index().sort_values('Costo 2026-27', ascending=False), hide_index=True, use_container_width=True)
         with v2:
             sv = st.selectbox("Squadra:", sorted(f_vn['Squadra'].unique()), key="v_sel")
             st.dataframe(f_vn[f_vn['Squadra'] == sv][['Giocatore', 'Costo 2026-27', 'Durata (anni)']], hide_index=True, use_container_width=True)
