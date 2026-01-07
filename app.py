@@ -14,22 +14,24 @@ def cl(df, c):
     df[c] = df[c].astype(str).str.strip().str.upper().replace(m)
     return df
 
-def ld(f):
-    if os.path.exists(f):
+def ld(target_name):
+    """Cerca il file nel repository ignorando maiuscole/minuscole"""
+    files = os.listdir(".")
+    actual_file = next((f for f in files if f.lower() == target_name.lower()), None)
+    if actual_file:
         try:
-            df = pd.read_csv(f, sep=None, engine='python', encoding='utf-8-sig').dropna(how='all')
+            df = pd.read_csv(actual_file, sep=None, engine='python', encoding='utf-8-sig').dropna(how='all')
             df.columns = [c.strip() for c in df.columns]
             return df
         except: return None
     return None
 
-# Caricamento
+# Caricamento flessibile
 d_sc = ld("scontridiretti.csv")
 d_pt = ld("classificapunti.csv")
 d_rs = ld("rose_complete.csv")
 d_vn = ld("vincoli.csv")
 
-# Creazione Tab fisse (così non scompaiono mai)
 t = st.tabs(["🏆 Classifiche", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
 
 # --- TAB 1: CLASSIFICHE ---
@@ -37,7 +39,7 @@ with t[0]:
     c1, c2 = st.columns(2)
     with c1:
         st.subheader("🔥 Scontri")
-        if d_sc is not None: st.dataframe(cl(d_sc, 'Giocatore'), hide_index=True)
+        if d_sc is not None: st.dataframe(cl(d_sc, 'Giocatore'), hide_index=True, use_container_width=True)
         else: st.warning("File 'scontridiretti.csv' non trovato")
     with c2:
         st.subheader("🎯 Punti")
@@ -45,10 +47,10 @@ with t[0]:
             d_pt = cl(d_pt, 'Giocatore')
             for col in ['Punti Totali', 'Media']:
                 if col in d_pt.columns: d_pt[col] = pd.to_numeric(d_pt[col].astype(str).str.replace(',','.'), errors='coerce').fillna(0)
-            st.dataframe(d_pt[['Posizione','Giocatore','Punti Totali','Media']].sort_values('Punti Totali', ascending=False), hide_index=True)
+            st.dataframe(d_pt[['Posizione','Giocatore','Punti Totali','Media']].sort_values('Punti Totali', ascending=False), hide_index=True, use_container_width=True)
         else: st.warning("File 'classificapunti.csv' non trovato")
 
-# --- LOGICA PER ROSE (Budget, Strategia, Rose) ---
+# --- TAB BUDGET / STRATEGIA / ROSE ---
 if d_rs is not None:
     f_c = next((c for c in d_rs.columns if 'squadra' in c.lower()), d_rs.columns[0])
     p_c = next((c for c in d_rs.columns if 'prezzo' in c.lower() or 'costo' in c.lower()), d_rs.columns[-1])
@@ -62,21 +64,20 @@ if d_rs is not None:
         e = d_rs.groupby(f_c)[p_c].sum().reset_index()
         e['Extra'] = e[f_c].map(bg_f).fillna(0)
         e['Totale'] = (e[p_c] + e['Extra']).astype(int)
-        st.dataframe(e.sort_values('Totale', ascending=False), hide_index=True)
+        st.dataframe(e.sort_values('Totale', ascending=False), hide_index=True, use_container_width=True)
     
     with t[2]:
         st.subheader("🧠 Strategia")
-        st.dataframe(d_rs.pivot_table(index=f_c, columns=r_c, values=n_c, aggfunc='count').fillna(0).astype(int))
+        st.dataframe(d_rs.pivot_table(index=f_c, columns=r_c, values=n_c, aggfunc='count').fillna(0).astype(int), use_container_width=True)
     
     with t[3]:
         st.subheader("🏃 Rose")
-        sq = st.selectbox("Squadra:", sorted(d_rs[f_c].unique()))
+        sq = st.selectbox("Seleziona Squadra:", sorted(d_rs[f_c].unique()))
         ds = d_rs[d_rs[f_c] == sq][[r_c, n_c, p_c]].sort_values(p_c, ascending=False)
-        st.dataframe(ds.style.background_gradient(subset=[p_c], cmap='Greens'), hide_index=True)
+        st.dataframe(ds.style.background_gradient(subset=[p_c], cmap='Greens'), hide_index=True, use_container_width=True)
 else:
-    with t[1]: st.error("Carica 'rose_complete.csv' per vedere il Budget")
-    with t[2]: st.error("Carica 'rose_complete.csv' per vedere la Strategia")
-    with t[3]: st.error("Carica 'rose_complete.csv' per vedere le Rose")
+    for i in [1,2,3]: 
+        with t[i]: st.error("❌ Non trovo 'rose_complete.csv' su GitHub. Verifica il nome del file!")
 
 # --- TAB 5: VINCOLI ---
 with t[4]:
@@ -87,9 +88,10 @@ with t[4]:
         c_f = d_vn.columns[2]
         d_vn[c_f] = pd.to_numeric(d_vn[c_f].astype(str).str.replace(',','.'), errors='coerce').fillna(0).astype(int)
         v1, v2 = st.columns([1, 2])
-        with v1: st.dataframe(d_vn.groupby(v_s)[c_f].sum().reset_index().sort_values(c_f, ascending=False), hide_index=True)
+        with v1: st.dataframe(d_vn.groupby(v_s)[c_f].sum().reset_index().sort_values(c_f, ascending=False), hide_index=True, use_container_width=True)
         with v2:
             sv = st.selectbox("Dettaglio:", sorted(d_vn[v_s].unique()), key="v_s")
-            st.dataframe(d_vn[d_vn[v_s] == sv].iloc[:, [1, 2]], hide_index=True)
+            st.dataframe(d_vn[d_vn[v_s] == sv].iloc[:, [1, 2]], hide_index=True, use_container_width=True)
     else:
-        st.error("File 'vincoli.csv' non trovato")
+        st.error("❌ Non trovo 'vincoli.csv' su GitHub.")
+        
