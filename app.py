@@ -1,59 +1,5 @@
-import streamlit as st
-import pandas as pd
-import os
-import numpy as np
-
-# 1. SETUP E STILE
-st.set_page_config(page_title="MuyFantaManager", layout="wide")
-st.markdown("""
-<style>
-    .stApp { background-color: white; }
-    div[data-testid="stDataFrame"] * { color: #1a1a1a !important; font-weight: bold !important; }
-</style>
-""", unsafe_allow_html=True)
-
-st.title("⚽ MuyFantaManager")
-
-# Dati Budget Extra (Esempio)
-bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
-
-def cv(v):
-    if pd.isna(v): return 0.0
-    try:
-        s = str(v).replace('"', '').replace(',', '.').strip()
-        return float(s) if s != "" else 0.0
-    except: return 0.0
-
-def clean_name(s):
-    if pd.isna(s) or str(s).strip().upper() == "NONE" or str(s).strip() == "": return "SKIP"
-    return str(s).split(':')[0].replace('*', '').replace('"', '').strip().upper()
-
-def ld(f):
-    if not os.path.exists(f): return None
-    try:
-        df = pd.read_csv(f, sep=',', engine='python', encoding='utf-8-sig')
-        df.columns = [c.strip() for c in df.columns]
-        return df
-    except: return None
-
-# CARICAMENTO
-f_rs, f_vn = ld("rose_complete.csv"), ld("vincoli.csv")
-
-if f_rs is not None:
-    f_rs['Nome'] = f_rs['Nome'].apply(clean_name)
-    f_rs['Fantasquadra'] = f_rs['Fantasquadra'].apply(clean_name)
-    f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
-
-if f_vn is not None:
-    f_vn['Giocatore'] = f_vn['Giocatore'].apply(clean_name)
-    for c in ['Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29']:
-        if c in f_vn.columns: f_vn[c] = f_vn[c].apply(cv)
-    f_vn['Spesa Complessiva'] = f_vn.get('Costo 2026-27', 0) + f_vn.get('Costo 2027-28', 0) + f_vn.get('Costo 2028-29', 0)
-
-t = st.tabs(["🏆 Classifiche", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli", "🔄 Scambi"])
-
-with t[5]:
-    st.subheader("🔄 Simulatore Scambi Proporzionale (con Arrotondamento)")
+with t[5]: # SIMULATORE SCAMBI MERITOCRATICO CON RIEPILOGO TOTALI
+    st.subheader("🔄 Simulatore Scambi Proporzionale (Logica Meritocratica)")
     if f_rs is not None:
         sq_l = sorted([x for x in f_rs['Fantasquadra'].unique() if x != "SKIP"])
         
@@ -67,46 +13,65 @@ with t[5]:
 
         c1, c2 = st.columns(2)
         with c1:
-            sa = st.selectbox("Squadra A:", sq_l, key="sa_prop")
-            ga_list = st.multiselect("Cede da A:", f_rs[f_rs['Fantasquadra']==sa]['Nome'], key="ga_prop")
+            sa = st.selectbox("Squadra A:", sq_l, key="sa_m")
+            ga_list = st.multiselect("Cede da A:", f_rs[f_rs['Fantasquadra']==sa]['Nome'], key="ga_m")
             df_a = get_details(ga_list)
-            if not df_a.empty: st.table(df_a)
+            if not df_a.empty: 
+                st.dataframe(df_a, hide_index=True, use_container_width=True)
+                val_a_iniziale = df_a['Valore Iniziale'].sum()
+                st.write(f"💰 Totale iniziale ceduto da {sa}: **{val_a_iniziale:g}**")
 
         with c2:
-            sb = st.selectbox("Squadra B:", [s for s in sq_l if s != sa], key="sb_prop")
-            gb_list = st.multiselect("Cede da B:", f_rs[f_rs['Fantasquadra']==sb]['Nome'], key="gb_prop")
+            sb = st.selectbox("Squadra B:", [s for s in sq_l if s != sa], key="sb_m")
+            gb_list = st.multiselect("Cede da B:", f_rs[f_rs['Fantasquadra']==sb]['Nome'], key="gb_m")
             df_b = get_details(gb_list)
-            if not df_b.empty: st.table(df_b)
+            if not df_b.empty: 
+                st.dataframe(df_b, hide_index=True, use_container_width=True)
+                val_b_iniziale = df_b['Valore Iniziale'].sum()
+                st.write(f"💰 Totale iniziale ceduto da {sb}: **{val_b_iniziale:g}**")
 
         if not df_a.empty and not df_b.empty:
-            val_a = df_a['Valore Iniziale'].sum()
-            val_b = df_b['Valore Iniziale'].sum()
-            val_totale = val_a + val_b
+            st.write("---")
+            val_tot_scambio = val_a_iniziale + val_b_iniziale
+            punto_pareggio = val_tot_scambio / 2
             
-            # Punto di incontro teorico per squadra (meta del valore totale scambiato)
-            punto_pareggio = val_totale / 2
+            # Calcolo dei nuovi valori singoli (arrotondati)
+            c_a = punto_pareggio / val_a_iniziale if val_a_iniziale > 0 else 1
+            c_b = punto_pareggio / val_b_iniziale if val_b_iniziale > 0 else 1
+
+            # Liste per calcolare i totali post-scambio effettivi (dopo arrotondamento)
+            nuovi_val_a_per_b = []
+            nuovi_val_b_per_a = []
+
+            st.markdown(f"### 🤝 Esito Scambio (Dettaglio e Riepilogo)")
+            r1, r2 = st.columns(2)
             
-            # Calcolo coefficienti di rettifica per mantenere la proporzione iniziale
-            # Se la squadra A cede 200 e deve ricevere 210 (punto pareggio), 
-            # i giocatori che riceve vengono riproporzionati.
-            coeff_per_giocatori_di_a = punto_pareggio / val_a if val_a > 0 else 1
-            coeff_per_giocatori_di_b = punto_pareggio / val_b if val_b > 0 else 1
+            with r1:
+                st.write(f"**Vanno a {sb}:**")
+                for _, r in df_a.iterrows():
+                    nv = round(r['Valore Iniziale'] * c_a)
+                    nuovi_val_a_per_b.append(nv)
+                    st.success(f"🔹 {r['Giocatore']}: da {r['Valore Iniziale']:g} a **{nv}**")
+            
+            with r2:
+                st.write(f"**Vanno a {sa}:**")
+                for _, r in df_b.iterrows():
+                    nv = round(r['Valore Iniziale'] * c_b)
+                    nuovi_val_b_per_a.append(nv)
+                    st.success(f"🔸 {r['Giocatore']}: da {r['Valore Iniziale']:g} a **{nv}**")
 
             st.write("---")
-            st.markdown("### 📊 Esito dello Scambio (Valori Arrotondati)")
+            # TABELLA DI CONFRONTO FINALE
+            val_post_a = sum(nuovi_val_b_per_a)
+            val_post_b = sum(nuovi_val_a_per_b)
             
-            col_res1, col_res2 = st.columns(2)
-            
-            with col_res1:
-                st.write(f"**Giocatori che vanno a {sb}:**")
-                for _, row in df_a.iterrows():
-                    nuovo_val = round(row['Valore Iniziale'] * coeff_per_giocatori_di_a)
-                    st.write(f"🔹 {row['Giocatore']}: da {row['Valore Iniziale']:g} a **{nuovo_val}**")
-
-            with col_res2:
-                st.write(f"**Giocatori che vanno a {sa}:**")
-                for _, row in df_b.iterrows():
-                    nuovo_val = round(row['Valore Iniziale'] * coeff_per_giocatori_di_b)
-                    st.write(f"🔸 {row['Giocatore']}: da {row['Valore Iniziale']:g} a **{nuovo_val}**")
-            
-            st.info("💡 I nuovi valori tengono conto del peso iniziale del giocatore e sono arrotondati all'intero.")
+            st.markdown("#### 📈 Riepilogo Valore Pacchetti")
+            comp_data = {
+                "Squadra": [sa, sb],
+                "Valore Ceduto (Pre)": [val_a_iniziale, val_b_iniziale],
+                "Valore Ricevuto (Post)": [val_post_a, val_post_b],
+                "Differenza": [val_post_a - val_a_iniziale, val_post_b - val_b_iniziale]
+            }
+            st.table(pd.DataFrame(comp_data))
+            st.info(f"NB: Il valore totale dell'operazione è di **{val_tot_scambio:g}** crediti. "
+                    f"Dopo lo scambio, ogni squadra detiene un pacchetto di circa **{punto_pareggio:g}** crediti.")
