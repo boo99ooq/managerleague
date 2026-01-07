@@ -2,12 +2,11 @@ import streamlit as st
 import pandas as pd
 import os
 
-# 1. SETUP E STILE (FIX LEGGIBILITÀ TOTALE)
+# 1. SETUP E STILE (FIX LEGGIBILITÀ)
 st.set_page_config(page_title="MuyFantaManager", layout="wide")
 st.markdown("""
 <style>
     .stApp { background-color: white; }
-    /* Forza il testo delle tabelle a essere sempre scuro */
     div[data-testid="stDataFrame"] * { color: #1a1a1a !important; }
     header { visibility: hidden; }
 </style>
@@ -69,8 +68,7 @@ if f_rs is not None:
     if s:
         res = f_rs[f_rs['Nome'].str.upper().str.contains(s, na=False)].copy()
         if not res.empty:
-            res['Prezzo'] = res['Prezzo'].apply(fmt_n)
-            st.sidebar.dataframe(res[['Nome', 'Fantasquadra', 'Prezzo']], hide_index=True)
+            st.sidebar.dataframe(res[['Nome', 'Fantasquadra', 'Prezzo']].style.format({"Prezzo": "{:g}"}).set_properties(**{'font-weight': 'bold'}), hide_index=True)
 
 t = st.tabs(["🏆 Classifiche", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
 
@@ -83,15 +81,16 @@ with t[0]: # CLASSIFICHE
         st.subheader("🎯 Punti")
         if f_pt is not None:
             f_pt['Punti Totali'] = f_pt['Punti Totali'].apply(cv)
-            f_pt['Punti Totali_fmt'] = f_pt['Punti Totali'].apply(fmt_n)
-            st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali_fmt','Media']].sort_values('Posizione'), hide_index=True, use_container_width=True)
+            st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali','Media']].sort_values('Posizione').style.format({"Punti Totali": "{:g}"}).set_properties(**{'font-weight': 'bold'}), hide_index=True, use_container_width=True)
 
 if f_rs is not None:
     f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
-    with t[1]: # BUDGET CON GRADIENTI CHIARI
+    with t[1]: # BUDGET COLORATO E RINOMINATO
         st.subheader("💰 Bilancio Globale")
         eco = f_rs.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
+        eco.columns = ['Fantasquadra', 'Valore Rosa'] # Rinominata Prezzo in Valore Rosa
         eco['Crediti Disponibili'] = eco['Fantasquadra'].map(bg_ex).fillna(0)
+        
         if f_vn is not None:
             c26 = f_vn['Costo 2026-27'].apply(cv); c27 = f_vn.get('Costo 2027-28', pd.Series(0.0, index=f_vn.index)).apply(cv); c28 = f_vn.get('Costo 2028-29', pd.Series(0.0, index=f_vn.index)).apply(cv)
             f_vn['Vincolo Totale'] = c26 + c27 + c28
@@ -99,14 +98,17 @@ if f_rs is not None:
             v_sum.columns = ['Fantasquadra', 'Vincoli']
             eco = pd.merge(eco, v_sum, on='Fantasquadra', how='left').fillna(0)
         else: eco['Vincoli'] = 0
-        eco['Totale'] = eco['Prezzo'] + eco['Crediti Disponibili'] + eco['Vincoli']
         
-        # Applicazione gradienti su dati numerici prima della conversione in stringa per la visualizzazione
+        eco['Totale'] = eco['Valore Rosa'] + eco['Crediti Disponibili'] + eco['Vincoli']
+        
+        # Applicazione gradienti chiari su tutte le colonne budget
         st.dataframe(
             eco.sort_values('Totale', ascending=False).style
-            .background_gradient(subset=['Totale'], cmap='YlGn') 
-            .background_gradient(subset=['Crediti Disponibili'], cmap='GnBu')
-            .format({"Prezzo": "{:g}", "Crediti Disponibili": "{:g}", "Vincoli": "{:g}", "Totale": "{:g}"}),
+            .background_gradient(subset=['Valore Rosa'], cmap='YlOrRd')      # Sfumatura Calda
+            .background_gradient(subset=['Crediti Disponibili'], cmap='GnBu') # Sfumatura Fredda
+            .background_gradient(subset=['Vincoli'], cmap='Purples')          # Sfumatura Viola
+            .background_gradient(subset=['Totale'], cmap='YlGn')             # Sfumatura Verde
+            .format({"Valore Rosa": "{:g}", "Crediti Disponibili": "{:g}", "Vincoli": "{:g}", "Totale": "{:g}"}),
             hide_index=True, use_container_width=True
         )
 
