@@ -11,7 +11,7 @@ def apply_custom_style():
         <style>
         .stApp { background-color: #e8f5e9; }
         [data-testid="stSidebar"] { background-color: #c8e6c9 !important; }
-        h1, h2, h3, h4, h5, p, label, span { color: #1b5e20 !important; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        h1, h2, h3, h4, h5, p, label, span { color: #1b5e20 !important; }
         h1 { text-align: center; font-weight: 800; padding-bottom: 20px; color: #2e7d32 !important; }
         .stTabs, .stDataFrame, .stTable {
             background-color: #ffffff !important;
@@ -19,8 +19,6 @@ def apply_custom_style():
             border-radius: 12px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         }
-        /* Sidebar compatta */
-        section[data-testid="stSidebar"] .block-container { padding-top: 2rem; }
         </style>
         """,
         unsafe_allow_html=True
@@ -37,7 +35,7 @@ budgets_fisso = {
     "MATTEO": 166.5, "NICHOLAS": 113.0
 }
 
-# 4. SIDEBAR: CARICAMENTO FILE (Layout compatto)
+# 4. SIDEBAR: CARICAMENTO FILE
 st.sidebar.header("📂 Database Lega")
 f_scontri = st.sidebar.file_uploader("Classifica Scontri", type="csv")
 f_punti = st.sidebar.file_uploader("Classifica Punti", type="csv")
@@ -66,7 +64,7 @@ df_punti_tot = carica_csv(f_punti)
 df_rose = carica_csv(f_rose)
 df_vincoli = carica_csv(f_vinc)
 
-# 5. VISUALIZZAZIONE MODULARE (L'app non si blocca se manca un file)
+# 5. VISUALIZZAZIONE MODULARE
 if any([df_scontri is not None, df_punti_tot is not None, df_rose is not None, df_vincoli is not None]):
     tabs = st.tabs(["🏆 Classifiche", "📊 Economia", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
 
@@ -77,8 +75,7 @@ if any([df_scontri is not None, df_punti_tot is not None, df_rose is not None, d
             st.subheader("🔥 Scontri Diretti")
             if df_scontri is not None:
                 df_scontri = pulisci_nomi(df_scontri, 'Giocatore')
-                st.dataframe(df_scontri, hide_index=True, use_container_width=True,
-                             column_config={"Posizione": st.column_config.Column(width="small")})
+                st.dataframe(df_scontri, hide_index=True, use_container_width=True)
             else: st.info("Carica 'scontridiretti.csv'")
         
         with cl2:
@@ -88,13 +85,29 @@ if any([df_scontri is not None, df_punti_tot is not None, df_rose is not None, d
                 for c in ['Punti Totali', 'Media', 'Distacco']:
                     if c in df_punti_tot.columns:
                         df_punti_tot[c] = df_punti_tot[c].astype(str).str.replace(',', '.').astype(float)
-                st.dataframe(df_punti_tot[['Posizione', 'Giocatore', 'Punti Totali', 'Media']], 
-                             hide_index=True, use_container_width=True,
-                             column_config={"Posizione": st.column_config.Column(width="small")})
+                st.dataframe(df_punti_tot[['Posizione', 'Giocatore', 'Punti Totali', 'Media']], hide_index=True, use_container_width=True)
             else: st.info("Carica 'classificapunti.csv'")
 
     # --- TAB ECONOMIA ---
     with tabs[1]:
         st.subheader("💰 Bilancio Rose")
         if df_rose is not None:
-            # R
+            cols = {c.lower(): c for c in df_rose.columns}
+            f_col = cols.get('fantasquadra', df_rose.columns[0])
+            p_col = cols.get('prezzo', df_rose.columns[-1])
+            df_rose = pulisci_nomi(df_rose, f_col)
+            eco = df_rose.groupby(f_col)[p_col].sum().reset_index()
+            eco.columns = ['Fantasquadra', 'Costo della Rosa']
+            eco['Costo della Rosa'] = eco['Costo della Rosa'].astype(int)
+            eco['Extra Febbraio'] = eco['Fantasquadra'].map(budgets_fisso).fillna(0)
+            eco['Budget Totale'] = (eco['Costo della Rosa'] + eco['Extra Febbraio']).astype(int)
+            st.dataframe(eco.sort_values('Budget Totale', ascending=False), hide_index=True, use_container_width=True)
+        else: st.warning("Carica il file delle Rose.")
+
+    # --- TAB STRATEGIA ---
+    with tabs[2]:
+        st.subheader("📋 Analisi Strategica")
+        if df_rose is not None:
+            c1, c2 = st.columns([1.5, 1])
+            cols = {c.lower(): c for c in df_rose.columns}
+            f_col = cols.get('fantas
