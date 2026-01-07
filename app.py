@@ -8,12 +8,7 @@ st.markdown("<style>.stApp{background-color:#e8f5e9;} .stTabs, .stDataFrame{back
 st.title("⚽ Centro Direzionale Fantalega")
 
 # 2. BUDGET
-budgets = {
-    "GIANNI": 102.5, "DANI ROBI": 164.5, "MARCO": 131.0, 
-    "PIETRO": 101.5, "PIERLUIGI": 105.0, "GIGI": 232.5, 
-    "ANDREA": 139.0, "GIUSEPPE": 136.5, "MATTEO": 166.5, 
-    "NICHOLAS": 113.0
-}
+budgets = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
 
 # 3. FUNZIONI
 def get_df(f):
@@ -24,38 +19,28 @@ def get_df(f):
 
 def clean_n(df, c):
     if df is None or c not in df.columns: return df
-    m = {
-        "NICO FABIO": "NICHOLAS", "NICHO": "NICHOLAS", 
-        "DANI ROBI": "DANI ROBI", "MATTEO STEFANO": "MATTEO"
-    }
+    m = {"NICO FABIO":"NICHOLAS","NICHO":"NICHOLAS","DANI ROBI":"DANI ROBI","MATTEO STEFANO":"MATTEO"}
     df[c] = df[c].astype(str).str.strip().str.upper().replace(m)
     return df
 
 def style_c(df):
-    # Forza allineamento centrale
-    styler = df.style.set_properties(**{'text-align': 'center'})
-    styler = styler.set_table_styles([dict(selector='th', props=[('text-align', 'center')])])
-    return styler
+    s = df.style.set_properties(**{'text-align':'center'})
+    s = s.set_table_styles([dict(selector='th', props=[('text-align','center')])])
+    return s
 
 # 4. CARICAMENTO
-f_sc = get_df("scontridiretti.csv")
-f_pt = get_df("classificapunti.csv")
-f_rs = get_df("rose_complete.csv")
-f_vn = get_df("vincoli.csv")
+f_sc, f_pt, f_rs, f_vn = get_df("scontridiretti.csv"), get_df("classificapunti.csv"), get_df("rose_complete.csv"), get_df("vincoli.csv")
 
 # 5. APP
 if any([f_sc is not None, f_pt is not None, f_rs is not None, f_vn is not None]):
-    # Liste brevi per evitare tagli
-    nomi_tab = ["🏆 Classifica", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"]
-    t = st.tabs(nomi_tab)
+    t = st.tabs(["🏆 Classifica", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
 
     with t[0]:
         c1, c2 = st.columns(2)
         if f_sc is not None:
             with c1:
                 st.write("🔥 **Scontri**")
-                df_sc = clean_n(f_sc, 'Giocatore')
-                st.dataframe(style_c(df_sc), hide_index=True, use_container_width=True)
+                st.dataframe(style_c(clean_n(f_sc, 'Giocatore')), hide_index=True, use_container_width=True)
         if f_pt is not None:
             with c2:
                 st.write("🎯 **Punti**")
@@ -64,13 +49,8 @@ if any([f_sc is not None, f_pt is not None, f_rs is not None, f_vn is not None])
                     if col in df_pt.columns:
                         df_pt[col] = df_pt[col].astype(str).str.replace(',','.')
                         df_pt[col] = pd.to_numeric(df_pt[col], errors='coerce')
-                cols_p = ['Posizione','Giocatore','Punti Totali','Media']
-                st.dataframe(style_c(df_pt[cols_p]), hide_index=True, use_container_width=True)
+                st.dataframe(style_c(df_pt[['Posizione','Giocatore','Punti Totali','Media']]), hide_index=True, use_container_width=True)
 
     if f_rs is not None:
         cs = f_rs.columns
-        f_c, n_c, r_c, p_c = cs[0], cs[1], cs[2], cs[-1]
-        f_rs = clean_n(f_rs, f_c)
-        f_rs[p_c] = pd.to_numeric(f_rs[p_c], errors='coerce').fillna(0).astype(int)
-
-        with t
+        f_c, n_c, r_c, p_c = cs[0], cs[1], cs[2],
