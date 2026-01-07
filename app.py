@@ -74,19 +74,22 @@ if any([df_scontri is not None, df_punti_tot is not None, df_rose is not None, d
             st.subheader("🔥 Scontri Diretti")
             if df_scontri is not None:
                 df_scontri = pulisci_nomi(df_scontri, 'Giocatore')
-                cols_s = ['Posizione', 'Giocatore', 'Punti', 'Gol Fatti', 'Gol Subiti', 'Differenza Reti']
+                cols_s = [c for c in ['Posizione', 'Giocatore', 'Punti', 'Gol Fatti', 'Gol Subiti', 'Differenza Reti'] if c in df_scontri.columns]
                 st.dataframe(df_scontri[cols_s].sort_values('Punti', ascending=False), hide_index=True, use_container_width=True)
-            else: st.info("Carica 'scontridiretti.csv'")
+            else: st.info("In attesa di scontridiretti.csv")
+        
         with cl2:
             st.subheader("🎯 Punti Totali")
             if df_punti_tot is not None:
                 df_punti_tot = pulisci_nomi(df_punti_tot, 'Giocatore')
-                # FIX VIRGOLA: Trasformiamo "1074,5" in 1074.5 per i calcoli
-                for col_p in ['Punti Totali', 'Media', 'Distacco']:
-                    if col_p in df_punti_tot.columns:
-                        df_punti_tot[col_p] = df_punti_tot[col_p].astype(str).str.replace(',', '.').astype(float)
-                st.dataframe(df_punti_tot[['Posizione', 'Giocatore', 'Punti Totali', 'Media']], hide_index=True, use_container_width=True)
-            else: st.info("Carica 'classificapunti.csv'")
+                # Gestione numeri con la virgola (es. 1074,5)
+                for cp in ['Punti Totali', 'Media', 'Distacco']:
+                    if cp in df_punti_tot.columns:
+                        df_punti_tot[cp] = df_punti_tot[cp].astype(str).str.replace(',', '.').astype(float)
+                
+                cols_p = [c for c in ['Posizione', 'Giocatore', 'Punti Totali', 'Media'] if c in df_punti_tot.columns]
+                st.dataframe(df_punti_tot[cols_p].sort_values('Punti Totali', ascending=False), hide_index=True, use_container_width=True)
+            else: st.info("In attesa di classificapunti.csv")
 
     # --- TAB ECONOMIA ---
     with tabs[1]:
@@ -96,6 +99,7 @@ if any([df_scontri is not None, df_punti_tot is not None, df_rose is not None, d
             f_col = c_map.get('fantasquadra', df_rose.columns[0])
             p_col = c_map.get('prezzo', df_rose.columns[-1])
             df_rose = pulisci_nomi(df_rose, f_col)
+            
             eco = df_rose.groupby(f_col)[p_col].sum().reset_index()
             eco.columns = ['Fantasquadra', 'Costo della Rosa']
             eco['Costo della Rosa'] = eco['Costo della Rosa'].astype(int)
@@ -114,47 +118,16 @@ if any([df_scontri is not None, df_punti_tot is not None, df_rose is not None, d
             n_col = c_map.get('nome', df_rose.columns[1])
             p_col = c_map.get('prezzo', df_rose.columns[-1])
             r_col = c_map.get('ruolo', 'Ruolo')
+            
             with c1:
                 st.write("**Distribuzione Ruoli:**")
                 ord_r = ['Portiere', 'Difensore', 'Centrocampista', 'Attaccante', 'Giovani']
                 pivot = df_rose.pivot_table(index=f_col, columns=r_col, values=n_col, aggfunc='count').fillna(0).astype(int)
                 col_p = [r for r in ord_r if r in pivot.columns]
                 st.dataframe(pivot[col_p], use_container_width=True)
+            
             with c2:
                 st.write("**💎 Top Player per Squadra:**")
                 df_rose[p_col] = pd.to_numeric(df_rose[p_col], errors='coerce').fillna(0).astype(int)
                 idx_m = df_rose.groupby(f_col)[p_col].idxmax()
-                st.dataframe(df_rose.loc[idx_m, [f_col, n_col, p_col]].sort_values(p_col, ascending=False), hide_index=True, use_container_width=True)
-
-    # --- TAB ROSE ---
-    with tabs[3]:
-        if df_rose is not None:
-            c_map = {c.lower(): c for c in df_rose.columns}
-            f_col = c_map.get('fantasquadra', df_rose.columns[0])
-            n_col = c_map.get('nome', df_rose.columns[1])
-            p_col = c_map.get('prezzo', df_rose.columns[-1])
-            r_col = c_map.get('ruolo', 'Ruolo')
-            sq = sorted(df_rose[f_col].unique())
-            scelta = st.selectbox("Seleziona Squadra:", sq)
-            d_sq = df_rose[df_rose[f_col] == scelta][[r_col, n_col, p_col]].copy()
-            d_sq[p_col] = d_sq[p_col].astype(int)
-            st.dataframe(d_sq.sort_values(p_col, ascending=False).style.background_gradient(subset=[n_col, p_col], cmap='Greens'), hide_index=True, use_container_width=True)
-
-    # --- TAB VINCOLI ---
-    with tabs[4]:
-        st.subheader("📅 Contratti Futuri")
-        if df_vincoli is not None:
-            df_v = df_vincoli.copy()
-            df_v = df_v[df_v['Squadra'].notna() & ~df_v['Squadra'].str.contains(r'\*|`|Riepilogo', na=False)]
-            df_v = pulisci_nomi(df_v, 'Squadra')
-            cv1, cv2 = st.columns([1, 2])
-            with cv1:
-                st.write("**Riepilogo Debiti:**")
-                rip = df_v.groupby('Squadra')['Costo 2026-27'].sum().reset_index()
-                rip['Costo 2026-27'] = rip['Costo 2026-27'].astype(int)
-                st.dataframe(rip.sort_values('Costo 2026-27', ascending=False), hide_index=True)
-            with cv2:
-                sv = st.selectbox("Dettaglio di:", sorted(df_v['Squadra'].unique()))
-                st.dataframe(df_v[df_v['Squadra'] == sv][['Giocatore', 'Costo 2026-27']], hide_index=True, use_container_width=True)
-else:
-    st.info("👋 Carica i file CSV nella barra laterale per attivare i cruscotti.")
+                st.dataframe(df_rose.loc[idx_m, [f_col, n_col, p_col]].sort_values(p_col, ascending=False), hide_index=True, use_container_
