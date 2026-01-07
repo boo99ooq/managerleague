@@ -136,4 +136,26 @@ with t[5]: # SIMULATORE SCAMBI
             v_a = f_rs[f_rs['Nome']==g_a]['Prezzo'].values[0]
             vn_a = f_vn[f_vn['Giocatore']==g_a]['Spesa Complessiva'].values[0] if (f_vn is not None and g_a in f_vn['Giocatore'].values) else 0.0
             vt_a = v_a + vn_a
-            st.metric(f"Valore {g_a}", f"{vt_a:g}", help="Pre
+            st.metric(f"Valore {g_a}", f"{vt_a:g}", help="Prezzo d'acquisto + Vincoli")
+
+        with c2:
+            s_b = st.selectbox("Squadra B:", [s for s in sq_l if s != s_a], key="sb")
+            g_b = st.selectbox("Cede:", f_rs[f_rs['Fantasquadra']==s_b]['Nome'], key="gb")
+            v_b = f_rs[f_rs['Nome']==g_b]['Prezzo'].values[0]
+            vn_b = f_vn[f_vn['Giocatore']==g_b]['Spesa Complessiva'].values[0] if (f_vn is not None and g_b in f_vn['Giocatore'].values) else 0.0
+            vt_b = v_b + vn_b
+            st.metric(f"Valore {g_b}", f"{vt_b:g}", help="Prezzo d'acquisto + Vincoli")
+
+        st.write("---")
+        p_incontro = (vt_a + vt_b) / 2
+        st.subheader(f"🤝 Punto di Incontro: {p_incontro:g} crediti")
+        
+        # Analisi Impatto
+        st.write("**Anteprima Bilancio Post-Scambio:**")
+        impatto = pd.DataFrame({
+            "Squadra": [s_a, s_b],
+            "Giocatore in Entrata": [g_b, g_a],
+            "Nuovo Valore Rosa": [p_incontro, p_incontro],
+            "Variazione Rispetto a Prima": [p_incontro - vt_a, p_incontro - vt_b]
+        })
+        st.dataframe(impatto.style.format({"Nuovo Valore Rosa": "{:g}", "Variazione Rispetto a Prima": "{:+g}"}), hide_index=True)
