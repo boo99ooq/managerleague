@@ -45,7 +45,7 @@ def carica_dati(file_input, nome_locale):
         return df.dropna(how='all')
     return None
 
-# 4. CARICAMENTO DATI (Dalle Sidebar o da GitHub)
+# 4. CARICAMENTO DATI
 st.sidebar.header("📂 Gestione File")
 f_sc = carica_dati(st.sidebar.file_uploader("Scontri", type="csv"), "scontridiretti.csv")
 f_pt = carica_dati(st.sidebar.file_uploader("Punti", type="csv"), "classificapunti.csv")
@@ -58,4 +58,23 @@ if any([f_sc is not None, f_pt is not None, f_rs is not None, f_vn is not None])
 
     # --- TAB CLASSIFICHE ---
     with tabs[0]:
-        c
+        c1, c2 = st.columns(2)
+        with c1:
+            st.subheader("🔥 Scontri Diretti")
+            if f_sc is not None:
+                f_sc = pulisci_nomi(f_sc, 'Giocatore')
+                st.dataframe(f_sc, hide_index=True, use_container_width=True)
+        with c2:
+            st.subheader("🎯 Punti Totali")
+            if f_pt is not None:
+                f_pt = pulisci_nomi(f_pt, 'Giocatore')
+                for c in ['Punti Totali', 'Media']:
+                    if c in f_pt.columns:
+                        f_pt[c] = f_pt[c].astype(str).str.replace(',', '.').pipe(pd.to_numeric, errors='coerce').fillna(0)
+                st.dataframe(f_pt[['Posizione', 'Giocatore', 'Punti Totali', 'Media']], hide_index=True, use_container_width=True)
+
+    # --- TAB ECONOMIA ---
+    with tabs[1]:
+        st.subheader("💰 Bilancio Rose")
+        if f_rs is not None:
+            f_col = next((c for c in f_rs.columns if 'fantasquadra' in c.lower()), f_rs.columns[0])
