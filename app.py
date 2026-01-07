@@ -69,16 +69,25 @@ if f_rs is not None:
 
 t = st.tabs(["🏆 Classifiche", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
 
-with t[0]: # CLASSIFICHE
+with t[0]: # CLASSIFICHE CON GRADIENTI
     c1, c2 = st.columns(2)
     with c1:
         st.subheader("🔥 Scontri")
-        if f_sc is not None: st.dataframe(f_sc.style.set_properties(**{'font-weight': 'bold'}), hide_index=True, use_container_width=True)
+        if f_sc is not None:
+            # Applichiamo gradiente se esiste una colonna numerica di punteggio o vittorie
+            cols_sc = f_sc.select_dtypes(include=['number']).columns
+            st.dataframe(f_sc.style.background_gradient(subset=cols_sc, cmap='Blues')
+                         .set_properties(**{'font-weight': 'bold'}), hide_index=True, use_container_width=True)
     with c2:
         st.subheader("🎯 Punti")
         if f_pt is not None:
             f_pt['Punti Totali'] = f_pt['Punti Totali'].apply(cv)
-            st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali','Media']].sort_values('Posizione').style.format({"Punti Totali": "{:g}", "Media": "{:.2f}"}).set_properties(**{'font-weight': 'bold'}), hide_index=True, use_container_width=True)
+            f_pt['Media'] = f_pt['Media'].apply(cv)
+            st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali','Media']].sort_values('Posizione')
+                         .style.background_gradient(subset=['Punti Totali'], cmap='Greens')
+                         .background_gradient(subset=['Media'], cmap='YlGn')
+                         .format({"Punti Totali": "{:g}", "Media": "{:.2f}"})
+                         .set_properties(**{'font-weight': 'bold'}), hide_index=True, use_container_width=True)
 
 if f_rs is not None:
     f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
