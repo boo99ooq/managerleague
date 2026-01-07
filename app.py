@@ -20,9 +20,8 @@ map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLA
 
 # --- FUNZIONI DI PULIZIA ---
 def clean_name_only(s):
-    """Rimuove asterischi, numeri dopo i due punti e spazi (es: ANDREA:49 -> ANDREA)"""
     if pd.isna(s): return ""
-    text = str(s).split(':')[0] # Prende tutto quello che c'è prima di eventuali ":"
+    text = str(s).split(':')[0] 
     return text.replace('*', '').strip().upper()
 
 def ld(f):
@@ -74,4 +73,45 @@ with t[0]: # CLASSIFICHE
 with t[1]: # BUDGET
     if f_rs is not None:
         st.subheader("💰 Bilancio Globale")
-        bu = f_rs.groupby
+        bu = f_rs.groupby('Squadra_N')['Prezzo_N'].sum().reset_index()
+        bu.columns = ['Squadra', 'Spesa Rose']
+        
+        if f_vn is not None:
+            v_sum = f_vn.groupby('Sq_N')['Tot_Vincolo'].sum().reset_index()
+            bu = pd.merge(bu, v_sum, left_on='Squadra', right_on='Sq_N', how='left').fillna(0).drop('Sq_N', axis=1)
+            bu.rename(columns={'Tot_Vincolo': 'Spesa Vincoli'}, inplace=True)
+        else: bu['Spesa Vincoli'] = 0
+            
+        bu['Crediti Disponibili'] = bu['Squadra'].map(bg_ex).fillna(0)
+        bu['Patrimonio Reale'] = bu['Spesa Rose'] + bu['Spesa Vincoli'] + bu['Crediti Disponibili']
+        
+        # FIX: Applichiamo il gradiente solo a sottoinsiemi specifici per evitare il bug JS
+        grad_cols = ['Spesa Rose', 'Spesa Vincoli', 'Crediti Disponibili', 'Patrimonio Reale']
+        st.dataframe(bu.sort_values('Patrimonio Reale', ascending=False)
+                     .style.background_gradient(cmap='YlOrRd', subset=grad_cols)
+                     .format({c: "{:g}" for c in grad_cols}), hide_index=True, use_container_width=True)
+
+with t[2]: # ROSE
+    if f_rs is not None:
+        lista_sq = sorted([s for s in f_rs['Squadra_N'].unique() if s and s != 'NAN'])
+        sq = st.selectbox("Seleziona Squadra:", lista_sq)
+        df_sq = f_rs[f_rs['Squadra_N'] == sq].copy()
+        def color_ruoli(row):
+            r = str(row['Ruolo']).upper()
+            bg = '#E3F2FD' if 'PORT' in r else '#E8F5E9' if 'DIF' in r else '#FFFDE7' if 'CEN' in r else '#FFEBEE' if 'ATT' in r else '#FFFFFF'
+            return [f'background-color: {bg}; color: black; font-weight: bold;'] * len(row)
+        st.dataframe(df_sq[['Ruolo', 'Nome', 'Prezzo_N']].style.apply(color_ruoli, axis=1).format({"Prezzo_N":"{:g}"}), hide_index=True, use_container_width=True)
+
+with t[3]: # VINCOLI
+    if f_vn is not None:
+        st.subheader("📅 Vincoli Pluriennali")
+        lista_sq_v = sorted([s for s in f_vn['Sq_N'].unique() if s])
+        sq_v = st.selectbox("Filtra Squadra:", ["TUTTE"] + lista_sq_v)
+        df_v_display = f_vn if sq_v == "TUTTE" else f_vn[f_vn['Sq_N'] == sq_v]
+        
+        st.dataframe(df_v_display[['Squadra', 'Giocatore', 'Tot_Vincolo']].sort_values('Tot_Vincolo', ascending=False)
+                     .style.background_gradient(subset=['Tot_Vincolo'], cmap='Purples')
+                     .format({"Tot_Vincolo": "{:g}"}), hide_index=True, use_container_width=True)
+        
+        tot_v = df_v_display['Tot_Vincolo'].sum()
+        st.markdown(f"### 📊 Totale Impegno Vincoli: **{tot_v:g}** crediti")
