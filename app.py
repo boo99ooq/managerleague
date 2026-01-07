@@ -45,14 +45,14 @@ def process_df(df, col_name):
 
 f_sc, f_pt, f_rs, f_vn = process_df(f_sc, 'Giocatore'), process_df(f_pt, 'Giocatore'), process_df(f_rs, 'Fantasquadra'), process_df(f_vn, 'Squadra')
 
-# Funzione per colorare i ruoli nelle Rose
+# Funzione per colorare i ruoli
 def color_ruolo(row):
     colors = {
-        'Portiere': 'background-color: #f0f4ff',     # Azzurrino
-        'Difensore': 'background-color: #f0fff0',    # Verdino
-        'Centrocampista': 'background-color: #fffdf0', # Giallino
-        'Attaccante': 'background-color: #fff0f0',     # Rossiccio
-        'Giovani': 'background-color: #fcf0ff'        # Violetto
+        'Portiere': 'background-color: #f0f4ff',
+        'Difensore': 'background-color: #f0fff0',
+        'Centrocampista': 'background-color: #fffdf0',
+        'Attaccante': 'background-color: #fff0f0',
+        'Giovani': 'background-color: #fcf0ff'
     }
     return [colors.get(row['Ruolo'], '')] * len(row)
 
@@ -63,7 +63,8 @@ if f_rs is not None:
     if s:
         res = f_rs[f_rs['Nome'].str.upper().str.contains(s, na=False)].copy()
         if not res.empty:
-            st.sidebar.dataframe(res[['Nome', 'Fantasquadra', 'Prezzo']].style.format({"Prezzo": "{:g}"}), hide_index=True)
+            # Grassetto sul nome nella sidebar
+            st.sidebar.dataframe(res[['Nome', 'Fantasquadra', 'Prezzo']].style.format({"Prezzo": "{:g}"}).set_properties(**{'font-weight': 'bold'}, subset=['Nome']), hide_index=True)
         else: st.sidebar.warning("Nessuno trovato")
 
 t = st.tabs(["🏆 Classifiche", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
@@ -72,12 +73,14 @@ with t[0]: # CLASSIFICHE
     c1, c2 = st.columns(2)
     with c1:
         st.subheader("🔥 Scontri")
-        if f_sc is not None: st.dataframe(f_sc, hide_index=True, use_container_width=True)
+        if f_sc is not None: 
+            st.dataframe(f_sc.style.set_properties(**{'font-weight': 'bold'}, subset=['Giocatore']), hide_index=True, use_container_width=True)
     with c2:
         st.subheader("🎯 Punti")
         if f_pt is not None:
             f_pt['Punti Totali'] = f_pt['Punti Totali'].apply(cv)
-            st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali','Media']].sort_values('Punti Totali', ascending=False).style.format({"Punti Totali": "{:g}", "Media": "{:.2f}"}), hide_index=True, use_container_width=True)
+            # Grassetto su Giocatore
+            st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali','Media']].sort_values('Punti Totali', ascending=False).style.format({"Punti Totali": "{:g}", "Media": "{:.2f}"}).set_properties(**{'font-weight': 'bold'}, subset=['Giocatore']), hide_index=True, use_container_width=True)
 
 if f_rs is not None:
     f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
@@ -104,17 +107,18 @@ if f_rs is not None:
         with cs2:
             st.write("**💎 Top Player**")
             idx = f_rs.groupby('Fantasquadra')['Prezzo'].idxmax()
-            st.dataframe(f_rs.loc[idx, ['Fantasquadra', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False).style.format({"Prezzo": "{:g}"}), hide_index=True, use_container_width=True)
+            # Grassetto sul nome del Top Player
+            st.dataframe(f_rs.loc[idx, ['Fantasquadra', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False).style.format({"Prezzo": "{:g}"}).set_properties(**{'font-weight': 'bold'}, subset=['Nome']), hide_index=True, use_container_width=True)
 
-    with t[3]: # ROSE COLORATE
+    with t[3]: # ROSE COLORATE + GRASSETTO
         st.subheader("🏃 Dettaglio Rose")
         sq_list = sorted([x for x in f_rs['Fantasquadra'].unique() if x != "SKIP"])
         sq = st.selectbox("Seleziona Squadra:", sq_list)
         df_sq = f_rs[f_rs['Fantasquadra'] == sq][['Ruolo', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False)
-        # Applicazione colore per ruolo
-        st.dataframe(df_sq.style.apply(color_ruolo, axis=1).format({"Prezzo": "{:g}"}), hide_index=True, use_container_width=True)
+        # Combinazione colori ruolo + grassetto sul nome
+        st.dataframe(df_sq.style.apply(color_ruolo, axis=1).set_properties(**{'font-weight': 'bold'}, subset=['Nome']).format({"Prezzo": "{:g}"}), hide_index=True, use_container_width=True)
 
-with t[4]: # VINCOLI
+with t[4]: # VINCOLI (GRASSETTO)
     st.subheader("📅 Gestione Vincoli")
     if f_vn is not None:
         if 'Durata (anni)' in f_vn.columns: f_vn['Durata (anni)'] = f_vn['Durata (anni)'].apply(cv)
@@ -126,4 +130,5 @@ with t[4]: # VINCOLI
             lista_sq = sorted([x for x in f_vn['Squadra'].unique() if x != "SKIP"])
             sv = st.selectbox("Seleziona Squadra per Dettaglio:", lista_sq, key="v_sel")
             det = f_vn[f_vn['Squadra'] == sv][['Giocatore', 'Costo 2026-27', 'Durata (anni)']].dropna(subset=['Giocatore'])
-            st.dataframe(det.style.format({"Costo 2026-27": "{:g}", "Durata (anni)": "{:g}"}), hide_index=True, use_container_width=True)
+            # Grassetto su Giocatore
+            st.dataframe(det.style.format({"Costo 2026-27": "{:g}", "Durata (anni)": "{:g}"}).set_properties(**{'font-weight': 'bold'}, subset=['Giocatore']), hide_index=True, use_container_width=True)
