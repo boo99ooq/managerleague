@@ -39,17 +39,31 @@ if any([f_sc is not None, f_pt is not None, f_rs is not None, f_vn is not None])
     with t[0]:
         c1, c2 = st.columns(2)
         if f_sc is not None:
-            with c1: st.write("🔥 **Scontri**"); st.dataframe(style_c(clean_n(f_sc, 'Giocatore')), hide_index=True)
+            with c1: 
+                st.write("🔥 **Scontri**")
+                st.dataframe(style_c(clean_n(f_sc, 'Giocatore')), hide_index=True, use_container_width=True)
         if f_pt is not None:
             with c2:
                 st.write("🎯 **Punti**")
                 f_pt = clean_n(f_pt, 'Giocatore')
                 for c in ['Punti Totali', 'Media']:
-                    if c in f_pt.columns: f_pt[c] = f_pt[c].astype(str).str.replace(',','.').apply(pd.to_numeric, errors='coerce')
-                st.dataframe(style_c(f_pt[['Posizione','Giocatore','Punti Totali','Media']]), hide_index=True)
+                    if c in f_pt.columns: 
+                        f_pt[c] = f_pt[c].astype(str).str.replace(',','.').apply(pd.to_numeric, errors='coerce')
+                st.dataframe(style_c(f_pt[['Posizione','Giocatore','Punti Totali','Media']]), hide_index=True, use_container_width=True)
 
     if f_rs is not None:
-        # Mappatura rapida colonne
-        f_c = next((c for c in f_rs.columns if 'fanta' in c.lower()), f_rs.columns[0])
-        n_c = next((c for c in f_rs.columns if 'nome' in c.lower()), f_rs.columns[1])
-        r_c = next((c for c
+        # Identificazione colonne rose (Semplificata senza next)
+        cols = f_rs.columns
+        f_c = cols[0]
+        n_c = cols[1]
+        r_c = cols[2]
+        p_c = cols[-1]
+        
+        f_rs = clean_n(f_rs, f_c)
+        f_rs[p_c] = pd.to_numeric(f_rs[p_c], errors='coerce').fillna(0).astype(int)
+
+        with t[1]:
+            st.write("💰 **Bilancio**")
+            eco = f_rs.groupby(f_c)[p_c].sum().reset_index()
+            eco['Extra'] = eco[f_c].map(budgets).fillna(0)
+            eco['Totale'] = (
