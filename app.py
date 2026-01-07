@@ -123,4 +123,17 @@ with t[2]:
 with t[3]:
     if f_vn is not None:
         st.subheader("📅 Contratti Pluriennali")
-        lista_sq_v = sorted([s for s in f_vn['Sq_N'].unique() if s and
+        lista_sq_v = sorted([s for s in f_vn['Sq_N'].unique() if s and '*' not in s])
+        sq_v = st.selectbox("Filtra per Squadra:", ["TUTTE"] + lista_sq_v)
+        
+        df_v_display = f_vn if sq_v == "TUTTE" else f_vn[f_vn['Sq_N'] == sq_v]
+        
+        # Sommiamo i costi futuri esistenti
+        display_cols = ['Squadra', 'Giocatore', 'Tot_Vincolo'] + [c for c in v_cols if c in df_v_display.columns]
+        
+        st.dataframe(df_v_display[display_cols].style.background_gradient(subset=['Tot_Vincolo'], cmap='Purples')
+                     .format({c: "{:g}" for c in df_v_display.select_dtypes('number').columns}), 
+                     hide_index=True, use_container_width=True)
+        
+        if sq_v != "TUTTE":
+            st.metric(f"Totale Impegno {sq_v}", f"{df_v_display['Tot_Vincolo'].sum():g}")
