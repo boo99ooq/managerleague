@@ -43,9 +43,12 @@ def pulisci_nomi(df, col):
 
 def carica(f):
     if f is None: return None
-    df = pd.read_csv(f, sep=',', skip_blank_lines=True, encoding='utf-8-sig')
-    df.columns = df.columns.str.strip()
-    return df.dropna(how='all')
+    try:
+        df = pd.read_csv(f, sep=',', skip_blank_lines=True, encoding='utf-8-sig')
+        df.columns = df.columns.str.strip()
+        return df.dropna(how='all')
+    except:
+        return None
 
 d_sc = carica(f_scontri)
 d_pt = carica(f_punti)
@@ -56,6 +59,7 @@ d_vn = carica(f_vinc)
 if any([d_sc is not None, d_pt is not None, d_rs is not None, d_vn is not None]):
     tabs = st.tabs(["🏆 Classifiche", "📊 Economia", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
 
+    # TAB 0: CLASSIFICHE
     with tabs[0]:
         c1, c2 = st.columns(2)
         with c1:
@@ -63,6 +67,7 @@ if any([d_sc is not None, d_pt is not None, d_rs is not None, d_vn is not None])
             if d_sc is not None:
                 d_sc = pulisci_nomi(d_sc, 'Giocatore')
                 st.dataframe(d_sc, hide_index=True, use_container_width=True)
+            else: st.info("Carica 'scontridiretti.csv'")
         with c2:
             st.subheader("🎯 Punti Totali")
             if d_pt is not None:
@@ -71,11 +76,10 @@ if any([d_sc is not None, d_pt is not None, d_rs is not None, d_vn is not None])
                     if c in d_pt.columns:
                         d_pt[c] = d_pt[c].astype(str).str.replace(',', '.').pipe(pd.to_numeric, errors='coerce').fillna(0)
                 st.dataframe(d_pt[['Posizione', 'Giocatore', 'Punti Totali', 'Media']], hide_index=True, use_container_width=True)
+            else: st.info("Carica 'classificapunti.csv'")
 
+    # TAB 1: ECONOMIA
     with tabs[1]:
         st.subheader("💰 Bilancio Rose")
         if d_rs is not None:
-            f_col = [c for c in d_rs.columns if 'fantasquadra' in c.lower()][0]
-            p_col = [c for c in d_rs.columns if 'prezzo' in c.lower()][0]
-            d_rs = pulisci_nomi(d_rs, f_col)
-            eco = d_rs.groupby(f_col)
+            f_col = [c for c in d_rs.
