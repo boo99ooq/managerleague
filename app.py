@@ -62,8 +62,6 @@ if f_rs is not None:
 
 t = st.tabs(["🏆 Classifiche", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
 
-# --- TABELLE ---
-
 with t[0]: # CLASSIFICHE
     c1, c2 = st.columns(2)
     with c1:
@@ -77,20 +75,28 @@ with t[0]: # CLASSIFICHE
 
 if f_rs is not None:
     f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
-    with t[1]: # BUDGET
+    with t[1]: # BUDGET FIX ERROR
         st.subheader("💰 Bilancio Globale")
         eco = f_rs.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
         eco['Crediti Disponibili'] = eco['Fantasquadra'].map(bg_ex).fillna(0)
         if f_vn is not None:
-            c26 = f_vn['Costo 2026-27'].apply(cv)
-            c27 = f_vn.get('Costo 2027-28', pd.Series([0.0]*len(f_vn))).apply(cv)
-            c28 = f_vn.get('Costo 2028-29', pd.Series([0.0]*len(f_vn))).apply(cv)
-            v_sum_val = (c26 + c27 + c28).groupby(f_vn['Squadra']).sum().reset_index()
-            v_sum_val.columns = ['Fantasquadra', 'Vincoli']
-            eco = pd.merge(eco, v_sum_val, on='Fantasquadra', how='left').fillna(0)
+            for c in ['Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29']:
+                f_vn[c] = f_vn[c].apply(cv) if c in f_vn.columns else 0.0
+            f_vn['Vincolo Totale'] = f_vn['Costo 2026-27'] + f_vn.get('Costo 2027-28', 0) + f_vn.get('Costo 2028-29', 0)
+            v_sum = f_vn.groupby('Squadra')['Vincolo Totale'].sum().reset_index()
+            v_sum.columns = ['Fantasquadra', 'Vincoli']
+            eco = pd.merge(eco, v_sum, on='Fantasquadra', how='left').fillna(0)
         else: eco['Vincoli'] = 0
         eco['Totale'] = eco['Prezzo'] + eco['Crediti Disponibili'] + eco['Vincoli']
-        st.dataframe(eco.sort_values('Totale', ascending=False).style.background_gradient(subset=['Totale'], cmap='RdYlGn').background_gradient(subset=['Crediti Disponibili'], cmap='YlGn').format("{:g}"), hide_index=True, use_container_width=True)
+        
+        # FIX: Applichiamo format() solo alle colonne numeriche
+        st.dataframe(
+            eco.sort_values('Totale', ascending=False).style
+            .background_gradient(subset=['Totale'], cmap='RdYlGn')
+            .background_gradient(subset=['Crediti Disponibili'], cmap='YlGn')
+            .format({"Prezzo": "{:g}", "Crediti Disponibili": "{:g}", "Vincoli": "{:g}", "Totale": "{:g}"}), 
+            hide_index=True, use_container_width=True
+        )
 
     with t[2]: # STRATEGIA
         st.subheader("🧠 Strategia")
@@ -111,27 +117,23 @@ if f_rs is not None:
         df_sq = f_rs[f_rs['Fantasquadra'] == sq][['Ruolo', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False)
         st.dataframe(df_sq.style.apply(color_ruolo, axis=1).set_properties(**{'font-weight': 'bold'}, subset=['Nome']).format({"Prezzo": "{:g}"}), hide_index=True, use_container_width=True)
 
-with t[4]: # VINCOLI - FIX DECIMALI E TOTALE
+with t[4]: # VINCOLI FIX
     st.subheader("📅 Gestione Vincoli")
     if f_vn is not None:
-        # Pre-conversione numerica forzata per evitare decimali sporchi
-        for c in ['Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29', 'Durata (anni)']:
-            if c in f_vn.columns: f_vn[c] = f_vn[c].apply(cv)
-            else: f_vn[c] = 0.0
-            
-        f_vn['Spesa Complessiva'] = f_vn['Costo 2026-27'] + f_vn['Costo 2027-28'] + f_vn['Costo 2028-29']
+        if 'Durata (anni)' in f_vn.columns: f_vn['Durata (anni)'] = f_vn['Durata (anni)'].apply(cv)
+        f_vn['Spesa Complessiva'] = f_vn['Costo 2026-27'] + f_vn.get('Costo 2027-28', 0) + f_vn.get('Costo 2028-29', 0)
         
         v1, v2 = st.columns([1, 2.5])
         with v1:
-            st.write("**Riepilogo Investimenti Totali**")
             deb = f_vn.groupby('Squadra')['Spesa Complessiva'].sum().reset_index().sort_values('Spesa Complessiva', ascending=False)
             st.dataframe(deb.style.format({"Spesa Complessiva": "{:g}"}), hide_index=True, use_container_width=True)
         with v2:
             lista_sq = sorted([x for x in f_vn['Squadra'].unique() if x != "SKIP"])
             sv = st.selectbox("Seleziona Squadra per Dettaglio:", lista_sq, key="v_sel")
-            # Includiamo la Spesa Complessiva nel dettaglio per giocatore
             cols_v = ['Giocatore', 'Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29', 'Spesa Complessiva', 'Durata (anni)']
-            det = f_vn[f_vn['Squadra'] == sv][cols_v].dropna(subset=['Giocatore'])
+            present_v = [c for c in cols_v if c in f_vn.columns]
+            det = f_vn[f_vn['Squadra'] == sv][present_v].dropna(subset=['Giocatore'])
             
-            # Formattazione sicura per rimuovere gli .0
-            st.dataframe(det.style.format("{:g}", subset=['Costo 2026-27', 'Costo 2027-28', 'Costo 2028-29', 'Spesa Complessiva', 'Durata (anni)']).set_properties(**{'font-weight': 'bold'}, subset=['Giocatore']), hide_index=True, use_container_width=True)
+            # Formattazione selettiva per evitare nuovi ValueError
+            num_cols = [c for c in present_v if c != 'Giocatore']
+            st.dataframe(det.style.format("{:g}", subset=num_cols).set_properties(**{'font-weight': 'bold'}, subset=['Giocatore']), hide_index=True, use_container_width=True)
