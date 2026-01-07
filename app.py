@@ -13,7 +13,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("⚽ MuyFantaManager")
+st.title("⚽ MuyFantaManager - Ripristino")
 
 # Configurazione Budget Extra e Mappature
 bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
@@ -30,7 +30,7 @@ def cv(v):
 def ld(f):
     if not os.path.exists(f): return None
     try:
-        # Salta le righe vuote iniziali
+        # Legge il file e rimuove la riga vuota iniziale se presente
         df = pd.read_csv(f, skip_blank_lines=True, engine='python')
         if df.columns[0].startswith('Unnamed'):
             df = pd.read_csv(f, skiprows=1, engine='python')
@@ -43,16 +43,17 @@ f_pt = ld("classificapunti.csv")
 f_rs = ld("rose_complete.csv")
 f_vn = ld("vincoli.csv")
 
-# 3. INTERFACCIA A TAB (Definite prima dell'uso)
+# 3. INTERFACCIA A SCHEDE
 t = st.tabs(["🏆 Classifiche", "💰 Budget", "🏃 Rose", "📅 Vincoli"])
 
 # --- TAB 0: CLASSIFICHE ---
 with t[0]:
     if f_pt is not None:
+        # Pulizia punti specifica per il formato "1.074,5"
         f_pt['Punti_N'] = f_pt['Punti Totali'].apply(cv)
         c1, c2 = st.columns(2)
         with c1:
-            st.subheader("🎯 Classifica")
+            st.subheader("🎯 Classifica Punti")
             st.dataframe(f_pt[['Posizione','Giocatore','Punti_N']].sort_values('Posizione').style.background_gradient(subset=['Punti_N'], cmap='Greens'), hide_index=True)
         with c2:
             st.subheader("📈 Trend")
@@ -68,8 +69,8 @@ with t[1]:
     if f_rs is not None:
         st.subheader("💰 Bilancio")
         f_rs['Prezzo_N'] = f_rs['Prezzo'].apply(cv)
-        # Trasformiamo in stringa per evitare AttributeError
-        f_rs['Squadra_N'] = f_rs['Fantasquadra'].astype(str).str.upper().strip().replace(map_n)
+        # CORREZIONE SINTASSI: .str va usato per ogni operazione
+        f_rs['Squadra_N'] = f_rs['Fantasquadra'].astype(str).str.upper().str.strip().replace(map_n)
         
         bu = f_rs.groupby('Squadra_N')['Prezzo_N'].sum().reset_index()
         bu.columns = ['Squadra', 'Spesa_Rosa']
@@ -82,7 +83,7 @@ with t[1]:
 with t[2]:
     if f_rs is not None:
         sq_list = sorted(f_rs['Squadra_N'].unique())
-        s_sel = st.selectbox("Seleziona Squadra:", [s for s in sq_list if s != 'NAN'])
+        s_sel = st.selectbox("Seleziona Squadra:", [s for s in sq_list if s != "NAN"])
         df_sq = f_rs[f_rs['Squadra_N'] == s_sel].copy()
         
         def color_ruoli(row):
