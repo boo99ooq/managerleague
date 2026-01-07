@@ -2,13 +2,14 @@ import streamlit as st
 import pandas as pd
 import os
 
-# 1. SETUP E STILE PULITO (LIGHT THEME FORZATO PER CONTRASTO)
+# 1. SETUP E STILE PULITO
 st.set_page_config(page_title="MuyFantaManager", layout="wide")
 st.markdown("""
 <style>
     .stApp { background-color: white; }
     div[data-testid="stDataFrame"] * { color: #1a1a1a !important; }
     header { visibility: hidden; }
+    .stTabs [data-baseweb="tab"] { font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -24,6 +25,10 @@ def cv(v):
         s = str(v).replace('"', '').replace(',', '.').strip()
         return float(s) if s != "" else 0.0
     except: return 0.0
+
+def fmt_n(x):
+    try: return f"{x:g}" if isinstance(x, (int, float)) else x
+    except: return x
 
 def clean_name(s):
     if pd.isna(s) or str(s).strip().upper() == "NONE" or str(s).strip() == "": return "SKIP"
@@ -69,29 +74,29 @@ if f_rs is not None:
 
 t = st.tabs(["🏆 Classifiche", "💰 Budget", "🧠 Strategia", "🏃 Rose", "📅 Vincoli"])
 
-with t[0]: # CLASSIFICHE CON GRADIENTI
+with t[0]: # CLASSIFICHE + GRAFICO
     c1, c2 = st.columns(2)
     with c1:
         st.subheader("🔥 Scontri")
         if f_sc is not None:
-            # Applichiamo gradiente se esiste una colonna numerica di punteggio o vittorie
             cols_sc = f_sc.select_dtypes(include=['number']).columns
-            st.dataframe(f_sc.style.background_gradient(subset=cols_sc, cmap='Blues')
-                         .set_properties(**{'font-weight': 'bold'}), hide_index=True, use_container_width=True)
+            st.dataframe(f_sc.style.background_gradient(subset=cols_sc, cmap='Blues').set_properties(**{'font-weight': 'bold'}), hide_index=True, use_container_width=True)
     with c2:
         st.subheader("🎯 Punti")
         if f_pt is not None:
             f_pt['Punti Totali'] = f_pt['Punti Totali'].apply(cv)
             f_pt['Media'] = f_pt['Media'].apply(cv)
-            st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali','Media']].sort_values('Posizione')
-                         .style.background_gradient(subset=['Punti Totali'], cmap='Greens')
-                         .background_gradient(subset=['Media'], cmap='YlGn')
-                         .format({"Punti Totali": "{:g}", "Media": "{:.2f}"})
-                         .set_properties(**{'font-weight': 'bold'}), hide_index=True, use_container_width=True)
+            st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali','Media']].sort_values('Posizione').style.background_gradient(subset=['Punti Totali'], cmap='Greens').background_gradient(subset=['Media'], cmap='YlGn').format({"Punti Totali": "{:g}", "Media": "{:.2f}"}).set_properties(**{'font-weight': 'bold'}), hide_index=True, use_container_width=True)
+    
+    if f_pt is not None:
+        st.write("---")
+        st.subheader("📊 Confronto Punti Totali")
+        chart_data = f_pt[['Giocatore', 'Punti Totali']].set_index('Giocatore')
+        st.bar_chart(chart_data, color="#2e7d32")
 
 if f_rs is not None:
     f_rs['Prezzo'] = f_rs['Prezzo'].apply(cv)
-    with t[1]: # BUDGET
+    with t[1]: # BUDGET + GRAFICO COMPOSIZIONE
         st.subheader("💰 Bilancio Globale")
         eco = f_rs.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
         eco.columns = ['Fantasquadra', 'Valore Rosa']
@@ -117,19 +122,22 @@ if f_rs is not None:
             .set_properties(**{'font-weight': 'bold'}),
             hide_index=True, use_container_width=True
         )
+        
+        st.write("---")
+        st.subheader("📊 Distribuzione del Valore")
+        chart_eco = eco[['Fantasquadra', 'Valore Rosa', 'Crediti Disponibili', 'Vincoli']].set_index('Fantasquadra')
+        st.bar_chart(chart_eco, stack=True)
 
-    with t[2]: # STRATEGIA
-        st.subheader("🧠 Strategia")
-        cs1, cs2 = st.columns([1.5, 1])
-        with cs1:
-            piv = f_rs.pivot_table(index='Fantasquadra', columns='Ruolo', values='Nome', aggfunc='count').fillna(0).astype(int)
-            r_ord = ['Portiere', 'Difensore', 'Centrocampista', 'Attaccante', 'Giovani']
-            st.dataframe(piv[[r for r in r_ord if r in piv.columns]].style.set_properties(**{'font-weight': 'bold'}), use_container_width=True)
-        with cs2:
-            st.write("**💎 Top Player**")
-            idx = f_rs.groupby('Fantasquadra')['Prezzo'].idxmax()
-            top = f_rs.loc[idx, ['Fantasquadra', 'Nome', 'Prezzo']].sort_values('Prezzo', ascending=False)
-            st.dataframe(top.style.format({"Prezzo": "{:g}"}).set_properties(**{'font-weight': 'bold'}), hide_index=True, use_container_width=True)
+    with t[2]: # STRATEGIA + GRAFICO RUOLI
+        st.subheader("🧠 Strategia e Ruoli")
+        piv = f_rs.pivot_table(index='Fantasquadra', columns='Ruolo', values='Nome', aggfunc='count').fillna(0).astype(int)
+        r_ord = ['Portiere', 'Difensore', 'Centrocampista', 'Attaccante', 'Giovani']
+        cols_presenti = [r for r in r_ord if r in piv.columns]
+        st.dataframe(piv[cols_presenti].style.set_properties(**{'font-weight': 'bold'}), use_container_width=True)
+        
+        st.write("---")
+        st.subheader("📊 Bilanciamento Squadre")
+        st.bar_chart(piv[cols_presenti])
 
     with t[3]: # ROSE
         sq_list = sorted([x for x in f_rs['Fantasquadra'].unique() if x != "SKIP"])
@@ -147,6 +155,7 @@ with t[4]: # VINCOLI
         
         v1, v2 = st.columns([1, 2.5])
         with v1:
+            st.write("**Riepilogo Squadre**")
             deb = f_vn.groupby('Squadra')['Spesa Complessiva'].sum().reset_index().sort_values('Spesa Complessiva', ascending=False)
             st.dataframe(deb.style.background_gradient(subset=['Spesa Complessiva'], cmap='Oranges')
                          .format({"Spesa Complessiva": "{:g}"})
