@@ -19,6 +19,8 @@ def apply_custom_style():
             border-radius: 10px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
+        /* Accentramento testo nelle colonne numeriche */
+        [data-testid="stTable"] td { text-align: center !important; }
         </style>
         """,
         unsafe_allow_html=True
@@ -77,4 +79,65 @@ if df_rose is not None:
         with cl1:
             st.subheader("🔥 Scontri Diretti")
             if df_scontri is not None:
-                df_scontri = pulisci_nomi(df_scontri,
+                df_scontri = pulisci_nomi(df_scontri, 'Giocatore')
+                cols = ['Posizione', 'Giocatore', 'Punti', 'Gol Fatti', 'Gol Subiti', 'Differenza Reti']
+                st.dataframe(df_scontri[cols].sort_values('Punti', ascending=False), hide_index=True, 
+                             column_config={
+                                 "Posizione": st.column_config.Column(width="small"),
+                                 "Punti": st.column_config.NumberColumn(format="%d", width="medium")
+                             }, use_container_width=True)
+            else: st.info("Carica scontridiretti.csv")
+        with cl2:
+            st.subheader("🎯 Punti Totali")
+            if df_punti_tot is not None:
+                df_punti_tot = pulisci_nomi(df_punti_tot, 'Giocatore')
+                if 'Punti Totali' in df_punti_tot.columns:
+                    df_punti_tot['Punti Totali'] = df_punti_tot['Punti Totali'].astype(str).str.replace(',', '.').astype(float)
+                st.dataframe(df_punti_tot[['Posizione', 'Giocatore', 'Punti Totali', 'Media']].sort_values('Punti Totali', ascending=False), 
+                             hide_index=True, column_config={"Posizione": st.column_config.Column(width="small")}, use_container_width=True)
+
+    # --- TAB ECONOMIA ---
+    with tabs[1]:
+        st.subheader("💰 Bilancio Rose")
+        eco = df_rose.groupby('Fantasquadra')['Prezzo'].sum().reset_index()
+        eco.columns = ['Fantasquadra', 'Costo della Rosa']
+        eco['Extra Febbraio'] = eco['Fantasquadra'].map(budgets_fisso).fillna(0)
+        eco['Budget Totale'] = eco['Costo della Rosa'] + eco['Extra Febbraio']
+        st.dataframe(eco.sort_values('Budget Totale', ascending=False), hide_index=True, use_container_width=True)
+
+    # --- TAB STRATEGIA ---
+    with tabs[2]:
+        st.subheader("📋 Analisi Reparti")
+        ordine_ruoli = ['Portiere', 'Difensore', 'Centrocampista', 'Attaccante', 'Giovani']
+        pivot_count = df_rose.pivot_table(index='Fantasquadra', columns='Ruolo', values='Nome', aggfunc='count').fillna(0).astype(int)
+        colonne_presenti = [r for r in ordine_ruoli if r in pivot_count.columns]
+        st.dataframe(pivot_count[colonne_presenti], use_container_width=True)
+
+    # --- TAB ROSE ---
+    with tabs[3]:
+        sq_lista = sorted(df_rose['Fantasquadra'].unique())
+        scelta_sq = st.selectbox("Seleziona Squadra:", sq_lista)
+        df_sq = df_rose[df_rose['Fantasquadra'] == scelta_sq][['Ruolo', 'Nome', 'Prezzo']]
+        st.dataframe(df_sq.sort_values('Prezzo', ascending=False).style.background_gradient(subset=['Prezzo'], cmap='Greens'), 
+                     hide_index=True, use_container_width=True)
+
+    # --- TAB VINCOLI ---
+    with tabs[4]:
+        st.subheader("📅 Contratti 2026/27")
+        if df_vincoli is not None:
+            df_v_clean = df_vincoli[df_vincoli['Giocatore'].notna()].copy()
+            df_v_clean = df_v_clean[~df_v_clean['Squadra'].str.contains(r'\*|`|Riepilogo', na=False)]
+            df_v_clean = pulisci_nomi(df_v_clean, 'Squadra')
+            
+            c_v1, c_v2 = st.columns([1, 2])
+            with c_v1:
+                st.write("**Riepilogo Debiti:**")
+                riepilogo = df_v_clean.groupby('Squadra')['Costo 2026-27'].sum().reset_index()
+                st.dataframe(riepilogo.sort_values('Costo 2026-27', ascending=False), hide_index=True)
+            with c_v2:
+                sq_v_lista = sorted(df_v_clean['Squadra'].unique())
+                scelta_v = st.selectbox("Vedi Giocatori di:", sq_v_lista)
+                st.dataframe(df_v_clean[df_v_clean['Squadra'] == scelta_v][['Giocatore', 'Costo 2026-27']], hide_index=True, use_container_width=True)
+        else: st.info("Carica il file dei vincoli.")
+else:
+    st.info("👋 Carica i file CSV per iniziare l'analisi.")
