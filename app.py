@@ -119,4 +119,60 @@ with t[3]: # VINCOLI
         sq_v = st.selectbox("Filtra Squadra:", ["TUTTE"] + sorted([s for s in f_vn['Sq_N'].unique() if s]), key="vinc_sel")
         df_v_display = f_vn if sq_v == "TUTTE" else f_vn[f_vn['Sq_N'] == sq_v]
         cols_v = ['Squadra', 'Giocatore', 'Tot_Vincolo', 'Anni_T']
-        st.dataframe(df_v_display[cols_v].sort_values('Tot_Vincolo', ascending=False).style.background_gradient(subset=['Tot_Vincolo'], cmap='Purples').format({"Tot_Vincolo": "{:g}"}), hide_index=True, use_container
+        st.dataframe(df_v_display[cols_v].sort_values('Tot_Vincolo', ascending=False).style.background_gradient(subset=['Tot_Vincolo'], cmap='Purples').format({"Tot_Vincolo": "{:g}"}), hide_index=True, use_container_width=True)
+
+with t[4]: # SCAMBI
+    st.subheader("🔄 Simulatore Scambi")
+    c1, c2 = st.columns(2)
+    lista_n_sq = sorted([s for s in f_rs['Squadra_N'].unique() if s])
+    with c1:
+        sa = st.selectbox("Squadra A:", lista_n_sq, key="sa_f")
+        ga = st.multiselect("Escono da A:", f_rs[f_rs['Squadra_N']==sa]['Nome'].tolist(), key="ga_f")
+    with c2:
+        sb = st.selectbox("Squadra B:", [s for s in lista_n_sq if s != sa], key="sb_f")
+        gb = st.multiselect("Escono da B:", f_rs[f_rs['Squadra_N']==sb]['Nome'].tolist(), key="gb_f")
+    
+    if ga and gb:
+        def get_info(nome):
+            p = f_rs[f_rs['Nome']==nome]['Prezzo_N'].iloc[0] if nome in f_rs['Nome'].values else 0
+            v = f_vn[f_vn['Giocatore']==nome]['Tot_Vincolo'].iloc[0] if (f_vn is not None and nome in f_vn['Giocatore'].values) else 0
+            return {'p': p, 'v': v, 't': p + v}
+        
+        dict_a = {n: get_info(n) for n in ga}; dict_b = {n: get_info(n) for n in gb}
+        tot_ante_a, tot_ante_b = sum(d['t'] for d in dict_a.values()), sum(d['t'] for d in dict_b.values())
+        nuovo_tot = round((tot_ante_a + tot_ante_b) / 2)
+        
+        st.divider()
+        if st.button("📋 Genera Verbale Scambio"):
+            report = f"📜 VERBALE SCAMBIO - {datetime.now().strftime('%d/%m/%Y')}\n{sa} <-> {sb}\n\n"
+            report += f"✅ VERSO {sa}:\n"
+            for n, info in dict_b.items():
+                peso = info['t']/tot_ante_b if tot_ante_b > 0 else 1/len(gb)
+                report += f"- {n}: Valutazione {round(peso*nuovo_tot-info['v'])} + Vinc {int(info['v'])}\n"
+            report += f"\n✅ VERSO {sb}:\n"
+            for n, info in dict_a.items():
+                peso = info['t']/tot_ante_a if tot_ante_a > 0 else 1/len(ga)
+                report += f"- {n}: Valutazione {round(peso*nuovo_tot-info['v'])} + Vinc {int(info['v'])}\n"
+            st.code(report)
+
+        res_a, res_b = st.columns(2)
+        with res_a:
+            for n, info in dict_b.items():
+                peso = info['t']/tot_ante_b if tot_ante_b > 0 else 1/len(gb); nuovo_t = round(peso*nuovo_tot)
+                st.markdown(f"""<div class="player-card card-blue"><b>{n}</b><br>Valutazione: <b>{max(0, nuovo_t-int(info['v']))}</b> + Vinc: <b>{int(info['v'])}</b></div>""", unsafe_allow_html=True)
+        with res_b:
+            for n, info in dict_a.items():
+                peso = info['t']/tot_ante_a if tot_ante_a > 0 else 1/len(ga); nuovo_t = round(peso*nuovo_tot)
+                st.markdown(f"""<div class="player-card card-red"><b>{n}</b><br>Valutazione: <b>{max(0, nuovo_t-int(info['v']))}</b> + Vinc: <b>{int(info['v'])}</b></div>""", unsafe_allow_html=True)
+
+with t[5]: # TAGLI
+    st.subheader("✂️ Simulatore Tagli")
+    sq_t = st.selectbox("Squadra:", sorted(f_rs['Squadra_N'].unique()), key="sq_tag")
+    gioc_t = st.selectbox("Giocatore:", f_rs[f_rs['Squadra_N'] == sq_t]['Nome'].tolist(), key="gioc_tag")
+    if gioc_t:
+        v_p = f_rs[(f_rs['Squadra_N'] == sq_t) & (f_rs['Nome'] == gioc_t)]['Prezzo_N'].iloc[0]
+        v_v = f_vn[f_vn['Giocatore'] == gioc_t]['Tot_Vincolo'].iloc[0] if (f_vn is not None and gioc_t in f_vn['Giocatore'].values) else 0
+        rimborso = round((v_p + v_v) * 0.6)
+        st.markdown(f"""<div class="cut-box"><h3>💰 Rimborso: {rimborso}</h3><p>Basato su Valutazione {int(v_p)} e Vincoli {int(v_v)}</p></div>""", unsafe_allow_html=True)
+        if st.button("📋 Genera Verbale Taglio"):
+            st.code(f"✂️ TAGLIO UFFICIALE - {sq_t}\nGiocatore: {gioc_t}\nRimborso: {rimborso} crediti")
