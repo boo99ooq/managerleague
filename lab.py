@@ -8,7 +8,7 @@ from datetime import datetime
 # 1. SETUP UI
 st.set_page_config(page_title="MuyFantaLAB - Test Area", layout="wide", initial_sidebar_state="expanded")
 
-# CSS AGGIORNATO (Bordo rinforzato e ombra per evidenziare i riquadri)
+# CSS AGGIORNATO (Bordo rinforzato e ombra)
 st.markdown("""
 <style>
     html, body, [data-testid="stAppViewContainer"] * { font-weight: 900 !important; }
@@ -16,8 +16,8 @@ st.markdown("""
         padding: 12px; 
         border-radius: 10px; 
         margin-bottom: 12px; 
-        border: 3px solid #333; /* Bordo completo scuro */
-        box-shadow: 4px 4px 8px rgba(0,0,0,0.2); /* Ombra per profondità */
+        border: 3px solid #333; 
+        box-shadow: 4px 4px 8px rgba(0,0,0,0.2); 
         color: black; 
     }
     .patrimonio-box { 
@@ -26,7 +26,6 @@ st.markdown("""
         border-radius: 10px; 
         border: 3px solid #1a73e8; 
         text-align: center; 
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
     }
     .refund-box { 
         background-color: #e8f5e9; 
@@ -35,6 +34,7 @@ st.markdown("""
         border: 3px solid #2e7d32; 
         color: #1b5e20; 
         margin-bottom: 10px; 
+        box-shadow: 3px 3px 6px rgba(0,0,0,0.1);
     }
     .cut-box { 
         background-color: #f8f9fa; 
@@ -42,14 +42,6 @@ st.markdown("""
         border-radius: 10px; 
         border: 3px solid #ff4b4b; 
         color: #1a1a1a; 
-    }
-    .zero-tool { 
-        background-color: #ffebee; 
-        color: #c62828; 
-        padding: 15px; 
-        border-radius: 10px; 
-        border: 3px solid #c62828; 
-        margin-bottom: 20px; 
     }
 </style>
 """, unsafe_allow_html=True)
@@ -61,11 +53,7 @@ def super_clean_match(name):
     for err, corr in mappa_err.items():
         name = name.replace(err, corr)
     name = unicodedata.normalize('NFD', name).encode('ascii', 'ignore').decode('utf-8').upper().strip()
-    mapping = {
-        'ZAMBO ANGUISSA': 'ANGUISSA', 'MARTINEZ L.': 'LAUTARO', 
-        'PAZ N.': 'NICO PAZ', 'CASTELLANOS T.': 'CASTELLANOS',
-        'MARTINELLI T.': 'MARTINELLI'
-    }
+    mapping = {'ZAMBO ANGUISSA': 'ANGUISSA', 'MARTINEZ L.': 'LAUTARO', 'PAZ N.': 'NICO PAZ', 'CASTELLANOS T.': 'CASTELLANOS', 'MARTINELLI T.': 'MARTINELLI'}
     if name in mapping: return mapping[name]
     return re.sub(r'\s[A-Z]\.$', '', name)
 
@@ -119,11 +107,12 @@ if f_vn is not None:
 # --- MAIN APP ---
 t = st.tabs(["🏆 **CLASSIFICHE**", "💰 **BUDGET**", "🏃 **ROSE**", "📅 **VINCOLI**", "🔄 **SCAMBI**", "✂️ **TAGLI**", "🆕 **MERCATO GENNAIO**"])
 
-# --- TAB 6: MERCATO GENNAIO ---
+# --- TAB 6: MERCATO GENNAIO (Logica e Visualizzazione) ---
 with t[6]:
     st.subheader("🚀 **CALCOLO RIMBORSI CALCIOMERCATO ESTERO**")
     st.info("Regola: 50% di (Quotazione + Prezzo Asta) + 100% dei Vincoli pagati.")
     partenti = st.multiselect("**SELEZIONA I GIOCATORI USCITI:**", sorted(f_rs['Nome'].unique()), key="mercato_lab")
+    
     dati_per_tabella = []
     if partenti:
         for nome in partenti:
@@ -136,9 +125,23 @@ with t[6]:
             rimborso = ((p_asta + quot) * 0.5) + vv
             rimborsi_squadre[sq] = rimborsi_squadre.get(sq, 0) + rimborso
             dati_per_tabella.append({"GIOCATORE": nome, "SQUADRA": sq, "ASTA": p_asta, "QUOT.": quot, "VINCOLO": vv, "RIMBORSO": rimborso})
+        
+        # 1. Tabella Dettaglio Singolo
+        st.markdown("### 📋 DETTAGLIO PER GIOCATORE")
         st.dataframe(pd.DataFrame(dati_per_tabella).style.format({"ASTA":"{:g}", "QUOT.":"{:g}", "VINCOLO":"{:g}", "RIMBORSO":"{:g}"}), use_container_width=True, hide_index=True)
+        
+        # 2. Box Riassuntivi per Squadra
+        st.markdown("### 💰 TOTALE RECUPERATO PER SQUADRA")
+        df_riepilogo = pd.DataFrame(list(rimborsi_squadre.items()), columns=['SQUADRA', 'TOTALE']).sort_values('TOTALE', ascending=False)
+        
+        cols = st.columns(4)
+        for i, (index, row) in enumerate(df_riepilogo.iterrows()):
+            with cols[i % 4]:
+                st.markdown(f"""<div class="refund-box"><small>{row['SQUADRA']}</small><br><b>+{int(row['TOTALE'])} crediti</b></div>""", unsafe_allow_html=True)
+        
+        st.dataframe(df_riepilogo.style.format({"TOTALE": "{:g}"}).background_gradient(cmap='Greens'), use_container_width=True, hide_index=True)
 
-# --- SIDEBAR (Con bordo rinforzato) ---
+# --- SIDEBAR ---
 with st.sidebar:
     st.header("🔍 **RICERCA GIOCATORE**")
     if f_rs is not None:
@@ -151,7 +154,7 @@ with st.sidebar:
             bg = '#FCE4EC' if 'POR' in r else '#E8F5E9' if 'DIF' in r else '#E3F2FD' if 'CEN' in r else '#FFFDE7' if 'ATT' in r else '#f1f3f4'
             st.markdown(f'<div class="player-card" style="background-color: {bg};"><b>{n}</b> ({dr["Squadra_N"]})<br>ASTA: {int(dr["Prezzo_N"])} | VINC: {int(vv)}<br>QUOT: {int(dr["Quotazione"])}</div>', unsafe_allow_html=True)
 
-# --- TAB 1: BUDGET ---
+# --- TAB 1: BUDGET (Dinamico) ---
 with t[1]:
     if f_rs is not None:
         st.subheader("💰 **BUDGET E PATRIMONIO DINAMICO**")
@@ -160,31 +163,40 @@ with t[1]:
         bu = pd.merge(bu, v_sum, left_on='Squadra_N', right_on='Sq_N', how='left').fillna(0).drop('Sq_N', axis=1).rename(columns={'Tot_Vincolo': 'SPESA VINCOLI'})
         bu['CREDITI DISPONIBILI'] = bu['Squadra_N'].map(bg_ex).fillna(0)
         bu['RECUPERO MERCATO'] = bu['Squadra_N'].map(rimborsi_squadre).fillna(0)
+        
         st.markdown("#### ⚙️ **CONFIGURA VOCI PATRIMONIO**")
-        voci_disponibili = ['SPESA ROSE', 'SPESA VINCOLI', 'CREDITI DISPONIBILI', 'RECUPERO MERCATO']
-        voci_selezionate = st.multiselect("Seleziona voci:", options=voci_disponibili, default=voci_disponibili)
-        bu['PATRIMONIO TOTALE'] = bu[voci_selezionate].sum(axis=1) if voci_selezionate else 0
-        if voci_selezionate: st.bar_chart(bu.set_index("Squadra_N")[voci_selezionate])
-        col_mostra = ['Squadra_N'] + voci_selezionate + ['PATRIMONIO TOTALE']
-        st.dataframe(bu[col_mostra].sort_values("PATRIMONIO TOTALE", ascending=False).style.background_gradient(cmap='YlOrRd', subset=['PATRIMONIO TOTALE']).format({c: "{:g}" for c in bu.columns if c != 'Squadra_N'}), hide_index=True, use_container_width=True)
+        voci_disp = ['SPESA ROSE', 'SPESA VINCOLI', 'CREDITI DISPONIBILI', 'RECUPERO MERCATO']
+        voci_sel = st.multiselect("Seleziona voci:", options=voci_disp, default=voci_disp)
+        
+        bu['PATRIMONIO TOTALE'] = bu[voci_sel].sum(axis=1) if voci_sel else 0
+        if voci_sel: st.bar_chart(bu.set_index("Squadra_N")[voci_sel])
+        
+        col_mostra = ['Squadra_N'] + voci_sel + ['PATRIMONIO TOTALE']
+        st.dataframe(bu[col_mostra].sort_values("PATRIMONIO TOTALE", ascending=False).style\
+            .background_gradient(cmap='YlOrRd', subset=['PATRIMONIO TOTALE'])\
+            .format({c: "{:g}" for c in bu.columns if c != 'Squadra_N'}), hide_index=True, use_container_width=True)
 
-# --- TAB 0, 2, 3, 4, 5 (Stesse logiche Golden) ---
+# --- ALTRE TAB (Logica originale) ---
 with t[0]: # CLASSIFICHE
-    c1, c2 = st.columns(2); 
+    c1, c2 = st.columns(2)
     if f_pt is not None:
-        with c1: st.subheader("🎯 PUNTI"); st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali']].sort_values('Posizione'), hide_index=True, use_container_width=True)
+        with c1: st.subheader("🎯 PUNTI"); st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali']].sort_values('Posizione').style.format({"Punti Totali":"{:g}"}), hide_index=True, use_container_width=True)
     if f_sc is not None:
-        with c2: st.subheader("⚔️ SCONTRI"); st.dataframe(f_sc[['Posizione','Giocatore','Punti']], hide_index=True, use_container_width=True)
+        with c2: st.subheader("⚔️ SCONTRI"); st.dataframe(f_sc[['Posizione','Giocatore','Punti']].sort_values('Posizione').style.format({"Punti":"{:g}"}), hide_index=True, use_container_width=True)
 
 with t[2]: # ROSE
     if f_rs is not None:
         sq = st.selectbox("**SQUADRA**", sorted(f_rs['Squadra_N'].unique()), key="rose_sel")
         df_sq = f_rs[f_rs['Squadra_N'] == sq][['Ruolo', 'Nome', 'Prezzo_N', 'Quotazione']]
-        st.dataframe(df_sq.style.format({"Prezzo_N":"{:g}", "Quotazione":"{:g}"}), hide_index=True, use_container_width=True)
+        def color_ruoli(row):
+            r = str(row['Ruolo']).upper()
+            bg = '#FCE4EC' if 'POR' in r else '#E8F5E9' if 'DIF' in r else '#E3F2FD' if 'CEN' in r else '#FFFDE7' if 'ATT' in r else '#FFFFFF'
+            return [f'background-color: {bg}; color: black; font-weight: 900;'] * len(row)
+        st.dataframe(df_sq.style.apply(color_ruoli, axis=1).format({"Prezzo_N":"{:g}", "Quotazione":"{:g}"}), hide_index=True, use_container_width=True)
 
 with t[3]: # VINCOLI
     if f_vn is not None:
-        st.subheader("📅 VINCOLI"); st.dataframe(f_vn[['Squadra', 'Giocatore', 'Tot_Vincolo', 'Anni_T']].sort_values('Tot_Vincolo', ascending=False), hide_index=True, use_container_width=True)
+        st.subheader("📅 VINCOLI"); st.dataframe(f_vn[['Squadra', 'Giocatore', 'Tot_Vincolo', 'Anni_T']].sort_values('Tot_Vincolo', ascending=False).style.format({"Tot_Vincolo":"{:g}"}), hide_index=True, use_container_width=True)
 
 with t[4]: # SCAMBI
     st.subheader("🔄 SCAMBI"); c1, c2 = st.columns(2)
