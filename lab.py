@@ -32,10 +32,10 @@ def super_clean(name):
 
 def normalize_ruolo_simple(r):
     r = str(r).upper().strip()
-    if r in ['P', 'POR']: return 'POR'
-    if r in ['D', 'DIF']: return 'DIF'
-    if r in ['C', 'CEN']: return 'CEN'
-    if r in ['A', 'ATT']: return 'ATT'
+    if r in ['P', 'POR', 'PORTIERE']: return 'POR'
+    if r in ['D', 'DIF', 'DIFENSORE']: return 'DIF'
+    if r in ['C', 'CEN', 'CENTROCAMPISTA']: return 'CEN'
+    if r in ['A', 'ATT', 'ATTACCANTE']: return 'ATT'
     return r
 
 # --- CARICAMENTO DATI ---
@@ -56,28 +56,30 @@ def load_data():
     
     rs['Ruolo_N'] = rs.apply(identify_role, axis=1)
     
-    # 2. Caricamento Quotazioni
+    # 2. Caricamento Quotazioni con ricerca colonne flessibile
     if os.path.exists("quotazioni.csv"):
         qt = pd.read_csv("quotazioni.csv", encoding='latin1', engine='python')
         qt.columns = [c.strip() for c in qt.columns]
-        qt['Match_Nome'] = qt['Nome'].apply(super_clean)
-        qt['Ruolo_N_QT'] = qt['Ruolo'].apply(normalize_ruolo_simple)
         
-        # Identifica colonna Quotazione (Qt.A o simili)
-        col_qt = next((c for c in qt.columns if 'Qt' in c), None)
+        # Cerchiamo le colonne Nome, Ruolo e Quotazione anche se hanno nomi diversi
+        col_nome_qt = next((c for c in qt.columns if c.upper() in ['NOME', 'CALCIATORE']), 'Nome')
+        col_ruolo_qt = next((c for c in qt.columns if c.upper() in ['RUOLO', 'R', 'POS']), 'Ruolo')
+        col_valore_qt = next((c for c in qt.columns if 'QT' in c.upper() or 'VAL' in c.upper()), None)
         
-        if col_qt:
-            # Merge basato su NOME e RUOLO per risolvere Ferguson omonimie
-            # Usiamo Ruolo_N (normalizzato dalle rose) e Ruolo_N_QT (normalizzato dalle quotazioni)
-            # Nota: per i GIO (che hanno prezzo 0), cerchiamo il ruolo originale nel merge
+        if col_valore_qt and col_ruolo_qt in qt.columns:
+            qt['Match_Nome'] = qt[col_nome_qt].apply(super_clean)
+            qt['Ruolo_N_QT'] = qt[col_ruolo_qt].apply(normalize_ruolo_simple)
+            
+            # Prepariamo Ruolo_per_Merge per le rose (se GIO, usiamo il ruolo originale del fanta)
             rs['Ruolo_per_Merge'] = rs.apply(lambda x: normalize_ruolo_simple(x['Ruolo']), axis=1)
             
-            rs = pd.merge(rs, qt[['Match_Nome', 'Ruolo_N_QT', col_qt]], 
+            # Merge basato su NOME e RUOLO (Risolve Ferguson Giuseppe vs Gianni)
+            rs = pd.merge(rs, qt[['Match_Nome', 'Ruolo_N_QT', col_valore_qt]], 
                           left_on=['Match_Nome', 'Ruolo_per_Merge'], 
                           right_on=['Match_Nome', 'Ruolo_N_QT'], 
                           how='left')
             
-            rs['Quotazione'] = rs[col_qt].apply(to_num)
+            rs['Quotazione'] = rs[col_valore_qt].apply(to_num)
         else:
             rs['Quotazione'] = 0
     else:
@@ -118,10 +120,7 @@ with t[2]: # TAB ROSE
 
         def style_riass(row):
             v = str(row['RUOLO']).upper()
-            pal = {
-                'POR': ['#F06292']*4, 'DIF': ['#81C784']*4, 
-                'CEN': ['#64B5F6']*4, 'ATT': ['#FFF176']*4, 'GIOVANI': ['#AB47BC']*4
-            }
+            pal = {'POR': ['#F06292']*4, 'DIF': ['#81C784']*4, 'CEN': ['#64B5F6']*4, 'ATT': ['#FFF176']*4, 'GIOVANI': ['#AB47BC']*4}
             return [f'background-color: {c}; color: white' for c in pal.get(v, ['']*4)]
 
         st.dataframe(bold_df(df_riass).apply(style_riass, axis=1), hide_index=True, use_container_width=True)
