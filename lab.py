@@ -5,9 +5,9 @@ import unicodedata
 import re
 
 # 1. SETUP UI
-st.set_page_config(page_title="MuyFantaManager Golden V3.9.5", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="MuyFantaManager Golden V3.9.7", layout="wide", initial_sidebar_state="expanded")
 
-# --- BLOCCO CSS DEFINITIVO (Headers Blindati e Neretto 900) ---
+# --- BLOCCO CSS DEFINITIVO (Headers, Neretto 900 e Allineamento) ---
 st.markdown("""
 <style>
     html, body, [data-testid="stAppViewContainer"] *, p, div, span, label { 
@@ -15,43 +15,48 @@ st.markdown("""
         color: #000 !important; 
     }
     
-    /* Stile Tabella Golden HTML */
     .golden-table {
         width: 100%;
         border-collapse: collapse;
         margin: 10px 0;
-        font-size: 1em;
-        font-family: sans-serif;
-        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     }
     .golden-table thead tr {
         background-color: #f0f2f6;
         color: #000;
-        text-align: center;
     }
     .golden-table th {
         padding: 12px 15px;
         font-weight: 900 !important;
         text-transform: uppercase !important;
         border: 2px solid #333;
+        text-align: center;
     }
     .golden-table td {
         padding: 10px 15px;
         border: 1px solid #ddd;
-        text-align: center; /* Accentramento valori */
+        text-align: center;
         font-weight: 900 !important;
     }
-
-    .stat-card { background-color: #f8f9fa; padding: 15px; border-radius: 10px; border: 3px solid #333; text-align: center; box-shadow: 4px 4px 0px #333; }
+    .stat-card { 
+        background-color: #f8f9fa; 
+        padding: 15px; 
+        border-radius: 10px; 
+        border: 3px solid #333; 
+        text-align: center; 
+        box-shadow: 4px 4px 0px #333; 
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # --- FUNZIONI SUPPORTO ---
 def to_num(val):
     if pd.isna(val): return 0.0
-    # Pulizia aggressiva per intercettare gli zeri dei giovani
-    s = str(val).replace('€', '').replace('.', '').replace(',', '.').strip()
-    if s == '' or s == '-' or s.lower() == 'x' or s == '0': return 0.0
+    s = str(val).replace('€', '').strip()
+    if s == '' or s == '-' or s.lower() == 'x': return 0.0
+    # FIX: Se c'è la virgola è formato italiano (1.000,50), altrimenti è standard (10.0)
+    if ',' in s:
+        s = s.replace('.', '').replace(',', '.')
     try: return float(s)
     except: return 0.0
 
@@ -60,8 +65,12 @@ def super_clean(name):
     name = unicodedata.normalize('NFD', name).encode('ascii', 'ignore').decode('utf-8').upper().strip()
     return re.sub(r'\s[A-Z]\.$', '', name)
 
-def normalize_ruolo_v3(r):
-    r = str(r).upper().strip()
+def normalize_ruolo_v3(row):
+    r = str(row['Ruolo']).upper().strip()
+    p = to_num(row['Prezzo'])
+    # FIX GIOVANI: Riconosce se il ruolo contiene "G" o "GIOVANI" OPPURE se il prezzo è 0
+    if 'GIOVANI' in r or r == 'G' or p == 0:
+        return 'GIO'
     if r in ['P', 'POR', 'PORTIERE']: return 'POR'
     if r in ['D', 'DIF', 'DIFENSORE']: return 'DIF'
     if r in ['C', 'CEN', 'CENTROCAMPISTA']: return 'CEN'
@@ -75,17 +84,10 @@ def load_data():
     rs.columns = [c.strip() for c in rs.columns]
     rs['Squadra_N'] = rs['Fantasquadra'].str.upper().str.strip()
     rs['Match_Nome'] = rs['Nome'].apply(super_clean)
-    
-    # FIX GIOVANI: Molto più sensibile per catturare i 4 di Giuseppe
-    def identify_role(row):
-        valore_prezzo = to_num(row['Prezzo'])
-        if valore_prezzo == 0: return 'GIO'
-        return normalize_ruolo_v3(row['Ruolo'])
-    
     rs['Prezzo_N'] = rs['Prezzo'].apply(to_num)
-    rs['Ruolo_N'] = rs.apply(identify_role, axis=1)
+    rs['Ruolo_N'] = rs.apply(normalize_ruolo_v3, axis=1) # Applica la nuova logica giovani
     
-    # Fix Quotazioni e Ferguson
+    # Merge Quotazioni e Ferguson
     if os.path.exists("quotazioni.csv"):
         qt = pd.read_csv("quotazioni.csv", encoding='latin1', engine='python')
         qt.columns = [c.strip() for c in qt.columns]
@@ -94,8 +96,8 @@ def load_data():
         col_valore_qt = next((c for c in qt.columns if 'QT' in c.upper() or 'VAL' in c.upper()), None)
         if col_valore_qt:
             qt['Match_Nome'] = qt[col_nome_qt].apply(super_clean)
-            qt['Ruolo_N_QT'] = qt[col_ruolo_qt].apply(normalize_ruolo_v3)
-            rs['Ruolo_Merge'] = rs['Ruolo'].apply(normalize_ruolo_v3)
+            qt['Ruolo_N_QT'] = qt[col_ruolo_qt].apply(lambda x: normalize_ruolo_v3({'Ruolo': x, 'Prezzo': 10})) # Prezzo fittizio per merge
+            rs['Ruolo_Merge'] = rs['Ruolo'].apply(lambda x: normalize_ruolo_v3({'Ruolo': x, 'Prezzo': 10}))
             rs = pd.merge(rs, qt[['Match_Nome', 'Ruolo_N_QT', col_valore_qt]], 
                           left_on=['Match_Nome', 'Ruolo_Merge'], 
                           right_on=['Match_Nome', 'Ruolo_N_QT'], 
@@ -123,31 +125,28 @@ with t[2]: # TAB ROSE
             n_gio = len(df_team[df_team['Ruolo_N'] == 'GIO'])
             st.markdown(f'<div class="stat-card" style="border-color:#9c27b0;">👶 GIOVANI<br><b style="font-size:1.5em; color:#9c27b0;">{n_gio}</b></div>', unsafe_allow_html=True)
 
-        # 2. TABELLA RIASSUNTIVA (HTML Custom per headers e allineamento)
+        # 2. TABELLA RIASSUNTIVA (HTML Custom)
         st.write("---"); st.markdown("#### 📊 RIPARTIZIONE PER RUOLO")
         riass_list = []
         for r in ['POR', 'DIF', 'CEN', 'ATT', 'GIO']:
             d_rep = df_team[df_team['Ruolo_N'] == r]
             label = "GIOVANI" if r == 'GIO' else r
-            v_asta = int(d_rep['Prezzo_N'].sum()) if r != 'GIO' else "-"
-            v_att = int(d_rep['Quotazione'].sum()) if r != 'GIO' else "-"
-            riass_list.append({"RUOLO": label, "N°": len(d_rep), "SPESA ASTA": v_asta, "VALORE ATTUALE": v_att})
+            riass_list.append({"RUOLO": label, "N°": len(d_rep), "SPESA ASTA": int(d_rep['Prezzo_N'].sum()), "VALORE ATTUALE": int(d_rep['Quotazione'].sum())})
         
-        # Generazione HTML con colori pieni
         pal_piena = {'POR': '#F06292', 'DIF': '#81C784', 'CEN': '#64B5F6', 'ATT': '#FFF176', 'GIOVANI': '#AB47BC'}
-        
         html_riass = '<table class="golden-table"><thead><tr><th>RUOLO</th><th>N°</th><th>SPESA ASTA</th><th>VALORE ATTUALE</th></tr></thead><tbody>'
         for row in riass_list:
             bg = pal_piena.get(row['RUOLO'], '#fff')
             txt = 'black' if row['RUOLO'] == 'ATT' else 'white'
-            html_riass += f'<tr style="background-color:{bg}; color:{txt};"><td>{row["RUOLO"]}</td><td>{row["N°"]}</td><td>{row["SPESA ASTA"]}</td><td>{row["VALORE ATTUALE"]}</td></tr>'
+            # Per i giovani mostriamo solo il numero
+            s_asta = row['SPESA ASTA'] if row['RUOLO'] != 'GIOVANI' else "-"
+            s_att = row['VALORE ATTUALE'] if row['RUOLO'] != 'GIOVANI' else "-"
+            html_riass += f'<tr style="background-color:{bg}; color:{txt};"><td>{row["RUOLO"]}</td><td>{row["N°"]}</td><td>{s_asta}</td><td>{s_att}</td></tr>'
         html_riass += '</tbody></table>'
         st.markdown(html_riass, unsafe_allow_html=True)
 
-        # 3. DETTAGLIO ROSA (HTML Custom per headers fissi e allineamento)
+        # 3. DETTAGLIO ROSA (HTML Custom)
         st.write("---"); st.markdown(f"#### 🏃 DETTAGLIO COMPLETO: {sq_r}")
-        
-        # Palette Sfumature Tono su Tono
         pal_shades = {
             'POR': ['#FCE4EC', '#F8BBD0', '#F48FB1', '#F06292'],
             'DIF': ['#E8F5E9', '#C8E6C9', '#A5D6A7', '#81C784'],
@@ -155,11 +154,10 @@ with t[2]: # TAB ROSE
             'ATT': ['#FFFDE7', '#FFF9C4', '#FFF59D', '#FFF176'],
             'GIO': ['#F3E5F5', '#E1BEE7', '#CE93D8', '#AB47BC']
         }
-
         html_dett = '<table class="golden-table"><thead><tr><th>RUOLO</th><th>NOME</th><th>PREZZO</th><th>QUOTAZIONE</th></tr></thead><tbody>'
-        for _, row in df_team[['Ruolo_N', 'Ruolo', 'Nome', 'Prezzo_N', 'Quotazione']].iterrows():
+        for _, row in df_team.sort_values(['Ruolo_N', 'Prezzo_N'], ascending=[True, False]).iterrows():
             v = str(row['Ruolo_N']).upper()
-            shades = pal_shades.get(v, ['#fff']*4)
-            html_dett += f'<tr><td style="background-color:{shades[0]}">{row["Ruolo"]}</td><td style="background-color:{shades[1]}">{row["Nome"]}</td><td style="background-color:{shades[2]}">{int(row["Prezzo_N"])}</td><td style="background-color:{shades[3]}">{int(row["Quotazione"])}</td></tr>'
+            sh = pal_shades.get(v, ['#fff']*4)
+            html_dett += f'<tr><td style="background-color:{sh[0]}">{row["Ruolo"]}</td><td style="background-color:{sh[1]}">{row["Nome"]}</td><td style="background-color:{sh[2]}">{int(row["Prezzo_N"])}</td><td style="background-color:{sh[3]}">{int(row["Quotazione"])}</td></tr>'
         html_dett += '</tbody></table>'
         st.markdown(html_dett, unsafe_allow_html=True)
