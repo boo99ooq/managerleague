@@ -5,15 +5,16 @@ import unicodedata
 import re
 
 # 1. SETUP UI
-st.set_page_config(page_title="MuyFantaManager Golden Ultimate V4.5", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="MuyFantaManager Golden Ultimate V4.6", layout="wide", initial_sidebar_state="expanded")
 
-# --- BLOCCO CSS DEFINITIVO (Headers Blindati, Neretto 900 e Allineamento) ---
+# --- BLOCCO CSS TOTALE (Headers Blindati, Neretto 900 e Allineamento) ---
 st.markdown("""
 <style>
     html, body, [data-testid="stAppViewContainer"] *, p, div, span, label { 
         font-weight: 900 !important; 
         color: #000 !important; 
     }
+    /* Tabelle HTML Custom (Senza indici, Headers Bold/Maiuscoli) */
     .golden-table {
         width: 100%; border-collapse: collapse; margin: 10px 0;
         box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); border: 2px solid #333;
@@ -25,10 +26,12 @@ st.markdown("""
     .golden-table td {
         padding: 10px 15px; border: 1px solid #ddd; text-align: center; font-weight: 900 !important;
     }
+    /* Card Statistiche Rose */
     .stat-card { 
         background-color: #f8f9fa; padding: 15px; border-radius: 10px; 
         border: 3px solid #333; text-align: center; box-shadow: 4px 4px 0px #333; 
     }
+    /* Mercato e Patrimonio */
     .refund-box-pastello {
         padding: 15px; border-radius: 12px; border: 3px solid #333; text-align: center;
         min-height: 130px; box-shadow: 4px 4px 0px #333; margin-bottom: 15px;
@@ -36,8 +39,10 @@ st.markdown("""
     .bg-azzurro { background-color: #E3F2FD !important; } .bg-verde { background-color: #E8F5E9 !important; }
     .bg-rosa { background-color: #FCE4EC !important; } .bg-giallo { background-color: #FFFDE7 !important; }
     .bg-arancio { background-color: #FFF3E0 !important; } .bg-viola { background-color: #F3E5F5 !important; }
+
     .status-ufficiale { color: white !important; background-color: #2e7d32; padding: 3px 8px; border-radius: 5px; }
     .status-probabile { color: white !important; background-color: #ed6c02; padding: 3px 8px; border-radius: 5px; }
+    
     .player-card { padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 6px solid #333; box-shadow: 2px 2px 5px rgba(0,0,0,0.1); background-color: white; }
     .punto-incontro-box { background-color: #fff3e0; padding: 10px 30px; border-radius: 15px; border: 3px solid #ff9800; text-align: center; margin: 10px auto; width: fit-content; }
 </style>
@@ -58,6 +63,7 @@ def super_clean(name):
     return re.sub(r'\s[A-Z]\.$', '', name)
 
 def normalize_ruolo_v4(row):
+    """Logica Giovani: Intercetta Miretti/Gnonto ecc. se il ruolo contiene G o il prezzo è 0"""
     r = str(row.get('Ruolo', '')).upper().strip()
     p = to_num(row.get('Prezzo', 1))
     if 'GIOVANI' in r or r == 'G' or p == 0: return 'GIO'
@@ -85,9 +91,11 @@ def load_all():
         f_rs_raw['Prezzo_N'] = f_rs_raw['Prezzo'].apply(to_num)
         f_rs_raw['Ruolo_N'] = f_rs_raw.apply(lambda x: normalize_ruolo_v4({'Ruolo': x['Ruolo'], 'Prezzo': x['Prezzo']}), axis=1)
         
+        # Rank per ordinamento (P-D-C-A-G)
         rank_map = {'POR':0, 'DIF':1, 'CEN':2, 'ATT':3, 'GIO':4}
         f_rs_raw['Ruolo_Rank'] = f_rs_raw['Ruolo_N'].map(rank_map).fillna(99)
 
+        # Quotazioni e Ferguson
         f_qt = ld_std("quotazioni.csv")
         if f_qt is not None:
             c_v_qt = next((c for c in f_qt.columns if 'QT' in c.upper() or 'VAL' in c.upper()), None)
@@ -157,11 +165,12 @@ with t[1]: # BUDGET
             bu['TOTALE'] = bu[sel].sum(axis=1)
             st.dataframe(bu[['Squadra_N'] + sel + ['TOTALE']].sort_values('TOTALE', ascending=False).style.set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
-with t[2]: # ROSE (LOGICA roseagg.py)
+with t[2]: # ROSE (GOLDEN UI RIPRISTINATA)
     if f_rs is not None:
         sq_r = st.selectbox("**SELEZIONA SQUADRA**", sorted(f_rs['Squadra_N'].unique()), key="sq_rose_main")
         df_team = f_rs[f_rs['Squadra_N'] == sq_r].copy()
         
+        # Metric Cards
         c1, c2, c3, c4 = st.columns(4)
         with c1: st.markdown(f'<div class="stat-card">👥 TOTALI<br><b style="font-size:1.5em;">{len(df_team)}</b></div>', unsafe_allow_html=True)
         with c2: st.markdown(f'<div class="stat-card" style="border-color:#1a73e8;">💰 ASTA<br><b style="font-size:1.5em; color:#1a73e8;">{int(df_team["Prezzo_N"].sum())}</b></div>', unsafe_allow_html=True)
@@ -170,21 +179,23 @@ with t[2]: # ROSE (LOGICA roseagg.py)
             n_gio = len(df_team[df_team['Ruolo_N'] == 'GIO'])
             st.markdown(f'<div class="stat-card" style="border-color:#9c27b0;">👶 GIOVANI<br><b style="font-size:1.5em; color:#9c27b0;">{n_gio}</b></div>', unsafe_allow_html=True)
 
+        # Ripartizione (Dati Fix)
         st.write("---"); st.markdown("#### 📊 RIPARTIZIONE PER RUOLO")
         riass_list = []
         for r in ['POR', 'DIF', 'CEN', 'ATT', 'GIO']:
             d_rep = df_team[df_team['Ruolo_N'] == r]
-            riass_list.append({"RUOLO": "GIOVANI" if r=='GIO' else r, "N°": len(d_rep), "ASTA": int(d_rep['Prezzo_N'].sum()) if r!='GIO' else "-", "QUOT": int(d_rep['Quotazione'].sum()) if r!='GIO' else "-"})
+            label = "GIOVANI" if r == 'GIO' else r
+            riass_list.append({"RUOLO": label, "N°": len(d_rep), "ASTA": int(d_rep['Prezzo_N'].sum()) if r != 'GIO' else "-", "QUOT": int(d_rep['Quotazione'].sum()) if r != 'GIO' else "-"})
         
         pal = {'POR': '#F06292', 'DIF': '#81C784', 'CEN': '#64B5F6', 'ATT': '#FFF176', 'GIOVANI': '#AB47BC'}
         html_r = '<table class="golden-table"><thead><tr><th>RUOLO</th><th>N°</th><th>ASTA</th><th>QUOT</th></tr></thead><tbody>'
         for row in riass_list:
-            bg, txt = pal.get(row['RUOLO'], '#fff'), ('black' if row['RUOLO']=='ATT' else 'white')
+            bg, txt = pal.get(row['RUOLO'], '#fff'), ('black' if row['RUOLO'] == 'ATT' else 'white')
             html_r += f'<tr style="background-color:{bg}; color:{txt};"><td>{row["RUOLO"]}</td><td>{row["N°"]}</td><td>{row["ASTA"]}</td><td>{row["QUOT"]}</td></tr>'
         st.markdown(html_r + '</tbody></table>', unsafe_allow_html=True)
 
+        # Dettaglio con Ordinamento Dinamico e Colori
         st.write("---"); st.markdown(f"#### 🏃 DETTAGLIO COMPLETO: {sq_r}")
-        # Ordinamento Dinamico
         ord_type = st.radio("**ORDINA PER:**", ["REPARTO (P-D-C-A-G)", "PREZZO (DECRESCENTE)"], horizontal=True)
         if "REPARTO" in ord_type:
             df_team_s = df_team.sort_values(['Ruolo_Rank', 'Prezzo_N'], ascending=[True, False])
