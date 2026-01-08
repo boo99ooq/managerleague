@@ -24,19 +24,29 @@ st.markdown("""
 # --- FUNZIONE PULIZIA AUTOMATICA QUOTAZIONI ---
 def clean_quotazioni_name(name):
     if not isinstance(name, str): return name
-    # Correzione caratteri speciali dal CSV
-    name = name.replace('č', 'e').replace('ň', 'o').replace('ř', 'i').replace('ć', 'c').replace('Č', 'E').replace('Ň', 'O').replace('ň', 'o')
+    # Correzione caratteri speciali (Soulč, Montipň, ecc.)
+    name = name.replace('č', 'e').replace('ň', 'o').replace('ř', 'i').replace('ć', 'c').replace('Č', 'E').replace('Ň', 'O')
+    # Rimuove accenti standard
     name = unicodedata.normalize('NFD', name).encode('ascii', 'ignore').decode('utf-8')
     name = name.upper().strip()
-    # Mappatura specifica per la tua Lega
+    
+    # Mappatura specifica per matchare i nomi della tua Lega
     mapping = {
-        'ESPOSITO F.P.': 'PIO ESPOSITO', 'ESPOSITO SE.': 'S ESPOSITO',
-        'DAVIS K.': 'DAVIS K', 'MARTINEZ L.': 'LAUTARO',
-        'MARTINEZ JO.': 'MARTINEZ JO', 'PELLEGRINO M.': 'PELLEGRINO',
-        'ADAMS C.': 'ADAMS', 'DYBALA P.': 'DYBALA', 'VLAHOVIC D.': 'VLAHOVIC',
-        'SOULČ': 'SOULE', 'LAURIENTČ': 'LAURIENTE', 'MONTIPŇ': 'MONTIPO'
+        'ESPOSITO F.P.': 'PIO ESPOSITO', 
+        'ESPOSITO SE.': 'S ESPOSITO',
+        'DAVIS K.': 'DAVIS K', 
+        'MARTINEZ L.': 'LAUTARO',
+        'MARTINEZ JO.': 'MARTINEZ JO', 
+        'PELLEGRINO M.': 'PELLEGRINO',
+        'ADAMS C.': 'ADAMS', 
+        'DYBALA P.': 'DYBALA', 
+        'VLAHOVIC D.': 'VLAHOVIC',
+        'SOULC': 'SOULE', 
+        'LAURIENTC': 'LAURIENTE', 
+        'MONTIPN': 'MONTIPO'
     }
     if name in mapping: return mapping[name]
+    
     # Rimuove iniziali (es: ADAMS C. -> ADAMS)
     name = re.sub(r'\s[A-Z]\.$', '', name)
     name = re.sub(r'\s[A-Z]\.[A-Z]\.$', '', name)
@@ -50,6 +60,7 @@ def ld(f, is_quot=False):
         df.columns = [c.strip() for c in df.columns]
         if is_quot:
             df['Nome'] = df['Nome'].apply(clean_quotazioni_name)
+            # Prendiamo Nome e Quotazione Attuale (Qt.A)
             return df[['Nome', 'Qt.A']].rename(columns={'Qt.A': 'Quotazione'})
         return df.dropna(how='all')
     except: return None
@@ -66,18 +77,22 @@ def to_num(val):
     except: return 0.0
 
 # --- CARICAMENTO FILE ---
-f_sc, f_pt, f_rs, f_vn = ld("scontridiretti.csv"), ld("classificapunti.csv"), ld("rose_complete.csv"), ld("vincoli.csv")
-f_qt = ld("quotazioni.csv", is_quot=True)
+f_sc = ld("scontridiretti.csv")
+f_pt = ld("classificapunti.csv")
+f_rs = ld("rose_complete.csv")
+f_vn = ld("vincoli.csv")
+f_qt = ld("quotazioni.csv", is_quot=True) # Il file "sporco" caricato da te
 
 bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
 map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS", "DANI ROBI": "DANI ROBI"}
 
-# --- ELABORAZIONE ROSE ---
+# --- ELABORAZIONE ROSE + QUOTAZIONI ---
 if f_rs is not None:
     f_rs['Squadra_N'] = f_rs['Fantasquadra'].apply(clean_string).replace(map_n)
     f_rs['Nome'] = f_rs['Nome'].apply(clean_string)
     f_rs['Prezzo_N'] = f_rs['Prezzo'].apply(to_num)
     if f_qt is not None:
+        # Uniamo le quotazioni alle rose usando il nome pulito
         f_rs = pd.merge(f_rs, f_qt, on='Nome', how='left').fillna({'Quotazione': 0})
 
 if f_vn is not None:
@@ -88,7 +103,7 @@ if f_vn is not None:
     f_vn['Tot_Vincolo'] = f_vn[v_cols].sum(axis=1)
     f_vn['Anni_T'] = f_vn[v_cols].gt(0).sum(axis=1).astype(str) + " ANNI"
 
-# --- SIDEBAR RIPRISTINATA ---
+# --- SIDEBAR: RICERCA ---
 with st.sidebar:
     st.header("🔍 **RICERCA GIOCATORE**")
     if f_rs is not None:
@@ -118,7 +133,8 @@ with t[0]: # CLASSIFICHE
             f_pt['P_N'] = f_pt['Punti Totali'].apply(to_num)
             f_pt['FM'] = f_pt['Media'].apply(to_num)
             st.dataframe(f_pt[['Posizione','Giocatore','P_N','FM']].sort_values('Posizione').style\
-                .background_gradient(subset=['P_N', 'FM'], cmap='YlGn').format({"P_N": "{:g}", "FM": "{:.2f}"}), hide_index=True, use_container_width=True)
+                .background_gradient(subset=['P_N', 'FM'], cmap='YlGn').format({"P_N": "{:g}", "FM": "{:.2f}"})\
+                .set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
     if f_sc is not None:
         with c2:
             st.subheader("⚔️ **SCONTRI DIRETTI**")
@@ -128,7 +144,8 @@ with t[0]: # CLASSIFICHE
             f_sc['DR'] = f_sc['GF'] - f_sc['GS']
             st.dataframe(f_sc[['Posizione','Giocatore','P_S','GF','GS','DR']].style\
                 .background_gradient(subset=['P_S'], cmap='Blues').background_gradient(subset=['DR'], cmap='RdYlGn')\
-                .format({"P_S": "{:g}", "GF": "{:g}", "GS": "{:g}", "DR": "{:+g}"}), hide_index=True, use_container_width=True)
+                .format({"P_S": "{:g}", "GF": "{:g}", "GS": "{:g}", "DR": "{:+g}"})\
+                .set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
 with t[1]: # BUDGET
     if f_rs is not None:
@@ -138,9 +155,11 @@ with t[1]: # BUDGET
         bu = pd.merge(bu, v_sum, left_on='Squadra_N', right_on='Sq_N', how='left').fillna(0).drop('Sq_N', axis=1).rename(columns={'Tot_Vincolo': 'SPESA VINCOLI'})
         bu['CREDITI DISPONIBILI'] = bu['Squadra_N'].map(bg_ex).fillna(0)
         bu['PATRIMONIO TOTALE'] = bu['SPESA ROSE'] + bu['SPESA VINCOLI'] + bu['CREDITI DISPONIBILI']
+        st.bar_chart(bu.set_index("Squadra_N")[['SPESA ROSE', 'SPESA VINCOLI', 'CREDITI DISPONIBILI']], color=["#1a73e8", "#9c27b0", "#ff9800"])
         st.dataframe(bu.sort_values("PATRIMONIO TOTALE", ascending=False).style\
             .background_gradient(cmap='YlOrRd', subset=['PATRIMONIO TOTALE']).background_gradient(cmap='Greens', subset=['CREDITI DISPONIBILI'])\
-            .format({c: "{:g}" for c in bu.columns if c != 'Squadra_N'}), hide_index=True, use_container_width=True)
+            .format({c: "{:g}" for c in bu.columns if c != 'Squadra_N'})\
+            .set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
 with t[2]: # ROSE
     if f_rs is not None:
@@ -155,16 +174,17 @@ with t[2]: # ROSE
             elif 'CEN' in r: bg = '#E3F2FD' 
             elif 'ATT' in r: bg = '#FFFDE7' 
             else: bg = '#FFFFFF'
-            return [f'background-color: {bg};'] * len(row)
+            return [f'background-color: {bg}; color: black; font-weight: 900;'] * len(row)
         st.dataframe(df_sq.style.apply(color_ruoli, axis=1).format({"Prezzo_N":"{:g}", "Quotazione":"{:g}"}), hide_index=True, use_container_width=True)
 
 with t[3]: # VINCOLI
     if f_vn is not None:
         st.subheader("📅 **VINCOLI ATTIVI**")
-        sq_v = st.selectbox("**FILTRA SQUADRA**", ["TUTTE"] + sorted([s for s in f_vn['Sq_N'].unique() if s]))
+        sq_v = st.selectbox("**FILTRA SQUADRA**", ["TUTTE"] + sorted([s for s in f_vn['Sq_N'].unique() if s]), key="vinc_sel")
         df_v_display = f_vn if sq_v == "TUTTE" else f_vn[f_vn['Sq_N'] == sq_v]
         st.dataframe(df_v_display[['Squadra', 'Giocatore', 'Tot_Vincolo', 'Anni_T']].sort_values('Tot_Vincolo', ascending=False).style\
-            .background_gradient(subset=['Tot_Vincolo'], cmap='Purples').format({"Tot_Vincolo": "{:g}"}), hide_index=True, use_container_width=True)
+            .background_gradient(subset=['Tot_Vincolo'], cmap='Purples').format({"Tot_Vincolo": "{:g}"})\
+            .set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
 with t[4]: # SCAMBI
     st.subheader("🔄 **SIMULATORE SCAMBI**")
@@ -190,13 +210,11 @@ with t[4]: # SCAMBI
         res_a, res_b = st.columns(2)
         with res_a:
             for n, info in dict_b.items():
-                peso = info['t']/tot_ante_b if tot_ante_b > 0 else 1/len(gb)
-                nuovo_t = round(peso*nuovo_tot)
+                peso = info['t']/tot_ante_b if tot_ante_b > 0 else 1/len(gb); nuovo_t = round(peso*nuovo_tot)
                 st.markdown(f"""<div class="player-card card-blue"><b>{n}</b><br><small>VAL PRE: {int(info['t'])}</small><br>NUOVA VAL: <b>{max(0, nuovo_t-int(info['v']))}</b> + VINC: <b>{int(info['v'])}</b></div>""", unsafe_allow_html=True)
         with res_b:
             for n, info in dict_a.items():
-                peso = info['t']/tot_ante_a if tot_ante_a > 0 else 1/len(ga)
-                nuovo_t = round(peso*nuovo_tot)
+                peso = info['t']/tot_ante_a if tot_ante_a > 0 else 1/len(ga); nuovo_t = round(peso*nuovo_tot)
                 st.markdown(f"""<div class="player-card card-red"><b>{n}</b><br><small>VAL PRE: {int(info['t'])}</small><br>NUOVA VAL: <b>{max(0, nuovo_t-int(info['v']))}</b> + VINC: <b>{int(info['v'])}</b></div>""", unsafe_allow_html=True)
         st.divider()
         p_a_v = f_rs[f_rs['Squadra_N']==sa]['Prezzo_N'].sum() + (f_vn[f_vn['Sq_N']==sa]['Tot_Vincolo'].sum() if f_vn is not None else 0) + bg_ex.get(sa, 0)
@@ -214,4 +232,4 @@ with t[5]: # TAGLI
         v_p = f_rs[(f_rs['Squadra_N'] == sq_t) & (f_rs['Nome'] == gioc_t)]['Prezzo_N'].iloc[0]
         v_v = f_vn[f_vn['Giocatore'] == gioc_t]['Tot_Vincolo'].iloc[0] if (f_vn is not None and gioc_t in f_vn['Giocatore'].values) else 0
         rimborso = round((v_p + v_v) * 0.6)
-        st.markdown(f"""<div class="cut-box"><h3>💰 **RIMBORSO: {rimborso} CREDITI**</h3>VALUTAZIONE: {int(v_p)} | VINC: {int(v_v)}</div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div class="cut-box"><h3>💰 **RIMBORSO: {rimborso} CREDITI**</h3>VALUTAZIONE: <b>{int(v_p)}</b> | VINC: <b>{int(v_v)}</b></div>""", unsafe_allow_html=True)
