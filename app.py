@@ -5,24 +5,31 @@ import unicodedata
 import re
 from datetime import datetime
 
-# 1. SETUP UI
+# 1. SETUP UI E STILE
 st.set_page_config(page_title="MuyFantaManager", layout="wide", initial_sidebar_state="expanded")
 
-# CSS TOTALE (GRASSETTO E CARD)
 st.markdown("""
 <style>
     html, body, [data-testid="stAppViewContainer"] * { font-weight: 900 !important; }
-    .search-card { background-color: #ffffff; padding: 15px; border-radius: 10px; border: 2px solid #1a73e8; color: #1a1a1a !important; }
+    
+    /* Card Sidebar */
+    .search-card { 
+        background-color: #ffffff; padding: 15px; border-radius: 10px; border: 2px solid #1a73e8; color: #1a1a1a !important; margin-bottom: 10px;
+    }
     .card-header { border-bottom: 2px solid #eee; margin-bottom: 10px; padding-bottom: 5px; }
     .player-name { color: #1a73e8; font-size: 1.1em; }
     .stat-row { display: block; width: 100%; margin-bottom: 4px; }
     .label { float: left; color: #555; font-size: 0.85em; }
     .valore { float: right; }
     .clearfix { clear: both; }
-    .player-card { padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 6px solid; color: black !important; }
+
+    /* Card Scambi */
+    .player-card { padding: 15px; border-radius: 10px; margin-bottom: 15px; border-left: 8px solid; color: black !important; box-shadow: 2px 2px 5px rgba(0,0,0,0.1); }
     .card-blue { background-color: #e3f2fd; border-color: #1a73e8; }
     .card-red { background-color: #fbe9e7; border-color: #d32f2f; }
-    .patrimonio-box { background-color: #f0f2f6; padding: 15px; border-radius: 10px; border: 2px solid #1a73e8; text-align: center; margin-top:10px; }
+    .ante-val { font-size: 0.85em; color: #666; border-bottom: 1px dashed #ccc; margin-bottom: 8px; padding-bottom: 5px; }
+    
+    .patrimonio-box { background-color: #f0f2f6; padding: 15px; border-radius: 10px; border: 2px solid #1a73e8; text-align: center; }
     .cut-info-box { background-color: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #ddd; color: black; }
 </style>
 """, unsafe_allow_html=True)
@@ -105,69 +112,146 @@ with st.sidebar:
             v_info = f_vn[f_vn['Giocatore_N'] == n] if f_vn is not None else None
             val_vinc = v_info['Tot_Vincolo'].iloc[0] if (v_info is not None and not v_info.empty) else 0
             durata_vinc = v_info['Anni_T'].iloc[0] if (v_info is not None and not v_info.empty) else "NO"
-            st.markdown(f"""<div class="search-card"><div class="card-header"><span class="player-name"><b>{n}</b></span><br><span class="team-name">{dr['Squadra_N']}</span></div><div class="stat-row"><span class="label">Acquisto:</span> <span class="valore"><b>{int(dr['Prezzo_N'])}</b></span><div class="clearfix"></div></div><div class="stat-row"><span class="label">Vincolo:</span> <span class="valore"><b>{int(val_vinc)}</b> ({durata_vinc})</span><div class="clearfix"></div></div><div class="quot-box"><span class="label" style="color:#2e7d32;">Quot:</span> <span class="valore"><b>{int(dr['Quotazione'])}</b></span><div class="clearfix"></div></div></div>""", unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class="search-card">
+                <div class="card-header"><span class="player-name"><b>{n}</b></span><br><span class="team-name">{dr['Squadra_N']} - {dr['Ruolo']}</span></div>
+                <div class="stat-row"><span class="label">Acquisto:</span> <span class="valore"><b>{int(dr['Prezzo_N'])}</b></span><div class="clearfix"></div></div>
+                <div class="stat-row"><span class="label">Vincolo:</span> <span class="valore"><b>{int(val_vinc)}</b> ({durata_vinc})</span><div class="clearfix"></div></div>
+                <div class="quot-box"><span class="label" style="color:#2e7d32;">Quot:</span> <span class="valore"><b>{int(dr['Quotazione'])}</b></span><div class="clearfix"></div></div>
+            </div>""", unsafe_allow_html=True)
 
 # --- MAIN APP ---
 t = st.tabs(["🏆 CLASSIFICHE", "💰 BUDGET", "🏃 ROSE", "📅 VINCOLI", "🔄 SCAMBI", "✂️ TAGLI"])
 
-# ... (Tab 0, 1, 2, 3 omesse per brevità, sono identiche a prima)
+with t[0]: # CLASSIFICHE
+    c1, c2 = st.columns(2)
+    if f_pt is not None:
+        with c1:
+            st.subheader("🎯 PUNTI")
+            f_pt['P_N'], f_pt['FM'] = f_pt['Punti Totali'].apply(to_num), f_pt['Media'].apply(to_num)
+            st.dataframe(f_pt[['Posizione','Giocatore','P_N','FM']].sort_values('Posizione').style.background_gradient(subset=['P_N', 'FM'], cmap='YlGn').format({"P_N": "{:g}", "FM": "{:.2f}"}).set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
+    if f_sc is not None:
+        with c2:
+            st.subheader("⚔️ SCONTRI")
+            f_sc['P_S'] = f_sc['Punti'].apply(to_num)
+            f_sc['DR'] = f_sc['Gol Fatti'].apply(to_num) - f_sc['Gol Subiti'].apply(to_num)
+            st.dataframe(f_sc[['Posizione','Giocatore','P_S','DR']].style.background_gradient(subset=['P_S'], cmap='Blues').background_gradient(subset=['DR'], cmap='RdYlGn').format({"P_S": "{:g}", "DR": "{:+g}"}).set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
-with t[4]: # TAB 4: SCAMBI (RIPRISTINATA LOGICA NUOVI VALORI)
-    st.subheader("🔄 SIMULATORE SCAMBI PROPORZIONALE")
+with t[1]: # BUDGET
+    if f_rs is not None:
+        st.subheader("💰 BUDGET E PATRIMONIO")
+        bu = f_rs.groupby('Squadra_N')['Prezzo_N'].sum().reset_index().rename(columns={'Prezzo_N': 'ROSE'})
+        v_s = f_vn.groupby('Sq_N')['Tot_Vincolo'].sum().reset_index() if f_vn is not None else pd.DataFrame(columns=['Sq_N', 'Tot_Vincolo'])
+        bu = pd.merge(bu, v_s, left_on='Squadra_N', right_on='Sq_N', how='left').fillna(0).drop('Sq_N', axis=1)
+        bu['DISP'] = bu['Squadra_N'].map(bg_ex).fillna(0)
+        bu['TOT'] = bu['ROSE'] + bu['Tot_Vincolo'] + bu['DISP']
+        st.dataframe(bu.sort_values("TOT", ascending=False).style.background_gradient(cmap='YlOrRd', subset=['TOT']).background_gradient(cmap='Greens', subset=['DISP']).format({c: "{:g}" for c in bu.columns if c != 'Squadra_N'}).set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
+
+with t[2]: # ROSE
+    if f_rs is not None:
+        mancanti = f_rs[f_rs['Quotazione'] == 0]['Nome_N'].unique()
+        if len(mancanti) > 0:
+            with st.expander(f"⚠️ {len(mancanti)} GIOCATORI SENZA QUOTAZIONE"):
+                st.write(", ".join(sorted(mancanti)))
+        sq = st.selectbox("SQUADRA", sorted(f_rs['Squadra_N'].unique()), key="rs_v7")
+        df_sq = f_rs[f_rs['Squadra_N'] == sq][['Ruolo', 'Nome_N', 'Prezzo_N', 'Quotazione']]
+        def color_ruoli(row):
+            bg = {'POR': '#FCE4EC', 'DIF': '#E8F5E9', 'CEN': '#E3F2FD', 'ATT': '#FFFDE7'}.get(str(row['Ruolo']).upper()[:3], '#FFFFFF')
+            return [f'background-color: {bg}; color: black; font-weight: 900;'] * len(row)
+        st.dataframe(df_sq.style.apply(color_ruoli, axis=1).format({"Prezzo_N":"{:g}", "Quotazione":"{:g}"}), hide_index=True, use_container_width=True)
+
+with t[3]: # VINCOLI
+    if f_vn is not None:
+        st.subheader("📅 VINCOLI PER SQUADRA")
+        sq_v = st.selectbox("SELEZIONA SQUADRA", ["TUTTE"] + sorted(f_vn['Sq_N'].unique()), key="v_v7")
+        df_v = f_vn if sq_v == "TUTTE" else f_vn[f_vn['Sq_N'] == sq_v]
+        st.dataframe(df_v[['Squadra', 'Giocatore', 'Tot_Vincolo', 'Anni_T']].sort_values('Tot_Vincolo', ascending=False).style.background_gradient(cmap='Purples', subset=['Tot_Vincolo']).format({"Tot_Vincolo": "{:g}"}).set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
+
+with t[4]: # SCAMBI (CON CONFRONTO PRIMA/DOPO)
+    st.subheader("🔄 SIMULATORE SCAMBI")
     if f_rs is not None:
         c1, c2 = st.columns(2)
         l_sq = sorted([s for s in f_rs['Squadra_N'].unique() if s])
         with c1:
-            sa = st.selectbox("SQUADRA A", l_sq, key="sa_69")
-            ga = st.multiselect("GIOCATORI CEDUTI DA A", f_rs[f_rs['Squadra_N']==sa]['Nome_N'].tolist(), key="ga_69")
+            sa = st.selectbox("SQUADRA A", l_sq, key="sa_7")
+            ga = st.multiselect("CEDUTI DA A", f_rs[f_rs['Squadra_N']==sa]['Nome_N'].tolist(), key="ga_7")
         with c2:
-            sb = st.selectbox("SQUADRA B", [s for s in l_sq if s != sa], key="sb_69")
-            gb = st.multiselect("GIOCATORI CEDUTI DA B", f_rs[f_rs['Squadra_N']==sb]['Nome_N'].tolist(), key="gb_69")
+            sb = st.selectbox("SQUADRA B", [s for s in l_sq if s != sa], key="sb_7")
+            gb = st.multiselect("CEDUTI DA B", f_rs[f_rs['Squadra_N']==sb]['Nome_N'].tolist(), key="gb_7")
         
         if ga and gb:
-            def get_valori(nome):
+            def get_val(nome):
                 p = f_rs[f_rs['Nome_N']==nome]['Prezzo_N'].iloc[0]
                 v = f_vn[f_vn['Giocatore_N']==nome]['Tot_Vincolo'].iloc[0] if (f_vn is not None and nome in f_vn['Giocatore_N'].values) else 0
                 return p, v, p + v
 
-            # Calcolo Totali
-            tot_ceduto_a = sum(get_valori(n)[2] for n in ga)
-            tot_ceduto_b = sum(get_valori(n)[2] for n in gb)
-            media_scambio = round((tot_ceduto_a + tot_ceduto_b) / 2)
+            tot_a, tot_b = sum(get_val(n)[2] for n in ga), sum(get_val(n)[2] for n in gb)
+            media = round((tot_a + tot_b) / 2)
             
             st.divider()
             col_m1, col_m2, col_m3 = st.columns(3)
-            col_m1.metric(f"Totale {sa}", f"{int(tot_ceduto_a)} cr")
-            col_m2.metric(f"Totale {sb}", f"{int(tot_ceduto_b)} cr")
-            col_m3.metric("Media Scambio", f"{media_scambio} cr")
+            col_m1.metric(f"Totale {sa}", f"{int(tot_a)} cr")
+            col_m2.metric(f"Totale {sb}", f"{int(tot_b)} cr")
+            col_m3.metric("Media di Scambio", f"{media} cr")
 
             res_a, res_b = st.columns(2)
             with res_a:
                 st.markdown(f"### 📥 {sa} RICEVE")
                 for n in gb:
-                    p_orig, v_orig, t_orig = get_valori(n)
-                    # Proporzione: (Valore Tot Giocatore / Totale Ceduto da B) * Media Scambio
-                    nuovo_valore_tot = (t_orig / tot_ceduto_b) * media_scambio
-                    nuovo_prezzo = max(0, round(nuovo_valore_tot - v_orig))
-                    st.markdown(f"""<div class="player-card card-blue"><b>{n}</b><br>NUOVO PREZZO: <b>{nuovo_prezzo}</b><br><small>VINCOLO: {int(v_orig)} | TOT: {int(nuovo_prezzo + v_orig)}</small></div>""", unsafe_allow_html=True)
+                    p_orig, v_orig, t_orig = get_val(n)
+                    nuova_v_tot = (t_orig / tot_b) * media
+                    nuovo_prezzo = max(0, round(nuova_v_tot - v_orig))
+                    st.markdown(f"""
+                    <div class="player-card card-blue">
+                        <b>{n}</b><br>
+                        <div class="ante-val">VALORE ANTE: <b>{int(t_orig)}</b> ({int(p_orig)}+{int(v_orig)})</div>
+                        NUOVO PREZZO: <b>{nuovo_prezzo}</b><br>
+                        <small>VINC: {int(v_orig)} | TOT POST: {int(nuovo_prezzo + v_orig)}</small>
+                    </div>""", unsafe_allow_html=True)
             
             with res_b:
                 st.markdown(f"### 📥 {sb} RICEVE")
                 for n in ga:
-                    p_orig, v_orig, t_orig = get_valori(n)
-                    nuovo_valore_tot = (t_orig / tot_ceduto_a) * media_scambio
-                    nuovo_prezzo = max(0, round(nuovo_valore_tot - v_orig))
-                    st.markdown(f"""<div class="player-card card-red"><b>{n}</b><br>NUOVO PREZZO: <b>{nuovo_prezzo}</b><br><small>VINCOLO: {int(v_orig)} | TOT: {int(nuovo_prezzo + v_orig)}</small></div>""", unsafe_allow_html=True)
+                    p_orig, v_orig, t_orig = get_val(n)
+                    nuova_v_tot = (t_orig / tot_a) * media
+                    nuovo_prezzo = max(0, round(nuova_v_tot - v_orig))
+                    st.markdown(f"""
+                    <div class="player-card card-red">
+                        <b>{n}</b><br>
+                        <div class="ante-val">VALORE ANTE: <b>{int(t_orig)}</b> ({int(p_orig)}+{int(v_orig)})</div>
+                        NUOVO PREZZO: <b>{nuovo_prezzo}</b><br>
+                        <small>VINC: {int(v_orig)} | TOT POST: {int(nuovo_prezzo + v_orig)}</small>
+                    </div>""", unsafe_allow_html=True)
             
-            # Impatto Patrimonio
-            diff = media_scambio - tot_ceduto_a
-            p_a_attuale = f_rs[f_rs['Squadra_N']==sa]['Prezzo_N'].sum() + (f_vn[f_vn['Sq_N']==sa]['Tot_Vincolo'].sum() if f_vn is not None else 0) + bg_ex.get(sa, 0)
-            p_b_attuale = f_rs[f_rs['Squadra_N']==sb]['Prezzo_N'].sum() + (f_vn[f_vn['Sq_N']==sb]['Tot_Vincolo'].sum() if f_vn is not None else 0) + bg_ex.get(sb, 0)
-            
-            c_p1, c_p2 = st.columns(2)
-            c_p1.markdown(f"""<div class="patrimonio-box">NUOVO PATRIMONIO {sa}<br><h2>{int(p_a_attuale + diff)}</h2><small>PRIMA: {int(p_a_attuale)}</small></div>""", unsafe_allow_html=True)
-            c_p2.markdown(f"""<div class="patrimonio-box">NUOVO PATRIMONIO {sb}<br><h2>{int(p_b_attuale - diff)}</h2><small>PRIMA: {int(p_b_attuale)}</small></div>""", unsafe_allow_html=True)
+            diff = media - tot_a
+            p_a = f_rs[f_rs['Squadra_N']==sa]['Prezzo_N'].sum() + (f_vn[f_vn['Sq_N']==sa]['Tot_Vincolo'].sum() if f_vn is not None else 0) + bg_ex.get(sa, 0)
+            p_b = f_rs[f_rs['Squadra_N']==sb]['Prezzo_N'].sum() + (f_vn[f_vn['Sq_N']==sb]['Tot_Vincolo'].sum() if f_vn is not None else 0) + bg_ex.get(sb, 0)
+            st.columns(2)[0].markdown(f"""<div class="patrimonio-box">PATRIMONIO {sa}: <b>{int(p_a + diff)}</b> <small>(PRIMA: {int(p_a)})</small></div>""", unsafe_allow_html=True)
+            st.columns(2)[1].markdown(f"""<div class="patrimonio-box">PATRIMONIO {sb}: <b>{int(p_b - diff)}</b> <small>(PRIMA: {int(p_b)})</small></div>""", unsafe_allow_html=True)
 
-with t[5]: # TAB 5: TAGLI
+with t[5]: # TAGLI
     st.subheader("✂️ SIMULATORE TAGLI")
-    # ... (Stessa logica potenziata di prima)
+    if f_rs is not None:
+        sq_t = st.selectbox("SQUADRA", sorted(f_rs['Squadra_N'].unique()), key="st_7")
+        gi_t = st.selectbox("GIOCATORE", f_rs[f_rs['Squadra_N'] == sq_t]['Nome_N'].tolist(), key="gt_7")
+        if gi_t:
+            p_d = f_rs[(f_rs['Squadra_N'] == sq_t) & (f_rs['Nome_N'] == gi_t)].iloc[0]
+            v_d = f_vn[f_vn['Giocatore_N'] == gi_t] if f_vn is not None else pd.DataFrame()
+            v_vinc = v_d['Tot_Vincolo'].iloc[0] if not v_d.empty else 0
+            rimb = round((p_d['Prezzo_N'] + v_vinc) * 0.6)
+            st.markdown(f"""
+            <div class="cut-info-box">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2>{gi_t}</h2> <span style="background: #eee; padding: 5px 15px; border-radius: 20px;">{p_d['Ruolo']}</span>
+                </div><hr>
+                <div style="display: flex; gap: 40px; flex-wrap: wrap;">
+                    <div><span class="stat-label">Acquisto</span><br><b class="stat-value">{int(p_d['Prezzo_N'])}</b></div>
+                    <div><span class="stat-label">Vincoli</span><br><b class="stat-value">{int(v_vinc)}</b></div>
+                    <div><span class="stat-label">Quotazione</span><br><b class="stat-value" style="color:#1a73e8;">{int(p_d['Quotazione'])}</b></div>
+                    <div style="background: #fff3f3; padding: 10px; border-radius: 8px; border: 1px solid #ff4b4b;">
+                        <span style="color: #ff4b4b; font-size: 0.8em;">RIMBORSO</span><br><h2 style="color: #ff4b4b; margin:0;">{rimb}</h2>
+                    </div>
+                </div>
+            </div>""", unsafe_allow_html=True)
+            if st.button("📋 GENERA VERBALE"):
+                st.code(f"✂️ TAGLIO: {gi_t} ({sq_t})\nRIMBORSO: {rimb} cr")
