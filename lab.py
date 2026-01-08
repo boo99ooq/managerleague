@@ -174,7 +174,60 @@ with t[0]:
             html_sc += '</tbody></table>'
             st.markdown(html_sc, unsafe_allow_html=True)
         else:
-            st.error("File scontridiretti.csv non trovato")
+            st.error("File scontridiretti.csv non trovato")# --- TAB 0: CLASSIFICHE (Versione Intelligente con Gradienti e Dati Reali) ---
+with t[0]:
+    st.markdown("### 🏆 CLASSIFICHE GENERALI")
+    c1, c2 = st.columns(2)
+    
+    # 1. CLASSIFICA PUNTI
+    with c1:
+        st.markdown("#### 🎯 CLASSIFICA PUNTI")
+        if f_pt is not None:
+            # Identifichiamo le colonne giuste nel CSV
+            col_pos = f_pt.columns[0]
+            col_nome = f_pt.columns[1]
+            # Cerchiamo la colonna dei punti (spesso è la terza o si chiama 'Punti Totali')
+            col_punti = next((c for c in f_pt.columns if 'PUNTI' in c.upper()), f_pt.columns[2])
+            
+            html_pt = '<table class="golden-table"><thead><tr><th>POS</th><th>GIOCATORE</th><th style="background: linear-gradient(90deg, #f1f5f9 0%, #fef9c3 100%);">PUNTI</th></tr></thead><tbody>'
+            for _, r in f_pt.iterrows():
+                p_val = to_num(r[col_punti])
+                html_pt += f'''
+                <tr>
+                    <td>{r[col_pos]}</td>
+                    <td style="text-align:left; padding-left:20px;">{r[col_nome]}</td>
+                    <td style="background: linear-gradient(90deg, #ffffff 0%, #fef9c3 100%);">{int(p_val) if p_val.is_integer() else p_val}</td>
+                </tr>'''
+            st.markdown(html_pt + '</tbody></table>', unsafe_allow_html=True)
+
+    # 2. CLASSIFICA SCONTRI DIRETTI (Con Gol e Diff. Reti)
+    with c2:
+        st.markdown("#### ⚔️ SCONTRI DIRETTI")
+        if f_sc is not None:
+            # Identifichiamo le colonne per nome
+            c_pos = f_sc.columns[0]
+            c_nome = f_sc.columns[1]
+            c_punti = next((c for c in f_sc.columns if 'PUNTI' in c.upper()), 'Punti')
+            c_gf = next((c for c in f_sc.columns if 'GOL F' in c.upper() or 'GF' in c.upper()), None)
+            c_gs = next((c for c in f_sc.columns if 'GOL S' in c.upper() or 'GS' in c.upper()), None)
+            
+            header_html = '<th>POS</th><th>GIOCATORE</th><th style="background: #fff3e0;">PT</th>'
+            if c_gf: header_html += '<th>GF</th>'
+            if c_gf and c_gs: header_html += '<th>DR</th>'
+            
+            html_sc = f'<table class="golden-table"><thead><tr>{header_html}</tr></thead><tbody>'
+            for _, r in f_sc.iterrows():
+                pt_v = to_num(r[c_punti])
+                gf_v = to_num(r[c_gf]) if c_gf else 0
+                gs_v = to_num(r[c_gs]) if c_gs else 0
+                dr = gf_v - gs_v
+                
+                row_html = f'<td>{r[c_pos]}</td><td style="text-align:left; padding-left:15px;">{r[c_nome]}</td><td style="background: #fff3e0;">{int(pt_v)}</td>'
+                if c_gf: row_html += f'<td>{int(gf_v)}</td>'
+                if c_gf and c_gs: row_html += f'<td>{int(dr)}</td>'
+                
+                html_sc += f'<tr>{row_html}</tr>'
+            st.markdown(html_sc + '</tbody></table>', unsafe_allow_html=True)
 
 # TAB 1: BUDGET
 with t[1]:
