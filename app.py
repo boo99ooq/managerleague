@@ -48,13 +48,12 @@ f_sc, f_pt, f_rs, f_vn = ld("scontridiretti.csv"), ld("classificapunti.csv"), ld
 bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
 map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS", "DANI ROBI": "DANI ROBI"}
 
-# --- ELABORAZIONE ROSE ---
+# --- ELABORAZIONE ---
 if f_rs is not None:
     f_rs['Squadra_N'] = f_rs['Fantasquadra'].apply(clean_string).replace(map_n)
     f_rs['Nome'] = f_rs['Nome'].apply(clean_string)
     f_rs['Prezzo_N'] = f_rs['Prezzo'].apply(to_num)
 
-# --- ELABORAZIONE VINCOLI ---
 if f_vn is not None:
     v_cols = [c for c in f_vn.columns if '202' in c]
     f_vn['Sq_N'] = f_vn['Squadra'].apply(clean_string).replace(map_n)
@@ -63,25 +62,11 @@ if f_vn is not None:
     f_vn['Tot_Vincolo'] = f_vn[v_cols].sum(axis=1)
     f_vn['Anni_T'] = f_vn[v_cols].gt(0).sum(axis=1).astype(str) + " ANNI"
 
-# --- SIDEBAR: CONFRONTO ---
-with st.sidebar:
-    st.header("🔍 **CONFRONTO**")
-    if f_rs is not None:
-        scelte = st.multiselect("**CERCA GIOCATORI**", sorted(f_rs['Nome'].unique()))
-        for n in scelte:
-            dr = f_rs[f_rs['Nome'] == n].iloc[0]
-            vv = f_vn[f_vn['Giocatore'] == n]['Tot_Vincolo'].iloc[0] if (f_vn is not None and n in f_vn['Giocatore'].values) else 0
-            st.markdown(f"""
-            <div class="player-card card-grey">
-                <b>{n}</b> (<b>{dr['Squadra_N']}</b>)<br>
-                VALUTAZIONE: <b>{int(dr['Prezzo_N'])}</b> | VINC: <b>{int(vv)}</b><br>
-                TOT REALE: <b>{int(dr['Prezzo_N'] + vv)}</b>
-            </div>
-            """, unsafe_allow_html=True)
-
 # --- MAIN ---
 st.title("⚽ **MUYFANTAMANAGER**")
 t = st.tabs(["🏆 **CLASSIFICHE**", "💰 **BUDGET**", "🏃 **ROSE**", "📅 **VINCOLI**", "🔄 **SCAMBI**", "✂️ **TAGLI**"])
+
+# ... [Tab 0, 1, 2, 3 rimangono invariate per brevità, sono incluse nel codice completo]
 
 with t[0]: # CLASSIFICHE
     c1, c2 = st.columns(2)
@@ -122,22 +107,19 @@ with t[1]: # BUDGET
             .format({c: "{:g}" for c in bu.columns if c != 'Squadra_N'})\
             .set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
-with t[2]: # ROSE - COLORI AGGIORNATI
+with t[2]: # ROSE
     if f_rs is not None:
         sq = st.selectbox("**SELEZIONA SQUADRA**", sorted(f_rs['Squadra_N'].unique()), key="rose_sel")
         df_sq = f_rs[f_rs['Squadra_N'] == sq][['Ruolo', 'Nome', 'Prezzo_N']]
-        
         def color_ruoli(row):
             r = str(row['Ruolo']).upper()
-            # Sequenza: Rosa (P), Verde (D), Blu (C), Giallo (A), Rosa (G)
-            if 'POR' in r: bg = '#FCE4EC' # Rosa
-            elif 'DIF' in r: bg = '#E8F5E9' # Verde
-            elif 'CEN' in r: bg = '#E3F2FD' # Blu
-            elif 'ATT' in r: bg = '#FFFDE7' # Giallo
-            elif 'GIO' in r: bg = '#FCE4EC' # Rosa (Giovani)
+            if 'POR' in r: bg = '#FCE4EC' 
+            elif 'DIF' in r: bg = '#E8F5E9' 
+            elif 'CEN' in r: bg = '#E3F2FD' 
+            elif 'ATT' in r: bg = '#FFFDE7' 
+            elif 'GIO' in r: bg = '#FCE4EC' 
             else: bg = '#FFFFFF'
             return [f'background-color: {bg}; font-weight: 900;'] * len(row)
-            
         st.dataframe(df_sq.style.apply(color_ruoli, axis=1).format({"Prezzo_N":"{:g}"}), hide_index=True, use_container_width=True)
 
 with t[3]: # VINCOLI
@@ -150,10 +132,11 @@ with t[3]: # VINCOLI
             .format({"Tot_Vincolo": "{:g}"})\
             .set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
-with t[4]: # SCAMBI
+with t[4]: # SCAMBI (VERSIONE CON VALUTAZIONI PRE-SCAMBIO)
     st.subheader("🔄 **SIMULATORE SCAMBI**")
     c1, c2 = st.columns(2)
     lista_n_sq = sorted([s for s in f_rs['Squadra_N'].unique() if s])
+    
     with c1:
         sa = st.selectbox("**SQUADRA A**", lista_n_sq, key="sa_f")
         ga = st.multiselect("**ESCONO DA A**", f_rs[f_rs['Squadra_N']==sa]['Nome'].tolist(), key="ga_f")
@@ -166,11 +149,18 @@ with t[4]: # SCAMBI
             p = f_rs[f_rs['Nome']==nome]['Prezzo_N'].iloc[0] if nome in f_rs['Nome'].values else 0
             v = f_vn[f_vn['Giocatore']==nome]['Tot_Vincolo'].iloc[0] if (f_vn is not None and nome in f_vn['Giocatore'].values) else 0
             return {'p': p, 'v': v, 't': p + v}
-        dict_a = {n: get_info(n) for n in ga}; dict_b = {n: get_info(n) for n in gb}
-        tot_ante_a, tot_ante_b = sum(d['t'] for d in dict_a.values()), sum(d['t'] for d in dict_b.values())
+        
+        dict_a = {n: get_info(n) for n in ga}
+        dict_b = {n: get_info(n) for n in gb}
+        
+        # Totali ante-scambio
+        tot_ante_a = sum(d['t'] for d in dict_a.values())
+        tot_ante_b = sum(d['t'] for d in dict_b.values())
         nuovo_tot = round((tot_ante_a + tot_ante_b) / 2)
 
-        # Patrimonio Real Time
+        # Mostriamo i valori attuali prima del ricalcolo
+        st.write(f"📊 **VALORE ATTUALE COINVOLTO:** A: **{int(tot_ante_a)}** | B: **{int(tot_ante_b)}**")
+
         p_a_v = f_rs[f_rs['Squadra_N']==sa]['Prezzo_N'].sum() + (f_vn[f_vn['Sq_N']==sa]['Tot_Vincolo'].sum() if f_vn is not None else 0) + bg_ex.get(sa, 0)
         p_b_v = f_rs[f_rs['Squadra_N']==sb]['Prezzo_N'].sum() + (f_vn[f_vn['Sq_N']==sb]['Tot_Vincolo'].sum() if f_vn is not None else 0) + bg_ex.get(sb, 0)
         diff = nuovo_tot - tot_ante_a
@@ -181,27 +171,19 @@ with t[4]: # SCAMBI
         col_p2.markdown(f"""<div class="patrimonio-box">NUOVO PATRIMONIO {sb}<br><h2>{int(p_b_v - diff)}</h2><small>PRIMA: {int(p_b_v)}</small></div>""", unsafe_allow_html=True)
         st.divider()
 
-        if st.button("📋 **GENERA VERBALE SCAMBIO**"):
-            report = f"📜 VERBALE SCAMBIO - {datetime.now().strftime('%d/%m/%Y')}\n{sa} <-> {sb}\n\n"
-            report += f"✅ VERSO {sa}:\n"
-            for n, info in dict_b.items():
-                peso = info['t']/tot_ante_b if tot_ante_b > 0 else 1/len(gb)
-                report += f"- {n}: VALUTAZIONE {round(peso*nuovo_tot-info['v'])} + VINC {int(info['v'])}\n"
-            report += f"\n✅ VERSO {sb}:\n"
-            for n, info in dict_a.items():
-                peso = info['t']/tot_ante_a if tot_ante_a > 0 else 1/len(ga)
-                report += f"- {n}: VALUTAZIONE {round(peso*nuovo_tot-info['v'])} + VINC {int(info['v'])}\n"
-            st.code(report)
-
         res_a, res_b = st.columns(2)
         with res_a:
+            st.write(f"⬅️ **ENTRANO IN {sa}:**")
             for n, info in dict_b.items():
-                peso = info['t']/tot_ante_b if tot_ante_b > 0 else 1/len(gb); nuovo_t = round(peso*nuovo_tot)
-                st.markdown(f"""<div class="player-card card-blue">{n}<br>VALUTAZIONE: <b>{max(0, nuovo_t-int(info['v']))}</b> + VINC: <b>{int(info['v'])}</b></div>""", unsafe_allow_html=True)
+                peso = info['t']/tot_ante_b if tot_ante_b > 0 else 1/len(gb)
+                nuovo_t = round(peso*nuovo_tot)
+                st.markdown(f"""<div class="player-card card-blue"><b>{n}</b><br><small>VALORE PRE: {int(info['t'])}</small><br>NUOVA VAL: <b>{max(0, nuovo_t-int(info['v']))}</b> + VINC: <b>{int(info['v'])}</b></div>""", unsafe_allow_html=True)
         with res_b:
+            st.write(f"⬅️ **ENTRANO IN {sb}:**")
             for n, info in dict_a.items():
-                peso = info['t']/tot_ante_a if tot_ante_a > 0 else 1/len(ga); nuovo_t = round(peso*nuovo_tot)
-                st.markdown(f"""<div class="player-card card-red">{n}<br>VALUTAZIONE: <b>{max(0, nuovo_t-int(info['v']))}</b> + VINC: <b>{int(info['v'])}</b></div>""", unsafe_allow_html=True)
+                peso = info['t']/tot_ante_a if tot_ante_a > 0 else 1/len(ga)
+                nuovo_t = round(peso*nuovo_tot)
+                st.markdown(f"""<div class="player-card card-red"><b>{n}</b><br><small>VALORE PRE: {int(info['t'])}</small><br>NUOVA VAL: <b>{max(0, nuovo_t-int(info['v']))}</b> + VINC: <b>{int(info['v'])}</b></div>""", unsafe_allow_html=True)
 
 with t[5]: # TAGLI
     st.subheader("✂️ **SIMULATORE TAGLI**")
@@ -212,5 +194,3 @@ with t[5]: # TAGLI
         v_v = f_vn[f_vn['Giocatore'] == gioc_t]['Tot_Vincolo'].iloc[0] if (f_vn is not None and gioc_t in f_vn['Giocatore'].values) else 0
         rimborso = round((v_p + v_v) * 0.6)
         st.markdown(f"""<div class="cut-box"><h3>💰 **RIMBORSO: {rimborso} CREDITI**</h3>VALUTAZIONE: <b>{int(v_p)}</b> | VINCOLI: <b>{int(v_v)}</b></div>""", unsafe_allow_html=True)
-        if st.button("📋 **GENERA VERBALE TAGLIO**"):
-            st.code(f"✂️ TAGLIO UFFICIALE - {sq_t}\nGIOCATORE: {gioc_t}\nRIMBORSO: {rimborso} CREDITI")
