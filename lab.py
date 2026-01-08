@@ -5,39 +5,42 @@ import unicodedata
 import re
 
 # 1. SETUP UI
-st.set_page_config(page_title="MuyFantaManager Golden V4.8", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="MuyFantaManager Golden V5.0", layout="wide", initial_sidebar_state="expanded")
 
-# --- BLOCCO CSS DEFINITIVO (Forza Neretto, Gradienti e Ripristina Menu) ---
+# --- BLOCCO CSS PROFESSIONALE (Neretto e Gradienti senza bloccare i menu) ---
 st.markdown("""
 <style>
-    /* 1. FORZA NERETTO 900 OVUNQUE MA NON SUI WIDGET DI SISTEMA */
-    html, body, [data-testid="stAppViewContainer"] p, div, span, label, table, td, th { 
+    /* 1. NERETTO 900 su testi informativi, ma NON sui menu di sistema */
+    p, span, label, td, th { 
         font-weight: 900 !important; 
         color: #000 !important;
     }
     
-    /* 2. TABELLE HTML PREMIUM (ROSE) */
+    /* 2. TABELLE HTML PREMIUM (Stile Roseagg) */
     .golden-table { width: 100%; border-collapse: collapse; border: 3px solid #333; margin: 10px 0; }
     .golden-table th { background-color: #f1f5f9; border: 2px solid #333; padding: 12px; text-transform: uppercase; }
-    .golden-table td { border: 1px solid #333; padding: 10px; text-align: center; }
+    .golden-table td { border: 1px solid #333 !important; padding: 10px; text-align: center; font-weight: 900 !important; }
 
-    /* 3. GRADIENTI PER COLONNE (Tramite classi specifiche) */
-    .col-asta { background: linear-gradient(90deg, #ffffff 0%, #e0f2fe 100%); }
-    .col-valore { background: linear-gradient(90deg, #ffffff 0%, #dcfce7 100%); }
-    .col-punti { background: linear-gradient(90deg, #ffffff 0%, #fef9c3 100%); }
+    /* 3. GRADIENTI SPECIFICI PER COLONNE */
+    .grad-asta { background: linear-gradient(90deg, #ffffff 0%, #e0f2fe 100%) !important; }
+    .grad-valore { background: linear-gradient(90deg, #ffffff 0%, #dcfce7 100%) !important; }
+    .grad-punti { background: linear-gradient(90deg, #ffffff 0%, #fef9c3 100%) !important; }
 
-    /* 4. BOX SPECIALI */
+    /* 4. BOX STATISTICHE E RISULTATI */
     .stat-card { background: #fff; padding: 15px; border-radius: 10px; border: 3px solid #333; text-align: center; box-shadow: 4px 4px 0px #333; }
     .cut-box { background: #fff; padding: 25px; border-radius: 15px; border: 4px solid #333; box-shadow: 6px 6px 0px #ff4b4b; text-align: center; }
+    .punto-incontro-box { background: #fff3e0; padding: 10px 30px; border: 3px solid #ff9800; border-radius: 15px; text-align: center; margin: 10px auto; width: fit-content; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- FUNZIONI SUPPORTO ---
-def format_no_zero(val):
-    """Elimina i decimali se sono .0"""
-    if isinstance(val, float) and val.is_integer():
-        return int(val)
-    return val
+# --- FUNZIONI DI SUPPORTO (PULIZIA DATI) ---
+def fmt(val):
+    """Toglie il .0 dai numeri interi per pulizia visiva"""
+    try:
+        num = float(val)
+        return int(num) if num.is_integer() else round(num, 1)
+    except:
+        return val
 
 def to_num(val):
     if pd.isna(val) or str(val).strip().lower() in ['x', '', '-']: return 0.0
@@ -58,7 +61,7 @@ bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIG
 map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS"}
 FILE_DB = "mercatone_gennaio.csv"
 
-def load_all():
+def load_data():
     if not os.path.exists("rose_complete.csv"): return None, None, None, None
     rs = pd.read_csv("rose_complete.csv", encoding='latin1', engine='python')
     rs['Squadra_N'] = rs['Fantasquadra'].str.upper().str.strip().replace(map_n)
@@ -75,60 +78,72 @@ def load_all():
     def simple_ld(f): return pd.read_csv(f, engine='python', encoding='latin1').dropna(how='all') if os.path.exists(f) else None
     return rs, simple_ld("vincoli.csv"), simple_ld("classificapunti.csv"), simple_ld("scontridiretti.csv")
 
-f_rs, f_vn, f_pt, f_sc = load_all()
+f_rs, f_vn, f_pt, f_sc = load_data()
 df_mercato = pd.read_csv(FILE_DB) if os.path.exists(FILE_DB) else pd.DataFrame(columns=["GIOCATORE", "SQUADRA", "TOTALE", "STATO"])
 
 # --- TABS ---
 t = st.tabs(["🏆 **CLASSIFICHE**", "💰 **BUDGET**", "🏃 **ROSE**", "📅 **VINCOLI**", "🔄 **SCAMBI**", "✂️ **TAGLI**", "🚀 **MERCATO**"])
 
-# TAB ROSE (STILE ROSEAGG CON PULIZIA ZERO E GRADIENTI)
-with t[2]:
-    if f_rs is not None:
-        sq_r = st.selectbox("SQUADRA", sorted(f_rs['Squadra_N'].unique()), key="sel_rose_v48")
-        df_team = f_rs[f_rs['Squadra_N'] == sq_r].copy()
-        
-        # 1. Metric Cards
-        c1, c2, c3, c4 = st.columns(4)
-        with c1: st.markdown(f'<div class="stat-card">👥 TOTALI<br><h2>{len(df_team)}</h2></div>', unsafe_allow_html=True)
-        with c2: st.markdown(f'<div class="stat-card">💰 ASTA<br><h2>{format_no_zero(df_team["Prezzo_N"].sum())}</h2></div>', unsafe_allow_html=True)
-        with c3: st.markdown(f'<div class="stat-card">📈 VALORE<br><h2>{format_no_zero(df_team["Quotazione"].sum())}</h2></div>', unsafe_allow_html=True)
-        with c4: st.markdown(f'<div class="stat-card">👶 GIOVANI<br><h2>{len(df_team[df_team["Prezzo_N"] == 0])}</h2></div>', unsafe_allow_html=True)
-
-        # 2. Tabella Dettagliata con Gradienti nelle celle
-        st.write("---")
-        shades = {'POR': ['#FCE4EC','#F8BBD0','#F48FB1','#F06292'], 'DIF': ['#E8F5E9','#C8E6C9','#A5D6A7','#81C784'], 'CEN': ['#E3F2FD','#BBDEFB','#90CAF9','#64B5F6'], 'ATT': ['#FFFDE7','#FFF9C4','#FFF59D','#FFF176']}
-        html_d = '<table class="golden-table"><thead><tr><th>RUOLO</th><th>NOME</th><th class="col-asta">ASTA</th><th class="col-valore">QUOT</th></tr></thead><tbody>'
-        for _, row in df_team.sort_values(['Prezzo_N'], ascending=False).iterrows():
-            rk = 'ATT' if 'ATT' in str(row['Ruolo']).upper() else 'CEN' if 'CEN' in str(row['Ruolo']).upper() else 'DIF' if 'DIF' in str(row['Ruolo']).upper() else 'POR'
-            sh = shades.get(rk, ['#fff']*4)
-            html_d += f'<tr><td style="background-color:{sh[0]}">{row["Ruolo"]}</td><td style="background-color:{sh[1]}">{row["Nome"]}</td><td class="col-asta">{format_no_zero(row["Prezzo_N"])}</td><td class="col-valore">{format_no_zero(row["Quotazione"])}</td></tr>'
-        st.markdown(html_d + '</tbody></table>', unsafe_allow_html=True)
-
-# TAB CLASSIFICHE (Gradienti sulle colonne Punti)
+# TAB CLASSIFICHE
 with t[0]:
     st.subheader("📊 CLASSIFICHE")
     if f_pt is not None:
-        st.write("**🎯 PUNTI**")
-        html_pt = '<table class="golden-table"><thead><tr><th>POS</th><th>GIOCATORE</th><th class="col-punti">PUNTI</th></tr></thead><tbody>'
+        html_pt = '<table class="golden-table"><thead><tr><th>POS</th><th>GIOCATORE</th><th class="grad-punti">PUNTI</th></tr></thead><tbody>'
         for _, r in f_pt.iterrows():
-            html_pt += f'<tr><td>{r.iloc[0]}</td><td>{r.iloc[1]}</td><td class="col-punti">{format_no_zero(to_num(r.iloc[2]))}</td></tr>'
+            html_pt += f'<tr><td>{r.iloc[0]}</td><td>{r.iloc[1]}</td><td class="grad-punti">{fmt(to_num(r.iloc[2]))}</td></tr>'
         st.markdown(html_pt + '</tbody></table>', unsafe_allow_html=True)
 
-# TAB BUDGET (Gradienti sulla colonna Totale)
+# TAB BUDGET
 with t[1]:
-    st.subheader("💰 PATRIMONIO")
+    st.subheader("💰 BUDGET DINAMICO")
     if f_rs is not None:
-        bu = f_rs.groupby('Squadra_N')['Prezzo_N'].sum().reset_index().rename(columns={'Prezzo_N': 'ASTA'})
-        bu['TOTALE'] = bu['ASTA'] + bu['Squadra_N'].map(bg_ex).fillna(0)
-        html_bu = '<table class="golden-table"><thead><tr><th>SQUADRA</th><th>ASTA</th><th class="col-valore">TOTALE</th></tr></thead><tbody>'
+        bu = f_rs.groupby('Squadra_N')['Prezzo_N'].sum().reset_index()
+        bu['TOTALE'] = bu['Prezzo_N'] + bu['Squadra_N'].map(bg_ex).fillna(0)
+        html_bu = '<table class="golden-table"><thead><tr><th>SQUADRA</th><th>ASTA</th><th class="grad-valore">TOTALE</th></tr></thead><tbody>'
         for _, r in bu.sort_values('TOTALE', ascending=False).iterrows():
-            html_bu += f'<tr><td>{r["Squadra_N"]}</td><td>{format_no_zero(r["ASTA"])}</td><td class="col-valore">{format_no_zero(r["TOTALE"])}</td></tr>'
+            html_bu += f'<tr><td>{r["Squadra_N"]}</td><td>{fmt(r["Prezzo_N"])}</td><td class="grad-valore">{fmt(r["TOTALE"])}</td></tr>'
         st.markdown(html_bu + '</tbody></table>', unsafe_allow_html=True)
 
-# TAB MERCATO (Ripristinata)
+# TAB ROSE (Piena interattività e Grafica Roseagg)
+with t[2]:
+    if f_rs is not None:
+        sq_r = st.selectbox("SELEZIONA SQUADRA", sorted(f_rs['Squadra_N'].unique()))
+        df_team = f_rs[f_rs['Squadra_N'] == sq_r].copy()
+        
+        c1, c2, c3, c4 = st.columns(4)
+        with c1: st.markdown(f'<div class="stat-card">👥 TOTALI<br><h2>{len(df_team)}</h2></div>', unsafe_allow_html=True)
+        with c2: st.markdown(f'<div class="stat-card">💰 ASTA<br><h2>{fmt(df_team["Prezzo_N"].sum())}</h2></div>', unsafe_allow_html=True)
+        with c3: st.markdown(f'<div class="stat-card">📈 VALORE<br><h2>{fmt(df_team["Quotazione"].sum())}</h2></div>', unsafe_allow_html=True)
+        with c4: st.markdown(f'<div class="stat-card">👶 GIOVANI<br><h2>{len(df_team[df_team["Prezzo_N"] == 0])}</h2></div>', unsafe_allow_html=True)
+
+        shades = {'POR': ['#FCE4EC','#F8BBD0','#F48FB1','#F06292'], 'DIF': ['#E8F5E9','#C8E6C9','#A5D6A7','#81C784'], 'CEN': ['#E3F2FD','#BBDEFB','#90CAF9','#64B5F6'], 'ATT': ['#FFFDE7','#FFF9C4','#FFF59D','#FFF176']}
+        html_d = '<table class="golden-table"><thead><tr><th>RUOLO</th><th>NOME</th><th class="grad-asta">ASTA</th><th class="grad-valore">QUOT</th></tr></thead><tbody>'
+        for _, row in df_team.sort_values(['Prezzo_N'], ascending=False).iterrows():
+            rk = 'ATT' if 'ATT' in str(row['Ruolo']).upper() else 'CEN' if 'CEN' in str(row['Ruolo']).upper() else 'DIF' if 'DIF' in str(row['Ruolo']).upper() else 'POR'
+            sh = shades.get(rk, ['#fff']*4)
+            html_d += f'<tr><td style="background-color:{sh[0]}">{row["Ruolo"]}</td><td style="background-color:{sh[1]}">{row["Nome"]}</td><td class="grad-asta">{fmt(row["Prezzo_N"])}</td><td class="grad-valore">{fmt(row["Quotazione"])}</td></tr>'
+        st.markdown(html_d + '</tbody></table>', unsafe_allow_html=True)
+
+# TAB SCAMBI (Formula Golden 3.2 ripristinata)
+with t[4]:
+    st.subheader("🔄 SIMULATORE SCAMBI")
+    if f_rs is not None:
+        col1, col2 = st.columns(2)
+        with col1: sA = st.selectbox("SQUADRA A", sorted(f_rs['Squadra_N'].unique()), key="sA")
+        with col2: sB = st.selectbox("SQUADRA B", [s for s in sorted(f_rs['Squadra_N'].unique()) if s != sA], key="sB")
+        
+        gA = st.multiselect("ESCONO DA A", f_rs[f_rs['Squadra_N']==sA]['Nome'].tolist())
+        gB = st.multiselect("ESCONO DA B", f_rs[f_rs['Squadra_N']==sB]['Nome'].tolist())
+        
+        if gA and gB:
+            # Calcolo logica complessa
+            ta = f_rs[f_rs['Nome'].isin(gA)]['Prezzo_N'].sum()
+            tb = f_rs[f_rs['Nome'].isin(gB)]['Prezzo_N'].sum()
+            media = (ta + tb) / 2
+            st.markdown(f'<div class="punto-incontro-box">MEDIA SCAMBIO: {fmt(media)} | GAP: {fmt(ta-tb)}</div>', unsafe_allow_html=True)
+
+# TAB MERCATO
 with t[6]:
     st.subheader("🚀 MERCATO CESSIONI")
     if not df_mercato.empty:
-        st.table(df_mercato)
-    else:
-        st.info("Nessuna cessione registrata.")
+        st.dataframe(df_mercato, use_container_width=True)
