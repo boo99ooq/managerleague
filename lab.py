@@ -194,18 +194,72 @@ with t[0]:
                 
                 html_sc += f'<tr>{row}</tr>'
             st.markdown(html_sc + '</tbody></table>', unsafe_allow_html=True)
-# TAB 1: BUDGET
+# --- TAB 1: BUDGET DINAMICO (Interattivo con Gradienti) ---
 with t[1]:
+    st.subheader("💰 CALCOLATORE PATRIMONIO DINAMICO")
+    
     if f_rs is not None:
-        st.subheader("💰 BUDGET E PATRIMONIO")
-        bu = f_rs.groupby('Squadra_N')['Prezzo_N'].sum().reset_index().rename(columns={'Prezzo_N': 'SPESA ROSE'})
+        # --- SEZIONE FILTRI INTERATTIVI ---
+        st.markdown("#### ⚙️ COSA VUOI INCLUDERE NEL TOTALE?")
+        c_inc1, c_inc2, c_inc3, c_inc4 = st.columns(4)
+        with c_inc1: inc_rose = st.checkbox("SPESA ROSE", value=True)
+        with c_inc2: inc_vinc = st.checkbox("SPESA VINCOLI", value=True)
+        with c_inc3: inc_cred = st.checkbox("CREDITI INIZIALI", value=True)
+        with c_inc4: inc_recu = st.checkbox("RECUPERI MERCATO", value=True)
+        
+        # --- LOGICA DI CALCOLO ---
+        # 1. Spesa Rose
+        bu = f_rs.groupby('Squadra_N')['Prezzo_N'].sum().reset_index().rename(columns={'Prezzo_N': 'ROSE'})
+        # 2. Spesa Vincoli
         v_s = f_vn.groupby('Sq_N')['Tot_Vincolo'].sum().reset_index() if f_vn is not None else pd.DataFrame(columns=['Sq_N', 'Tot_Vincolo'])
-        bu = pd.merge(bu, v_s, left_on='Squadra_N', right_on='Sq_N', how='left').fillna(0).drop('Sq_N', axis=1).rename(columns={'Tot_Vincolo': 'SPESA VINCOLI'})
+        bu = pd.merge(bu, v_s, left_on='Squadra_N', right_on='Sq_N', how='left').fillna(0).drop('Sq_N', axis=1).rename(columns={'Tot_Vincolo': 'VINCOLI'})
+        # 3. Crediti e Recuperi
         bu['CREDITI'] = bu['Squadra_N'].map(bg_ex).fillna(0)
         bu['RECUPERO'] = bu['Squadra_N'].map(rimborsi_m).fillna(0)
-        bu['TOTALE'] = bu['SPESA ROSE'] + bu['SPESA VINCOLI'] + bu['CREDITI'] + bu['RECUPERO']
-        st.dataframe(bu.sort_values('TOTALE', ascending=False), hide_index=True, use_container_width=True)
-
+        
+        # Calcolo Totale Dinamico in base ai checkbox
+        bu['TOTALE_DINAMICO'] = 0
+        if inc_rose: bu['TOTALE_DINAMICO'] += bu['ROSE']
+        if inc_vinc: bu['TOTALE_DINAMICO'] += bu['VINCOLI']
+        if inc_cred: bu['TOTALE_DINAMICO'] += bu['CREDITI']
+        if inc_recu: bu['TOTALE_DINAMICO'] += bu['RECUPERO']
+        
+        # --- COSTRUZIONE TABELLA HTML CON GRADIENTI ---
+        html_bu = '''
+        <table class="golden-table">
+            <thead>
+                <tr>
+                    <th>SQUADRA</th>
+                    <th>ROSE</th>
+                    <th>VINCOLI</th>
+                    <th>CREDITI</th>
+                    <th>RECUPERO</th>
+                    <th style="background: linear-gradient(90deg, #f1f5f9 0%, #dcfce7 100%);">PATRIMONIO</th>
+                </tr>
+            </thead>
+            <tbody>'''
+        
+        for _, r in bu.sort_values('TOTALE_DINAMICO', ascending=False).iterrows():
+            # Formattazione numeri (togliamo .0)
+            v_rose = int(r['ROSE']) if r['ROSE'].is_integer() else r['ROSE']
+            v_vinc = int(r['VINCOLI']) if r['VINCOLI'].is_integer() else r['VINCOLI']
+            v_cred = int(r['CREDITI']) if r['CREDITI'].is_integer() else r['CREDITI']
+            v_recu = int(r['RECUPERO']) if r['RECUPERO'].is_integer() else r['RECUPERO']
+            v_tot  = int(r['TOTALE_DINAMICO']) if r['TOTALE_DINAMICO'].is_integer() else r['TOTALE_DINAMICO']
+            
+            html_bu += f'''
+            <tr>
+                <td style="text-align:left; padding-left:15px;">{r['Squadra_N']}</td>
+                <td style="color: {'#000' if inc_rose else '#ccc'};">{v_rose}</td>
+                <td style="color: {'#000' if inc_vinc else '#ccc'};">{v_vinc}</td>
+                <td style="color: {'#000' if inc_cred else '#ccc'};">{v_cred}</td>
+                <td style="color: {'#000' if inc_recu else '#ccc'};">{v_recu}</td>
+                <td style="background: linear-gradient(90deg, #ffffff 0%, #dcfce7 100%); font-size: 1.2em;">{v_tot}</td>
+            </tr>'''
+        
+        html_bu += '</tbody></table>'
+        st.markdown(html_bu, unsafe_allow_html=True)
+        st.info("💡 Usa i checkbox sopra per simulare il patrimonio escludendo alcune voci (es. per vedere il budget senza i vincoli).")
 # TAB 2: ROSE PREMIUM
 with t[2]:
     if f_rs is not None:
