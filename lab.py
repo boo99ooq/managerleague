@@ -5,18 +5,15 @@ import unicodedata
 import re
 
 # 1. SETUP UI
-st.set_page_config(page_title="MuyFantaManager Golden Ultimate V4", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="MuyFantaManager Golden Ultimate V4.1", layout="wide", initial_sidebar_state="expanded")
 
-# --- BLOCCO CSS TOTALE (Headers Blindati, Neretto 900 e Allineamento) ---
+# --- BLOCCO CSS DEFINITIVO (Headers Blindati, Neretto 900 e Allineamento) ---
 st.markdown("""
 <style>
-    /* Forza Neretto 900 ovunque */
     html, body, [data-testid="stAppViewContainer"] *, p, div, span, label { 
         font-weight: 900 !important; 
         color: #000 !important; 
     }
-    
-    /* Tabelle HTML Custom (Senza indici, Headers Bold/Maiuscoli) */
     .golden-table {
         width: 100%; border-collapse: collapse; margin: 10px 0;
         box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); border: 2px solid #333;
@@ -28,14 +25,10 @@ st.markdown("""
     .golden-table td {
         padding: 10px 15px; border: 1px solid #ddd; text-align: center; font-weight: 900 !important;
     }
-
-    /* Card Statistiche */
     .stat-card { 
         background-color: #f8f9fa; padding: 15px; border-radius: 10px; 
         border: 3px solid #333; text-align: center; box-shadow: 4px 4px 0px #333; 
     }
-    
-    /* Box Mercato Pastello */
     .refund-box-pastello {
         padding: 15px; border-radius: 12px; border: 3px solid #333; text-align: center;
         min-height: 130px; box-shadow: 4px 4px 0px #333; margin-bottom: 15px;
@@ -43,12 +36,8 @@ st.markdown("""
     .bg-azzurro { background-color: #E3F2FD !important; } .bg-verde { background-color: #E8F5E9 !important; }
     .bg-rosa { background-color: #FCE4EC !important; } .bg-giallo { background-color: #FFFDE7 !important; }
     .bg-arancio { background-color: #FFF3E0 !important; } .bg-viola { background-color: #F3E5F5 !important; }
-
-    /* Status Mercato */
     .status-ufficiale { color: white !important; background-color: #2e7d32; padding: 3px 8px; border-radius: 5px; }
     .status-probabile { color: white !important; background-color: #ed6c02; padding: 3px 8px; border-radius: 5px; }
-    
-    /* Sidebar e Altro */
     .player-card { padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 6px solid #333; box-shadow: 2px 2px 5px rgba(0,0,0,0.1); background-color: white; }
     .punto-incontro-box { background-color: #fff3e0; padding: 10px 30px; border-radius: 15px; border: 3px solid #ff9800; text-align: center; margin: 10px auto; width: fit-content; }
 </style>
@@ -86,14 +75,12 @@ def load_all():
         df.columns = [c.strip() for c in df.columns]
         return df
 
-    f_sc = ld_std("scontridiretti.csv")
-    f_pt = ld_std("classificapunti.csv")
-    f_vn = ld_std("vincoli.csv")
+    f_sc, f_pt, f_vn = ld_std("scontridiretti.csv"), ld_std("classificapunti.csv"), ld_std("vincoli.csv")
     f_rs_raw = ld_std("rose_complete.csv")
     
     if f_rs_raw is not None:
         map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS", "DANI ROBI": "DANI ROBI"}
-        # Ricerca dinamica colonne
+        # Trova colonne dinamiche
         c_r_rs = next((c for c in f_rs_raw.columns if c.upper() in ['RUOLO', 'R']), 'Ruolo')
         c_p_rs = next((c for c in f_rs_raw.columns if c.upper() in ['PREZZO', 'P']), 'Prezzo')
         
@@ -102,18 +89,16 @@ def load_all():
         f_rs_raw['Prezzo_N'] = f_rs_raw[c_p_rs].apply(to_num)
         f_rs_raw['Ruolo_N'] = f_rs_raw.apply(lambda x: normalize_ruolo_v4({'Ruolo': x[c_r_rs], 'Prezzo': x[c_p_rs]}), axis=1)
         
-        # Ordinamento P-D-C-A-G
         rank_map = {'POR':0, 'DIF':1, 'CEN':2, 'ATT':3, 'GIO':4}
         f_rs_raw['Ruolo_Rank'] = f_rs_raw['Ruolo_N'].map(rank_map).fillna(99)
 
-        # Quotazioni con Fix Ferguson
         f_qt = ld_std("quotazioni.csv")
         if f_qt is not None:
             c_n_qt = next((c for c in f_qt.columns if c.upper() in ['NOME', 'CALCIATORE']), 'Nome')
             c_r_qt = next((c for c in f_qt.columns if c.upper() in ['RUOLO', 'R', 'POS']), 'Ruolo')
             c_v_qt = next((c for c in f_qt.columns if 'QT' in c.upper() or 'VAL' in c.upper()), None)
             
-            if c_v_qt and c_r_qt in f_qt.columns:
+            if c_v_qt:
                 f_qt['Match_Nome'] = f_qt[c_n_qt].apply(super_clean)
                 f_qt['Ruolo_QT_Norm'] = f_qt[c_r_qt].apply(lambda x: normalize_ruolo_v4({'Ruolo':x, 'Prezzo':10}))
                 f_rs_raw['Ruolo_Tecnico'] = f_rs_raw[c_r_rs].apply(lambda x: normalize_ruolo_v4({'Ruolo':x, 'Prezzo':10}))
@@ -134,7 +119,6 @@ def load_all():
 
     return f_sc, f_pt, f_rs_raw, f_vn
 
-# AVVIO CARICAMENTO
 f_sc, f_pt, f_rs, f_vn = load_all()
 FILE_DB = "mercatone_gennaio.csv"
 bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
@@ -143,7 +127,7 @@ df_mercato = pd.read_csv(FILE_DB) if os.path.exists(FILE_DB) else pd.DataFrame(c
 # --- INTERFACCIA ---
 t = st.tabs(["🏆 **CLASSIFICHE**", "💰 **BUDGET**", "🏃 **ROSE**", "📅 **VINCOLI**", "🔄 **SCAMBI**", "✂️ **TAGLI**", "🚀 **MERCATO**"])
 
-with t[0]: # TAB 0: CLASSIFICHE
+with t[0]: # CLASSIFICHE
     c1, c2 = st.columns(2)
     if f_pt is not None:
         with c1:
@@ -155,7 +139,7 @@ with t[0]: # TAB 0: CLASSIFICHE
             st.subheader("⚔️ SCONTRI")
             st.dataframe(f_sc[['Posizione','Giocatore','Punti']].style.set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
-with t[1]: # TAB 1: BUDGET
+with t[1]: # BUDGET
     if f_rs is not None:
         st.subheader("💰 **SITUAZIONE PATRIMONIALE**")
         rim_u = df_mercato[df_mercato['STATO'] == 'UFFICIALE'].groupby('SQUADRA')['TOTALE'].sum().to_dict()
@@ -169,7 +153,7 @@ with t[1]: # TAB 1: BUDGET
             bu['TOTALE'] = bu[sel].sum(axis=1)
             st.dataframe(bu[['Squadra_N'] + sel + ['TOTALE']].sort_values('TOTALE', ascending=False).style.set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
-with t[2]: # TAB 2: ROSE (NUOVO LAVORO)
+with t[2]: # ROSE (GOLDEN UI)
     if f_rs is not None:
         sq_r = st.selectbox("**SELEZIONA SQUADRA**", sorted(f_rs['Squadra_N'].unique()), key="sq_rose_main")
         df_team = f_rs[f_rs['Squadra_N'] == sq_r].copy()
@@ -201,17 +185,20 @@ with t[2]: # TAB 2: ROSE (NUOVO LAVORO)
         html_d = '<table class="golden-table"><thead><tr><th>RUOLO</th><th>NOME</th><th>PREZZO</th><th>QUOT</th></tr></thead><tbody>'
         for _, row in df_team.sort_values(['Ruolo_Rank', 'Prezzo_N'], ascending=[True, False]).iterrows():
             sh = pal_s.get(row['Ruolo_N'], ['#fff']*4)
-            html_d += f'<tr><td style="background-color:{sh[0]}">{row["Ruolo"]}</td><td style="background-color:{sh[1]}">{row["Nome"]}</td><td style="background-color:{sh[2]}">{int(row["Prezzo_N"])}</td><td style="background-color:{sh[3]}">{int(row["Quotazione"])}</td></tr>'
+            # Rimuoviamo i decimali forzando int()
+            p_val = int(row["Prezzo_N"])
+            q_val = int(row["Quotazione"])
+            html_d += f'<tr><td style="background-color:{sh[0]}">{row["Ruolo"]}</td><td style="background-color:{sh[1]}">{row["Nome"]}</td><td style="background-color:{sh[2]}">{p_val}</td><td style="background-color:{sh[3]}">{q_val}</td></tr>'
         st.markdown(html_d + '</tbody></table>', unsafe_allow_html=True)
 
-with t[3]: # TAB 3: VINCOLI
+with t[3]: # VINCOLI
     if f_vn is not None:
         st.subheader("📅 DETTAGLIO VINCOLI ATTIVI")
         sq_v = st.selectbox("**SQUADRA**", ["TUTTE"] + sorted(f_vn['Sq_N'].unique()))
         df_v = f_vn if sq_v == "TUTTE" else f_vn[f_vn['Sq_N'] == sq_v]
         st.dataframe(df_v[['Squadra', 'Giocatore', 'Tot_Vincolo', 'Anni_T']].style.set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
-with t[4]: # TAB 4: SCAMBI
+with t[4]: # SCAMBI
     if f_rs is not None:
         st.subheader("🔄 SIMULATORE SCAMBI")
         c_a, c_b = st.columns(2)
@@ -235,18 +222,18 @@ with t[4]: # TAB 4: SCAMBI
                     nv = round((i['t']/ta)*nt) if ta>0 else nt
                     st.markdown(f'<div class="player-card"><b>{n}</b><br><small>NUOVO: {max(0, nv-int(i["v"])):g}+{i["v"]:g} (V) | ANTE: {i["t"]:g}</small></div>', unsafe_allow_html=True)
 
-with t[5]: # TAB 5: TAGLI
+with t[5]: # TAGLI
     if f_rs is not None:
         st.subheader("✂️ TAGLI GOLDEN")
         sq_t = st.selectbox("SQUADRA", sorted(f_rs['Squadra_N'].unique()), key="st_t")
         gt = st.selectbox("GIOCATORE", f_rs[f_rs['Squadra_N']==sq_t]['Nome'].tolist())
         if gt:
             v_a = f_rs[(f_rs['Squadra_N']==sq_t)&(f_rs['Nome']==gt)]['Prezzo_N'].iloc[0]
-            vv = f_vn[f_vn['Giocatore_Match']==super_clean(gt)]['Tot_Vincolo'].sum() if f_vn is not None else 0
-            st.markdown(f'<div class="stat-card" style="border-color:#ff4b4b;"><h3>{gt}</h3>RIMBORSO: <b>{round((v_a+vv)*0.6):g}</b><br><small>ASTA: {v_a:g} | VINC: {vv:g}</small></div>', unsafe_allow_html=True)
+            vv_t = f_vn[f_vn['Giocatore_Match']==super_clean(gt)]['Tot_Vincolo'].sum() if f_vn is not None else 0
+            st.markdown(f'<div class="stat-card" style="border-color:#ff4b4b;"><h3>{gt}</h3>RIMBORSO: <b>{round((v_a+vv_t)*0.6):g}</b><br><small>ASTA: {v_a:g} | VINC: {vv_t:g}</small></div>', unsafe_allow_html=True)
 
-with t[6]: # TAB 6: MERCATO
-    st.subheader("🚀 MERCATO GENNAIO")
+with t[6]: # MERCATO
+    st.subheader("🚀 MERCATO")
     with st.expander("➕ AGGIUNGI CESSIONE"):
         sc = st.selectbox("Calciatore:", [""] + sorted(f_rs['Nome'].unique()))
         if st.button("INSERISCI") and sc != "":
@@ -256,11 +243,11 @@ with t[6]: # TAB 6: MERCATO
             df_mercato = pd.concat([df_mercato, nuova], ignore_index=True); df_mercato.to_csv(FILE_DB, index=False); st.rerun()
     if not df_mercato.empty:
         for idx, row in df_mercato.iterrows():
-            c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
-            with c1: st.write(f"**{row['GIOCATORE']}**")
-            with c2: st.write(f"RIMB: {row['TOTALE']:g}")
-            with c3: st.markdown(f"<span class='{'status-ufficiale' if row['STATO']=='UFFICIALE' else 'status-probabile'}'>{row['STATO']}</span>", unsafe_allow_html=True)
-            with c4:
+            mc1, mc2, mc3, mc4 = st.columns([2, 1, 1, 1])
+            with mc1: st.write(f"**{row['GIOCATORE']}**")
+            with mc2: st.write(f"RIMB: {row['TOTALE']:g}")
+            with mc3: st.markdown(f"<span class='{'status-ufficiale' if row['STATO']=='UFFICIALE' else 'status-probabile'}'>{row['STATO']}</span>", unsafe_allow_html=True)
+            with mc4:
                 if row['STATO']=="PROBABILE" and st.button("✅", key=f"u_{idx}"):
                     df_mercato.at[idx, 'STATO']="UFFICIALE"; df_mercato.to_csv(FILE_DB, index=False); st.rerun()
                 if st.button("🗑️", key=f"d_{idx}"):
@@ -271,6 +258,6 @@ with t[6]: # TAB 6: MERCATO
         if 'UFFICIALE' not in sq_m: sq_m['UFFICIALE'] = 0
         if 'PROBABILE' not in sq_m: sq_m['PROBABILE'] = 0
         sq_m['TOT'] = sq_m['UFFICIALE'] + sq_m['PROBABILE']
-        cols = st.columns(4)
-        for i, (sn, d) in enumerate(sq_m.sort_values('TOT', ascending=False).iterrows()):
-            with cols[i%4]: st.markdown(f'<div class="refund-box-pastello {colori[i%len(colori)]}">{sn}<br><b>+{d["TOT"]:g}</b><hr><small>Uff: {d["UFFICIALE"]:g} | Prob: {d["PROBABILE"]:g}</small></div>', unsafe_allow_html=True)
+        cols_mer = st.columns(4)
+        for i, (sn, d_mer) in enumerate(sq_m.sort_values('TOT', ascending=False).iterrows()):
+            with cols_mer[i%4]: st.markdown(f'<div class="refund-box-pastello {colori[i%len(colori)]}">{sn}<br><b>+{d_mer["TOT"]:g}</b><hr><small>Uff: {d_mer["UFFICIALE"]:g} | Prob: {d_mer["PROBABILE"]:g}</small></div>', unsafe_allow_html=True)
