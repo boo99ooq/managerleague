@@ -7,7 +7,7 @@ import re
 # 1. SETUP UI
 st.set_page_config(page_title="MuyFantaLAB - Test Area", layout="wide", initial_sidebar_state="expanded")
 
-# CSS (Bordi rinforzati e font grassetto)
+# CSS
 st.markdown("""
 <style>
     html, body, [data-testid="stAppViewContainer"] * { font-weight: 900 !important; }
@@ -67,7 +67,14 @@ if f_rs is not None:
     if f_qt is not None:
         f_rs = pd.merge(f_rs, f_qt, on='Match_Nome', how='left').fillna({'Quotazione': 0})
 
-# Caricamento database partenti persistente
+if f_vn is not None:
+    v_cols = [c for c in f_vn.columns if '202' in c]
+    # FIX: Creazione colonna Sq_N per il groupby
+    f_vn['Sq_N'] = f_vn['Squadra'].apply(lambda x: str(x).upper().strip()).replace(map_n)
+    f_vn['Giocatore_Match'] = f_vn['Giocatore'].apply(super_clean_match)
+    for c in v_cols: f_vn[c] = f_vn[c].apply(to_num)
+    f_vn['Tot_Vincolo'] = f_vn[v_cols].sum(axis=1)
+
 if os.path.exists(FILE_PARTENTI):
     df_partenti_fisso = pd.read_csv(FILE_PARTENTI)
 else:
@@ -78,15 +85,11 @@ rimborsi_squadre = df_partenti_fisso.groupby("SQUADRA")["RIMBORSO"].sum().to_dic
 # --- TABS ---
 t = st.tabs(["🏆 **CLASSIFICHE**", "💰 **BUDGET**", "🏃 **ROSE**", "📅 **VINCOLI**", "🔄 **SCAMBI**", "✂️ **TAGLI**", "🆕 **RIMBORSO PER CESSIONE**"])
 
-# --- TAB 6: RIMBORSO PER CESSIONE ---
-with t[6]:
+with t[6]: # RIMBORSO PER CESSIONE
     st.subheader("🚀 **REGISTRAZIONE GIOCATORI USCITI DALLA SERIE A**")
-    st.info("Utilizza questa pagina per 'congelare' il rimborso prima di eliminare il giocatore dal file rose.")
-    
     if f_rs is not None:
         c1, c2 = st.columns([3, 1])
-        with c1:
-            scelta = st.selectbox("Seleziona il giocatore partente:", [""] + sorted(f_rs['Nome'].unique()))
+        with c1: scelta = st.selectbox("Seleziona partente:", [""] + sorted(f_rs['Nome'].unique()))
         with c2:
             if st.button("✅ REGISTRA USCITA") and scelta != "":
                 if scelta not in df_partenti_fisso['GIOCATORE'].values:
@@ -94,31 +97,22 @@ with t[6]:
                     v_match = f_vn[f_vn['Giocatore_Match'] == super_clean_match(scelta)] if f_vn is not None else pd.DataFrame()
                     vv = v_match['Tot_Vincolo'].iloc[0] if not v_match.empty else 0
                     rimborso = ((info['Prezzo_N'] + info['Quotazione']) * 0.5) + vv
-                    
-                    nuova_riga = pd.DataFrame([{
-                        "GIOCATORE": scelta, "SQUADRA": info['Squadra_N'], "RUOLO": info['Ruolo'],
-                        "ASTA": info['Prezzo_N'], "QUOT.": info['Quotazione'], "VINCOLO": vv, "RIMBORSO": rimborso
-                    }])
+                    nuova_riga = pd.DataFrame([{"GIOCATORE": scelta, "SQUADRA": info['Squadra_N'], "RUOLO": info['Ruolo'], "ASTA": info['Prezzo_N'], "QUOT.": info['Quotazione'], "VINCOLO": vv, "RIMBORSO": rimborso}])
                     df_partenti_fisso = pd.concat([df_partenti_fisso, nuova_riga], ignore_index=True)
                     df_partenti_fisso.to_csv(FILE_PARTENTI, index=False)
-                    st.success(f"Rimborso per {scelta} salvato correttamente!")
                     st.rerun()
-                else:
-                    st.warning("Giocatore già registrato!")
 
     if not df_partenti_fisso.empty:
-        st.markdown("### 📋 STORICO CESSIONI REGISTRATE")
         st.dataframe(df_partenti_fisso.style.apply(color_ruoli, axis=1).format({"ASTA":"{:g}", "QUOT.":"{:g}", "VINCOLO":"{:g}", "RIMBORSO":"{:g}"}), use_container_width=True, hide_index=True)
-        
-        if st.button("🗑️ RESETTA TUTTO (ATTENZIONE)"):
+        if st.button("🗑️ RESETTA TUTTO"):
             if os.path.exists(FILE_PARTENTI): os.remove(FILE_PARTENTI)
             st.rerun()
 
-# --- TAB 1: BUDGET (Sempre aggiornato) ---
-with t[1]:
+with t[1]: # BUDGET
     if f_rs is not None:
-        st.subheader("💰 **BUDGET E PATRIMONIO AGGIORNATO**")
+        st.subheader("💰 **BUDGET DINAMICO**")
         bu = f_rs.groupby('Squadra_N')['Prezzo_N'].sum().reset_index().rename(columns={'Prezzo_N': 'SPESA ROSE'})
+        # FIX: groupby Sq_N garantito
         v_sum = f_vn.groupby('Sq_N')['Tot_Vincolo'].sum().reset_index() if f_vn is not None else pd.DataFrame(columns=['Sq_N', 'Tot_Vincolo'])
         bu = pd.merge(bu, v_sum, left_on='Squadra_N', right_on='Sq_N', how='left').fillna(0).drop('Sq_N', axis=1).rename(columns={'Tot_Vincolo': 'SPESA VINCOLI'})
         bu['CREDITI DISPONIBILI'] = bu['Squadra_N'].map(bg_ex).fillna(0)
@@ -126,10 +120,6 @@ with t[1]:
         
         voci_sel = st.multiselect("Voci calcolo:", ['SPESA ROSE', 'SPESA VINCOLI', 'CREDITI DISPONIBILI', 'RECUPERO CESSIONI'], default=['SPESA ROSE', 'SPESA VINCOLI', 'CREDITI DISPONIBILI', 'RECUPERO CESSIONI'])
         bu['PATRIMONIO TOTALE'] = bu[voci_sel].sum(axis=1) if voci_sel else 0
-        
-        st.dataframe(bu[['Squadra_N'] + voci_sel + ['PATRIMONIO TOTALE']].sort_values("PATRIMONIO TOTALE", ascending=False).style\
-            .background_gradient(cmap='YlOrRd', subset=['PATRIMONIO TOTALE'])\
-            .format({c: "{:g}" for c in bu.columns if c != 'Squadra_N'})\
-            .set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
+        st.dataframe(bu[['Squadra_N'] + voci_sel + ['PATRIMONIO TOTALE']].sort_values("PATRIMONIO TOTALE", ascending=False).style.background_gradient(cmap='YlOrRd', subset=['PATRIMONIO TOTALE']).format({c: "{:g}" for c in bu.columns if c != 'Squadra_N'}), hide_index=True, use_container_width=True)
 
-# ... (Le altre Tab restano come prima) ...
+# ... (Le altre tab rimangono come nelle versioni precedenti)
