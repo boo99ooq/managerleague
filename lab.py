@@ -5,26 +5,35 @@ import unicodedata
 import re
 
 # 1. SETUP UI
-st.set_page_config(page_title="MuyFantaManager Golden V5.6", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="MuyFantaManager Golden V5.7", layout="wide", initial_sidebar_state="expanded")
 
-# --- CSS DEFINITIVO (Neretto e Tabelle) ---
+# --- BLOCCO CSS DEFINITIVO (Neretto e Ripristino Menu) ---
 st.markdown("""
 <style>
-    html, body, [data-testid="stAppViewContainer"] p, div, span, label, table, td, th { 
+    /* Forza il neretto 900 su testi e tabelle, ignorando i widget di sistema per non bloccarli */
+    p, span, label, td, th, h1, h2, h3, .stMarkdown { 
         font-weight: 900 !important; 
         color: #000 !important;
     }
+    
+    /* Tabelle HTML Premium */
     .golden-table { width: 100%; border-collapse: collapse; border: 3px solid #333; margin: 10px 0; }
     .golden-table th { background-color: #f1f5f9; border: 2px solid #333; padding: 12px; text-transform: uppercase; text-align: center; }
-    .golden-table td { border: 1px solid #333; padding: 10px; text-align: center; }
+    .golden-table td { border: 1px solid #333; padding: 10px; text-align: center; font-weight: 900 !important; }
+
+    /* Box Speciali */
+    .stat-card { background: #fff; padding: 15px; border-radius: 10px; border: 3px solid #333; text-align: center; box-shadow: 4px 4px 0px #333; margin-bottom: 10px; }
+    .cut-box { background: #fff; padding: 25px; border-radius: 15px; border: 4px solid #333; box-shadow: 6px 6px 0px #ff4b4b; text-align: center; }
+    .pi-box { background: #fff3e0; padding: 10px 30px; border: 3px solid #ff9800; border-radius: 15px; text-align: center; margin: 10px auto; width: fit-content; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- FUNZIONI SUPPORTO ---
+# --- FUNZIONI SUPPORTO (PULIZIA NUMERI) ---
 def fmt(val):
+    """Elimina il .0 dai numeri interi"""
     try:
         n = float(val)
-        return int(n) if n.is_integer() else n
+        return int(n) if n.is_integer() else round(n, 1)
     except: return val
 
 def to_num(val):
@@ -41,11 +50,6 @@ def super_clean(name):
     name = unicodedata.normalize('NFD', name).encode('ascii', 'ignore').decode('utf-8').upper().strip()
     return re.sub(r'\s[A-Z]\.$', '', name)
 
-def get_heatmap_color(val, max_val, base_rgb):
-    if max_val <= 0: return "rgba(255,255,255,1)"
-    alpha = min(max(val / max_val, 0.05), 0.7)
-    return f"rgba({base_rgb}, {alpha})"
-
 # --- CARICAMENTO DATI ---
 bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
 map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS"}
@@ -58,14 +62,12 @@ def load_data():
     rs['Match_Nome'] = rs['Nome'].apply(super_clean)
     rs['Prezzo_N'] = rs['Prezzo'].apply(to_num)
     
-    # Caricamento Vincoli con correzione KeyError
+    # Caricamento Vincoli (Tab 4 nella Gold)
     vn = None
     if os.path.exists("vincoli.csv"):
         vn = pd.read_csv("vincoli.csv", engine='python', encoding='latin1').dropna(how='all')
         vn.columns = [c.strip() for c in vn.columns]
-        # Cerchiamo la colonna Squadra in modo flessibile
-        col_sq = next((c for c in vn.columns if 'SQUADRA' in c.upper() or 'SQ' in c.upper()), vn.columns[0])
-        vn['Sq_N'] = vn[col_sq].str.upper().str.strip().replace(map_n)
+        vn['Sq_N'] = vn['Squadra'].str.upper().str.strip().replace(map_n)
         vn['Giocatore_Match'] = vn['Giocatore'].apply(super_clean)
         v_cols = [c for c in vn.columns if '202' in c]
         for c in v_cols: vn[c] = vn[c].apply(to_num)
@@ -80,49 +82,75 @@ def load_data():
         rs = pd.merge(rs, qt[['Match_Nome', col_q]], on='Match_Nome', how='left').fillna({col_q: 0})
         rs = rs.rename(columns={col_q: 'Quotazione'})
         
-    return rs, vn, None, None # Semplificato per focus budget
+    return rs, vn, pd.read_csv("classificapunti.csv", encoding='latin1') if os.path.exists("classificapunti.csv") else None, pd.read_csv("scontridiretti.csv", encoding='latin1') if os.path.exists("scontridiretti.csv") else None
 
-f_rs, f_vn, _, _ = load_data()
+f_rs, f_vn, f_pt, f_sc = load_data()
 
 # --- TABS ---
-t = st.tabs(["💰 **BUDGET**", "📅 **VINCOLI**", "🏃 **ROSE**"])
+t = st.tabs(["🏆 **CLASSIFICHE**", "💰 **BUDGET**", "🏃 **ROSE**", "📅 **VINCOLI**", "🔄 **SCAMBI**", "✂️ **TAGLI**"])
 
+# TAB CLASSIFICHE
 with t[0]:
-    st.subheader("💰 PATRIMONIO CON GRADIENTI DINAMICI")
-    if f_rs is not None:
-        c1, c2, c3 = st.columns(3)
-        with c1: inc_rose = st.checkbox("ROSE", value=True)
-        with c2: inc_vinc = st.checkbox("VINCOLI", value=True)
-        with c3: inc_cred = st.checkbox("CREDITI", value=True)
+    st.subheader("📊 CLASSIFICHE GENERALI")
+    c1, c2 = st.columns(2)
+    if f_pt is not None:
+        with c1: st.write("**🎯 PUNTI**"); st.dataframe(f_pt, hide_index=True)
+    if f_sc is not None:
+        with c2: st.write("**⚔️ SCONTRI DIRETTI**"); st.dataframe(f_sc, hide_index=True)
 
-        # Calcolo Spesa Rose
-        bu = f_rs.groupby('Squadra_N')['Prezzo_N'].sum().reset_index().rename(columns={'Prezzo_N': 'ROSE'})
-        
-        # Calcolo Spesa Vincoli (Corretto)
-        if f_vn is not None:
-            v_s = f_vn.groupby('Sq_N')['Tot_Vincolo'].sum().reset_index()
-            bu = pd.merge(bu, v_s, left_on='Squadra_N', right_on='Sq_N', how='left').fillna(0).drop('Sq_N', axis=1).rename(columns={'Tot_Vincolo': 'VINCOLI'})
-        else:
-            bu['VINCOLI'] = 0
-            
+# TAB BUDGET
+with t[1]:
+    if f_rs is not None:
+        st.subheader("💰 PATRIMONIO DISPONIBILE")
+        bu = f_rs.groupby('Squadra_N')['Prezzo_N'].sum().reset_index()
         bu['CREDITI'] = bu['Squadra_N'].map(bg_ex).fillna(0)
-        bu['TOTALE'] = (bu['ROSE'] if inc_rose else 0) + (bu['VINCOLI'] if inc_vinc else 0) + (bu['CREDITI'] if inc_cred else 0)
+        bu['TOTALE'] = bu['Prezzo_N'] + bu['CREDITI']
+        st.dataframe(bu.sort_values('TOTALE', ascending=False), hide_index=True)
+
+# TAB ROSE (STILE PREMIUM)
+with t[2]:
+    if f_rs is not None:
+        sq_sel = st.selectbox("SELEZIONA SQUADRA", sorted(f_rs['Squadra_N'].unique()))
+        df_team = f_rs[f_rs['Squadra_N'] == sq_sel].copy()
         
-        # HEATMAP
-        m_r = bu['ROSE'].max(); m_v = bu['VINCOLI'].max(); m_c = bu['CREDITI'].max(); m_t = bu['TOTALE'].max()
-        
-        html = '<table class="golden-table"><thead><tr><th>SQUADRA</th><th>ROSE</th><th>VINCOLI</th><th>CREDITI</th><th>TOTALE</th></tr></thead><tbody>'
-        for _, r in bu.sort_values('TOTALE', ascending=False).iterrows():
-            html += f'''<tr>
-                <td style="text-align:left; padding-left:15px;">{r['Squadra_N']}</td>
-                <td style="background-color: {get_heatmap_color(r['ROSE'], m_r, "187, 222, 251")};">{fmt(r['ROSE'])}</td>
-                <td style="background-color: {get_heatmap_color(r['VINCOLI'], m_v, "255, 204, 188")};">{fmt(r['VINCOLI'])}</td>
-                <td style="background-color: {get_heatmap_color(r['CREDITI'], m_c, "209, 196, 233")};">{fmt(r['CREDITI'])}</td>
-                <td style="background-color: {get_heatmap_color(r['TOTALE'], m_t, "129, 199, 132")};">{fmt(r['TOTALE'])}</td>
-            </tr>'''
+        c1, c2, c3 = st.columns(3)
+        with c1: st.markdown(f'<div class="stat-card">👥 GIOCATORI<br><h2>{len(df_team)}</h2></div>', unsafe_allow_html=True)
+        with c2: st.markdown(f'<div class="stat-card">💰 ASTA<br><h2>{fmt(df_team["Prezzo_N"].sum())}</h2></div>', unsafe_allow_html=True)
+        with c3: st.markdown(f'<div class="stat-card">📈 VALORE<br><h2>{fmt(df_team["Quotazione"].sum())}</h2></div>', unsafe_allow_html=True)
+
+        shades = {'POR': ['#FCE4EC','#F8BBD0','#F48FB1','#F06292'], 'DIF': ['#E8F5E9','#C8E6C9','#A5D6A7','#81C784'], 'CEN': ['#E3F2FD','#BBDEFB','#90CAF9','#64B5F6'], 'ATT': ['#FFFDE7','#FFF9C4','#FFF59D','#FFF176']}
+        html = '<table class="golden-table"><thead><tr><th>RUOLO</th><th>NOME</th><th>PREZZO</th><th>QUOT</th></tr></thead><tbody>'
+        for _, r in df_team.sort_values(['Prezzo_N'], ascending=False).iterrows():
+            rk = 'ATT' if 'ATT' in str(r['Ruolo']).upper() else 'CEN' if 'CEN' in str(r['Ruolo']).upper() else 'DIF' if 'DIF' in str(r['Ruolo']).upper() else 'POR'
+            sh = shades.get(rk, ['#fff']*4)
+            html += f'<tr><td style="background-color:{sh[0]}">{r["Ruolo"]}</td><td style="background-color:{sh[1]}">{r["Nome"]}</td><td>{fmt(r["Prezzo_N"])}</td><td>{fmt(r["Quotazione"])}</td></tr>'
         st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
 
-with t[1]:
+# TAB VINCOLI (RIPRISTINATA)
+with t[3]:
+    st.subheader("📅 VINCOLI PLURIENNALI")
     if f_vn is not None:
-        st.subheader("📅 DETTAGLIO VINCOLI")
-        st.table(f_vn[['Sq_N', 'Giocatore', 'Tot_Vincolo']].sort_values('Tot_Vincolo', ascending=False))
+        st.dataframe(f_vn[['Squadra', 'Giocatore', 'Tot_Vincolo']].sort_values('Tot_Vincolo', ascending=False), hide_index=True)
+
+# TAB SCAMBI
+with t[4]:
+    st.subheader("🔄 SIMULATORE SCAMBI")
+    if f_rs is not None:
+        c1, c2 = st.columns(2)
+        with c1: sA = st.selectbox("SQUADRA A", sorted(f_rs['Squadra_N'].unique()), key="sa_v57")
+        with c2: sB = st.selectbox("SQUADRA B", [s for s in sorted(f_rs['Squadra_N'].unique()) if s != sA], key="sb_v57")
+        gA = st.multiselect("ESCONO DA A", f_rs[f_rs['Squadra_N']==sA]['Nome'].tolist())
+        gB = st.multiselect("ESCONO DA B", f_rs[f_rs['Squadra_N']==sB]['Nome'].tolist())
+        if gA and gB:
+            ta = f_rs[f_rs['Nome'].isin(gA)]['Prezzo_N'].sum()
+            tb = f_rs[f_rs['Nome'].isin(gB)]['Prezzo_N'].sum()
+            st.markdown(f'<div class="pi-box">MEDIA SCAMBIO: {fmt((ta+tb)/2)}</div>', unsafe_allow_html=True)
+
+# TAB TAGLI
+with t[5]:
+    st.subheader("✂️ TAGLI")
+    sq_t = st.selectbox("SQUADRA", sorted(f_rs['Squadra_N'].unique()), key="st_v57")
+    gt = st.selectbox("GIOCATORE", f_rs[f_rs['Squadra_N']==sq_t]['Nome'].tolist())
+    if gt:
+        info = f_rs[(f_rs['Squadra_N']==sq_t) & (f_rs['Nome']==gt)].iloc[0]
+        st.markdown(f'<div class="cut-box"><div class="cut-player-name">{gt}</div><br><b>RIMBORSO (60%): {fmt(info["Prezzo_N"]*0.6)}</b></div>', unsafe_allow_html=True)
