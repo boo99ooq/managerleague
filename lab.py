@@ -47,6 +47,19 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- FUNZIONI DI SUPPORTO ---
+
+def color_ruoli(row):
+    """Applica i colori della Golden Version e il neretto alle righe delle tabelle"""
+    # Gestisce sia 'Ruolo' che 'RUOLO' per compatibilità tra le tab
+    r_val = row.get('Ruolo') if 'Ruolo' in row else row.get('RUOLO', '')
+    r = str(r_val).upper()
+    if 'POR' in r or r == 'P': bg = '#FCE4EC' # Rosa
+    elif 'DIF' in r or r == 'D': bg = '#E8F5E9' # Verde
+    elif 'CEN' in r or r == 'C': bg = '#E3F2FD' # Blu
+    elif 'ATT' in r or r == 'A': bg = '#FFFDE7' # Giallo
+    else: bg = '#FFFFFF'
+    return [f'background-color: {bg}; color: black; font-weight: 900; border: 1px solid #ddd;'] * len(row)
+
 def super_clean_match(name):
     if not isinstance(name, str): return ""
     mappa_err = {'Ã²': 'Ò', 'Ã³': 'Ó', 'Ã¨': 'È', 'Ã©': 'É', 'Ã¹': 'Ù', 'Ã¬': 'Ì', 'Ã\x88': 'È', 'Ã\x80': 'À'}
@@ -108,10 +121,10 @@ if f_vn is not None:
     f_vn['Tot_Vincolo'] = f_vn[v_cols].sum(axis=1)
     f_vn['Anni_T'] = f_vn[v_cols].gt(0).sum(axis=1).astype(str) + " ANNI"
 
-# --- MAIN APP ---
+# --- TABS ---
 t = st.tabs(["🏆 **CLASSIFICHE**", "💰 **BUDGET**", "🏃 **ROSE**", "📅 **VINCOLI**", "🔄 **SCAMBI**", "✂️ **TAGLI**", "🆕 **MERCATO GENNAIO**"])
 
-# --- TAB 6: MERCATO GENNAIO ---
+# --- TAB 6: MERCATO GENNAIO (Colorata e Neretto) ---
 with t[6]:
     st.subheader("🚀 **CALCOLO RIMBORSI CALCIOMERCATO ESTERO**")
     st.info("Regola: 50% di (Quotazione + Prezzo Asta) + 100% dei Vincoli pagati.")
@@ -122,16 +135,33 @@ with t[6]:
         for nome in partenti:
             info = f_rs[f_rs['Nome'] == nome].iloc[0]
             sq = info['Squadra_N']
+            ruolo = info['Ruolo'] # Recuperiamo il ruolo per il colore
             p_asta = info['Prezzo_N']
             quot = info['Quotazione']
             v_match = f_vn[f_vn['Giocatore_Match'] == super_clean_match(nome)] if f_vn is not None else pd.DataFrame()
             vv = v_match['Tot_Vincolo'].iloc[0] if not v_match.empty else 0
             rimborso = ((p_asta + quot) * 0.5) + vv
             rimborsi_squadre[sq] = rimborsi_squadre.get(sq, 0) + rimborso
-            dati_per_tabella.append({"GIOCATORE": nome, "SQUADRA": sq, "ASTA": p_asta, "QUOT.": quot, "VINCOLO": vv, "RIMBORSO": rimborso})
+            dati_per_tabella.append({
+                "GIOCATORE": nome, 
+                "SQUADRA": sq, 
+                "RUOLO": ruolo, 
+                "ASTA": p_asta, 
+                "QUOT.": quot, 
+                "VINCOLO": vv, 
+                "RIMBORSO": rimborso
+            })
         
         st.markdown("### 📋 DETTAGLIO PER GIOCATORE")
-        st.dataframe(pd.DataFrame(dati_per_tabella).style.format({"ASTA":"{:g}", "QUOT.":"{:g}", "VINCOLO":"{:g}", "RIMBORSO":"{:g}"}), use_container_width=True, hide_index=True)
+        df_partenti_tab = pd.DataFrame(dati_per_tabella)
+        # Applichiamo color_ruoli e il formato g per i numeri
+        st.dataframe(
+            df_partenti_tab.style.apply(color_ruoli, axis=1).format({
+                "ASTA":"{:g}", "QUOT.":"{:g}", "VINCOLO":"{:g}", "RIMBORSO":"{:g}"
+            }), 
+            use_container_width=True, 
+            hide_index=True
+        )
         
         st.markdown("### 💰 TOTALE RECUPERATO PER SQUADRA")
         df_riepilogo = pd.DataFrame(list(rimborsi_squadre.items()), columns=['SQUADRA', 'TOTALE']).sort_values('TOTALE', ascending=False)
@@ -139,7 +169,7 @@ with t[6]:
         for i, (index, row) in enumerate(df_riepilogo.iterrows()):
             with cols[i % 4]:
                 st.markdown(f"""<div class="refund-box"><small>{row['SQUADRA']}</small><br><b>+{int(row['TOTALE'])} crediti</b></div>""", unsafe_allow_html=True)
-        st.dataframe(df_riepilogo.style.format({"TOTALE": "{:g}"}).background_gradient(cmap='Greens'), use_container_width=True, hide_index=True)
+        st.dataframe(df_riepilogo.style.format({"TOTALE": "{:g}"}).background_gradient(cmap='Greens').set_properties(**{'font-weight': '900'}), use_container_width=True, hide_index=True)
 
 # --- SIDEBAR ---
 with st.sidebar:
@@ -173,35 +203,31 @@ with t[1]:
         col_mostra = ['Squadra_N'] + voci_sel + ['PATRIMONIO TOTALE']
         st.dataframe(bu[col_mostra].sort_values("PATRIMONIO TOTALE", ascending=False).style\
             .background_gradient(cmap='YlOrRd', subset=['PATRIMONIO TOTALE'])\
-            .format({c: "{:g}" for c in bu.columns if c != 'Squadra_N'}), hide_index=True, use_container_width=True)
+            .format({c: "{:g}" for c in bu.columns if c != 'Squadra_N'})\
+            .set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
-# --- TAB 0: CLASSIFICHE (FIXED FORMAT ERROR) ---
-with t[0]:
+# --- ALTRE TAB ---
+with t[0]: # CLASSIFICHE
     c1, c2 = st.columns(2)
     if f_pt is not None:
         with c1:
             st.subheader("🎯 **CLASSIFICA PUNTI**")
-            # Forza la conversione a numero per evitare il ValueError del formattatore
             f_pt['Punti Totali'] = pd.to_numeric(f_pt['Punti Totali'], errors='coerce').fillna(0)
             st.dataframe(f_pt[['Posizione','Giocatore','Punti Totali']].sort_values('Posizione').style\
                 .background_gradient(subset=['Punti Totali'], cmap='YlGn')\
-                .format({"Punti Totali": "{:g}"}), hide_index=True, use_container_width=True)
+                .format({"Punti Totali": "{:g}"}).set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
     if f_sc is not None:
         with c2:
             st.subheader("⚔️ **SCONTRI DIRETTI**")
             f_sc['Punti'] = pd.to_numeric(f_sc['Punti'], errors='coerce').fillna(0)
             st.dataframe(f_sc[['Posizione','Giocatore','Punti']].sort_values('Posizione').style\
                 .background_gradient(subset=['Punti'], cmap='Blues')\
-                .format({"Punti": "{:g}"}), hide_index=True, use_container_width=True)
+                .format({"Punti": "{:g}"}).set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
 with t[2]: # ROSE
     if f_rs is not None:
         sq = st.selectbox("**SQUADRA**", sorted(f_rs['Squadra_N'].unique()), key="rose_sel")
         df_sq = f_rs[f_rs['Squadra_N'] == sq][['Ruolo', 'Nome', 'Prezzo_N', 'Quotazione']]
-        def color_ruoli(row):
-            r = str(row['Ruolo']).upper()
-            bg = '#FCE4EC' if 'POR' in r else '#E8F5E9' if 'DIF' in r else '#E3F2FD' if 'CEN' in r else '#FFFDE7' if 'ATT' in r else '#FFFFFF'
-            return [f'background-color: {bg}; color: black; font-weight: 900;'] * len(row)
         st.dataframe(df_sq.style.apply(color_ruoli, axis=1).format({"Prezzo_N":"{:g}", "Quotazione":"{:g}"}), hide_index=True, use_container_width=True)
 
 with t[3]: # VINCOLI
@@ -210,7 +236,7 @@ with t[3]: # VINCOLI
         f_vn['Tot_Vincolo'] = pd.to_numeric(f_vn['Tot_Vincolo'], errors='coerce').fillna(0)
         st.dataframe(f_vn[['Squadra', 'Giocatore', 'Tot_Vincolo', 'Anni_T']].sort_values('Tot_Vincolo', ascending=False).style\
             .background_gradient(subset=['Tot_Vincolo'], cmap='Purples')\
-            .format({"Tot_Vincolo":"{:g}"}), hide_index=True, use_container_width=True)
+            .format({"Tot_Vincolo":"{:g}"}).set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
 with t[4]: # SCAMBI
     st.subheader("🔄 **SCAMBI**")
