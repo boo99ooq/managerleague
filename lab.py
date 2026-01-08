@@ -30,10 +30,8 @@ def super_clean(name):
     name = unicodedata.normalize('NFD', name).encode('ascii', 'ignore').decode('utf-8').upper().strip()
     return re.sub(r'\s[A-Z]\.$', '', name)
 
-def normalize_ruolo_v3(row):
-    # Logica Giovani: basata sul prezzo d'asta 0
-    if to_num(row['Prezzo']) == 0: return 'GIO'
-    r = str(row['Ruolo']).upper().strip()
+def normalize_ruolo_simple(r):
+    r = str(r).upper().strip()
     if r in ['P', 'POR']: return 'POR'
     if r in ['D', 'DIF']: return 'DIF'
     if r in ['C', 'CEN']: return 'CEN'
@@ -44,31 +42,39 @@ def normalize_ruolo_v3(row):
 def load_data():
     if not os.path.exists("rose_complete.csv"): return None
     
-    # Caricamento Rose
+    # 1. Caricamento Rose
     rs = pd.read_csv("rose_complete.csv", encoding='latin1', engine='python')
     rs.columns = [c.strip() for c in rs.columns]
     rs['Squadra_N'] = rs['Fantasquadra'].str.upper().str.strip()
     rs['Match_Nome'] = rs['Nome'].apply(super_clean)
     rs['Prezzo_N'] = rs['Prezzo'].apply(to_num)
-    rs['Ruolo_N'] = rs.apply(normalize_ruolo_v3, axis=1)
     
-    # Caricamento Quotazioni
+    # Identificazione Ruolo e Giovani (Prezzo 0)
+    def identify_role(row):
+        if to_num(row['Prezzo']) == 0: return 'GIO'
+        return normalize_ruolo_simple(row['Ruolo'])
+    
+    rs['Ruolo_N'] = rs.apply(identify_role, axis=1)
+    
+    # 2. Caricamento Quotazioni
     if os.path.exists("quotazioni.csv"):
         qt = pd.read_csv("quotazioni.csv", encoding='latin1', engine='python')
         qt.columns = [c.strip() for c in qt.columns]
         qt['Match_Nome'] = qt['Nome'].apply(super_clean)
+        qt['Ruolo_N_QT'] = qt['Ruolo'].apply(normalize_ruolo_simple)
         
-        # Cerchiamo la colonna della quotazione (gestendo Qt.A o Qt. A)
+        # Identifica colonna Quotazione (Qt.A o simili)
         col_qt = next((c for c in qt.columns if 'Qt' in c), None)
         
         if col_qt:
-            # Creiamo una colonna Ruolo Normalizzata anche nel listone quotazioni
-            qt['Ruolo_QT_Norm'] = qt['Ruolo'].apply(lambda x: normalize_ruolo_v3({'Ruolo': x, 'Prezzo': 10})) # Prezzo fittizio per non renderli GIO
+            # Merge basato su NOME e RUOLO per risolvere Ferguson omonimie
+            # Usiamo Ruolo_N (normalizzato dalle rose) e Ruolo_N_QT (normalizzato dalle quotazioni)
+            # Nota: per i GIO (che hanno prezzo 0), cerchiamo il ruolo originale nel merge
+            rs['Ruolo_per_Merge'] = rs.apply(lambda x: normalize_ruolo_simple(x['Ruolo']), axis=1)
             
-            # Merge basato su NOME e RUOLO per risolvere Ferguson
-            rs = pd.merge(rs, qt[['Match_Nome', 'Ruolo_QT_Norm', col_qt]], 
-                          left_on=['Match_Nome', 'Ruolo_N'], 
-                          right_on=['Match_Nome', 'Ruolo_QT_Norm'], 
+            rs = pd.merge(rs, qt[['Match_Nome', 'Ruolo_N_QT', col_qt]], 
+                          left_on=['Match_Nome', 'Ruolo_per_Merge'], 
+                          right_on=['Match_Nome', 'Ruolo_N_QT'], 
                           how='left')
             
             rs['Quotazione'] = rs[col_qt].apply(to_num)
@@ -98,7 +104,7 @@ with t[2]: # TAB ROSE
             n_gio = len(df_team[df_team['Ruolo_N'] == 'GIO'])
             st.markdown(f'<div class="stat-card" style="border-color:#9c27b0;">👶 GIOVANI<br><b style="font-size:1.5em; color:#9c27b0;">{n_gio}</b></div>', unsafe_allow_html=True)
 
-        # TABELLA RIASSUNTIVA (Focus Conteggio Giovani)
+        # TABELLA RIASSUNTIVA (Colori Intensi - Giovani solo N°)
         st.write("---"); st.markdown("#### 📊 RIPARTIZIONE")
         riass_list = []
         for r in ['POR', 'DIF', 'CEN', 'ATT', 'GIO']:
