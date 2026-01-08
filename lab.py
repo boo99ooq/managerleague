@@ -82,11 +82,23 @@ if f_vn is not None:
     f_vn['Tot_Vincolo'] = f_vn[v_cols].sum(axis=1)
     f_vn['Anni_T'] = f_vn[v_cols].gt(0).sum(axis=1).astype(str) + " ANNI"
 
-# --- MAIN APP ---
-st.title("🧪 **MUYFANTAMANAGER - LAB AREA**")
+# --- SIDEBAR ---
+with st.sidebar:
+    st.header("🔍 **RICERCA GIOCATORE**")
+    if f_rs is not None:
+        scelte = st.multiselect("**CERCA NELLA LEGA**", sorted(f_rs['Nome'].unique()))
+        for n in scelte:
+            dr = f_rs[f_rs['Nome'] == n].iloc[0]
+            v_match = f_vn[f_vn['Giocatore_Match'] == super_clean_match(n)] if f_vn is not None else pd.DataFrame()
+            vv = v_match['Tot_Vincolo'].iloc[0] if not v_match.empty else 0
+            r = str(dr['Ruolo']).upper()
+            bg = '#FCE4EC' if 'POR' in r else '#E8F5E9' if 'DIF' in r else '#E3F2FD' if 'CEN' in r else '#FFFDE7' if 'ATT' in r else '#f1f3f4'
+            st.markdown(f'<div class="player-card" style="background-color: {bg};"><b>{n}</b> ({dr["Squadra_N"]})<br>ASTA: {int(dr["Prezzo_N"])} | VINC: {int(vv)}<br>QUOT: {int(dr["Quotazione"])}</div>', unsafe_allow_html=True)
+
+# --- TABS ---
 t = st.tabs(["🏆 **CLASSIFICHE**", "💰 **BUDGET**", "🏃 **ROSE**", "📅 **VINCOLI**", "🔄 **SCAMBI**", "✂️ **TAGLI**", "🆕 **MERCATO GENNAIO**"])
 
-# --- TAB MERCATO GENNAIO (Definita prima per influenzare il Budget) ---
+# --- TAB 6: MERCATO GENNAIO (Definita prima per influenzare il Budget) ---
 with t[6]:
     st.subheader("🚀 **CALCOLO RIMBORSI CALCIOMERCATO ESTERO**")
     st.info("Regola: 50% di (Quotazione + Prezzo Asta) + 100% dei Vincoli pagati.")
@@ -110,37 +122,45 @@ with t[6]:
         
         st.dataframe(pd.DataFrame(dati_per_tabella).style.format({"ASTA":"{:g}", "QUOT.":"{:g}", "VINCOLO":"{:g}", "RIMBORSO":"{:g}"}), use_container_width=True, hide_index=True)
 
-# --- SIDEBAR ---
-with st.sidebar:
-    st.header("🔍 **RICERCA GIOCATORE**")
-    if f_rs is not None:
-        scelte = st.multiselect("**CERCA NELLA LEGA**", sorted(f_rs['Nome'].unique()))
-        for n in scelte:
-            dr = f_rs[f_rs['Nome'] == n].iloc[0]
-            v_match = f_vn[f_vn['Giocatore_Match'] == super_clean_match(n)] if f_vn is not None else pd.DataFrame()
-            vv = v_match['Tot_Vincolo'].iloc[0] if not v_match.empty else 0
-            r = str(dr['Ruolo']).upper()
-            bg = '#FCE4EC' if 'POR' in r else '#E8F5E9' if 'DIF' in r else '#E3F2FD' if 'CEN' in r else '#FFFDE7' if 'ATT' in r else '#f1f3f4'
-            st.markdown(f'<div class="player-card" style="background-color: {bg};"><b>{n}</b> ({dr["Squadra_N"]})<br>ASTA: {int(dr["Prezzo_N"])} | VINC: {int(vv)}<br>QUOT: {int(dr["Quotazione"])}</div>', unsafe_allow_html=True)
-
-# --- TAB 1: BUDGET (Con colonna Mercato) ---
+# --- TAB 1: BUDGET (CON SELETTORE COLONNE) ---
 with t[1]:
     if f_rs is not None:
-        st.subheader("💰 **BUDGET E PATRIMONIO AGGIORNATO**")
+        st.subheader("💰 **BUDGET E PATRIMONIO DINAMICO**")
+        
+        # Preparazione dati
         bu = f_rs.groupby('Squadra_N')['Prezzo_N'].sum().reset_index().rename(columns={'Prezzo_N': 'SPESA ROSE'})
         v_sum = f_vn.groupby('Sq_N')['Tot_Vincolo'].sum().reset_index() if f_vn is not None else pd.DataFrame(columns=['Sq_N', 'Tot_Vincolo'])
         bu = pd.merge(bu, v_sum, left_on='Squadra_N', right_on='Sq_N', how='left').fillna(0).drop('Sq_N', axis=1).rename(columns={'Tot_Vincolo': 'SPESA VINCOLI'})
         bu['CREDITI DISPONIBILI'] = bu['Squadra_N'].map(bg_ex).fillna(0)
         bu['RECUPERO MERCATO'] = bu['Squadra_N'].map(rimborsi_squadre).fillna(0)
-        bu['PATRIMONIO TOTALE'] = bu['SPESA ROSE'] + bu['SPESA VINCOLI'] + bu['CREDITI DISPONIBILI'] + bu['RECUPERO MERCATO']
+
+        # SELETTORE COLONNE
+        st.markdown("#### ⚙️ **CONFIGURA VOCI PATRIMONIO**")
+        voci_disponibili = ['SPESA ROSE', 'SPESA VINCOLI', 'CREDITI DISPONIBILI', 'RECUPERO MERCATO']
+        voci_selezionate = st.multiselect(
+            "Seleziona quali voci sommare per calcolare il Patrimonio Totale:",
+            options=voci_disponibili,
+            default=voci_disponibili
+        )
+
+        # Calcolo dinamico patrimonio
+        if voci_selezionate:
+            bu['PATRIMONIO TOTALE'] = bu[voci_selezionate].sum(axis=1)
+        else:
+            bu['PATRIMONIO TOTALE'] = 0
+
+        # Grafico a barre dinamico
+        if voci_selezionate:
+            st.bar_chart(bu.set_index("Squadra_N")[voci_selezionate])
         
-        st.dataframe(bu.sort_values("PATRIMONIO TOTALE", ascending=False).style\
+        # Tabella finale con gradienti
+        col_mostra = ['Squadra_N'] + voci_selezionate + ['PATRIMONIO TOTALE']
+        st.dataframe(bu[col_mostra].sort_values("PATRIMONIO TOTALE", ascending=False).style\
             .background_gradient(cmap='YlOrRd', subset=['PATRIMONIO TOTALE'])\
-            .background_gradient(cmap='Greens', subset=['RECUPERO MERCATO'])\
             .format({c: "{:g}" for c in bu.columns if c != 'Squadra_N'})\
             .set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
-# --- ALTRE TAB (LOGICA GOLDEN) ---
+# --- ALTRE TAB ---
 with t[0]: # CLASSIFICHE
     c1, c2 = st.columns(2)
     if f_pt is not None:
