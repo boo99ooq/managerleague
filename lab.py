@@ -8,21 +8,27 @@ from datetime import datetime
 # 1. SETUP UI
 st.set_page_config(page_title="MuyFantaManager Golden V3.2", layout="wide", initial_sidebar_state="expanded")
 
-# CSS GOLDEN (Neretto 900 totale, Card, Box e tabelle blindate)
+# CSS DEFINITIVO (Forza il neretto 900 su TUTTE le celle delle tabelle)
 st.markdown("""
 <style>
-    /* Forza il neretto 900 su ogni elemento, comprese le celle delle tabelle */
-    html, body, [data-testid="stAppViewContainer"] *, .stDataFrame td, .stDataFrame th { 
+    /* Regola globale per il testo */
+    html, body, [data-testid="stAppViewContainer"] * { 
         font-weight: 900 !important; 
         color: #000 !important; 
+    }
+    /* Regola specifica per le tabelle Streamlit (Celle e Intestazioni) */
+    .stDataFrame div[data-testid="stTable"] td, 
+    .stDataFrame div[data-testid="stTable"] th,
+    [data-testid="stMetricValue"],
+    .stMarkdown p {
+        font-weight: 900 !important;
     }
     .player-card { padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 6px solid #333; color: black; box-shadow: 2px 2px 5px rgba(0,0,0,0.1); }
     .patrimonio-box { background-color: #f0f2f6; padding: 15px; border-radius: 10px; border: 3px solid #1a73e8; text-align: center; }
     .punto-incontro-box { background-color: #fff3e0; padding: 10px 30px; border-radius: 15px; border: 3px solid #ff9800; text-align: center; margin: 10px auto; width: fit-content; }
     .cut-box { background-color: #fdfdfd; padding: 25px; border-radius: 15px; border: 4px solid #333; box-shadow: 6px 6px 0px #ff4b4b; text-align: center; }
-    .cut-player-name { font-size: 3.5em; color: #d32f2f; text-transform: uppercase; line-height: 1; margin-bottom: 10px; }
+    .cut-player-name { font-size: 3.5em; color: #d32f2f; text-transform: uppercase; line-height: 1; }
     .refund-box { background-color: #f8f9fa; padding: 10px; border-radius: 10px; border: 2px solid #333; text-align: center; min-height: 120px; }
-    .status-ufficiale { color: #2e7d32; } .status-probabile { color: #ed6c02; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -76,36 +82,35 @@ if f_vn is not None:
 df_mercato = pd.read_csv(FILE_DB) if os.path.exists(FILE_DB) else pd.DataFrame(columns=["GIOCATORE", "SQUADRA", "TOTALE", "STATO"])
 rimborsi_mercato = df_mercato.groupby("SQUADRA")["TOTALE"].sum().to_dict() if not df_mercato.empty else {}
 
-# --- SIDEBAR (RIPRISTINATA) ---
+# --- SIDEBAR ---
 with st.sidebar:
     st.header("🔍 **RICERCA CALCIATORE**")
     if f_rs is not None:
-        cerca_side = st.multiselect("**CERCA NELLA LEGA**", sorted(f_rs['Nome'].unique()))
-        for n in cerca_side:
+        scelte = st.multiselect("**CERCA NELLA LEGA**", sorted(f_rs['Nome'].unique()))
+        for n in scelte:
             d_g = f_rs[f_rs['Nome'] == n].iloc[0]
             v_m = f_vn[f_vn['Giocatore_Match'] == super_clean_match(n)] if f_vn is not None else pd.DataFrame()
             vv = v_m['Tot_Vincolo'].iloc[0] if not v_m.empty else 0
-            r = str(d_g['Ruolo']).upper()
-            bg_side = '#FCE4EC' if 'POR' in r else '#E8F5E9' if 'DIF' in r else '#E3F2FD' if 'CEN' in r else '#FFFDE7' if 'ATT' in r else '#f1f3f4'
-            st.markdown(f'''<div class="player-card" style="background-color: {bg_side};"><b>{n}</b> ({d_g['Squadra_N']})<br>ASTA: {int(d_g['Prezzo_N'])} | VINC: {int(vv)}<br>QUOT: {int(d_g['Quotazione'])}</div>''', unsafe_allow_html=True)
+            st.markdown(f'''<div class="player-card" style="background-color: #f1f3f4;"><b>{n}</b> ({d_g['Squadra_N']})<br>ASTA: {int(d_g['Prezzo_N'])} | VINC: {int(vv)}<br>QUOT: {int(d_g['Quotazione'])}</div>''', unsafe_allow_html=True)
 
 # --- TABS ---
 t = st.tabs(["🏆 **CLASSIFICHE**", "💰 **BUDGET**", "🏃 **ROSE**", "📅 **VINCOLI**", "🔄 **SCAMBI**", "✂️ **TAGLI**", "🚀 **MERCATO**"])
 
-with t[0]: # CLASSIFICHE CON GRADIENTI
+with t[0]: # CLASSIFICHE CON MEDIA PUNTI
     c1, c2 = st.columns(2)
     if f_pt is not None:
         with c1:
             st.subheader("🎯 PUNTI")
             f_pt['P_N'] = f_pt['Punti Totali'].apply(to_num)
-            st.dataframe(f_pt[['Posizione','Giocatore','P_N']].style.background_gradient(subset=['P_N'], cmap='YlGn').format({"P_N":"{:g}"}), hide_index=True, use_container_width=True)
+            f_pt['FM'] = f_pt['Media'].apply(to_num) if 'Media' in f_pt.columns else 0.0
+            st.dataframe(f_pt[['Posizione','Giocatore','P_N','FM']].sort_values('Posizione').style.background_gradient(subset=['P_N','FM'], cmap='YlGn').format({"P_N":"{:g}", "FM":"{:.2f}"}), hide_index=True, use_container_width=True)
     if f_sc is not None:
         with c2:
             st.subheader("⚔️ SCONTRI")
-            f_sc['P_S'] = f_sc['Punti'].apply(to_num); f_sc['GF'] = f_sc['Gol Fatti'].apply(to_num); f_sc['GS'] = f_sc['Gol Subiti'].apply(to_num); f_sc['DR'] = f_sc['GF'] - f_sc['GS']
-            st.dataframe(f_sc[['Posizione','Giocatore','P_S','GF','GS','DR']].style.background_gradient(subset=['P_S'], cmap='Blues').format({c: "{:g}" for c in ['P_S','GF','GS','DR']}), hide_index=True, use_container_width=True)
+            f_sc['P_S'] = f_sc['Punti'].apply(to_num)
+            st.dataframe(f_sc[['Posizione','Giocatore','P_S']].sort_values('Posizione').style.background_gradient(subset=['P_S'], cmap='Blues').format({"P_S":"{:g}"}), hide_index=True, use_container_width=True)
 
-with t[1]: # BUDGET DINAMICO (RIPRISTINATO)
+with t[1]: # BUDGET DINAMICO
     if f_rs is not None:
         st.subheader("💰 BUDGET E PATRIMONIO")
         bu = f_rs.groupby('Squadra_N')['Prezzo_N'].sum().reset_index().rename(columns={'Prezzo_N': 'SPESA ROSE'})
@@ -121,7 +126,7 @@ with t[1]: # BUDGET DINAMICO (RIPRISTINATO)
         num_cols = bu.select_dtypes(include=['number']).columns
         st.dataframe(bu[['Squadra_N'] + sel + ['TOTALE']].sort_values('TOTALE', ascending=False).style.background_gradient(cmap='YlOrRd', subset=['TOTALE']).format({c: "{:g}" for c in num_cols}), hide_index=True, use_container_width=True)
 
-with t[2]: # ROSE CON COLORAZIONE PER RUOLO
+with t[2]: # ROSE COLORATE
     if f_rs is not None:
         c1, c2 = st.columns([1, 2])
         with c1: sq_r = st.selectbox("**SQUADRA**", ["TUTTE"] + sorted(f_rs['Squadra_N'].unique()))
@@ -139,85 +144,13 @@ with t[2]: # ROSE CON COLORAZIONE PER RUOLO
             return ''
         st.dataframe(df_r[['Ruolo', 'Nome', 'Prezzo_N', 'Quotazione']].style.applymap(color_ruolo, subset=['Ruolo']).format({"Prezzo_N":"{:g}", "Quotazione":"{:g}"}), hide_index=True, use_container_width=True)
 
-with t[3]: # VINCOLI FILTRABILI
-    if f_vn is not None:
-        sq_v = st.selectbox("**FILTRA SQUADRA VINCOLI**", ["TUTTE"] + sorted(f_vn['Sq_N'].unique()))
-        df_v = f_vn if sq_v == "TUTTE" else f_vn[f_vn['Sq_N'] == sq_v]
-        st.dataframe(df_v[['Squadra', 'Giocatore', 'Tot_Vincolo', 'Anni_T']].sort_values('Tot_Vincolo', ascending=False).style.format({"Tot_Vincolo":"{:g}"}), hide_index=True, use_container_width=True)
-
-with t[4]: # SCAMBI CON PATRIMONI (PRIMA VS DOPO)
-    st.subheader("🔄 SIMULATORE SCAMBI GOLDEN")
-    if f_rs is not None:
-        col1, col2 = st.columns(2)
-        with col1: sA = st.selectbox("SQUADRA A", sorted(f_rs['Squadra_N'].unique()), key="sA"); gA = st.multiselect("ESCONO DA A", f_rs[f_rs['Squadra_N']==sA]['Nome'].tolist())
-        with col2: sB = st.selectbox("SQUADRA B", [s for s in sorted(f_rs['Squadra_N'].unique()) if s != sA], key="sB"); gB = st.multiselect("ESCONO DA B", f_rs[f_rs['Squadra_N']==sB]['Nome'].tolist())
-        
-        if gA and gB:
-            def get_v(n):
-                p = f_rs[f_rs['Nome']==n]['Prezzo_N'].iloc[0]
-                vm = f_vn[f_vn['Giocatore_Match']==super_clean_match(n)] if f_vn is not None else pd.DataFrame()
-                v = vm['Tot_Vincolo'].iloc[0] if not vm.empty else 0
-                return {'t': p+v, 'v': v}
-            da, db = {n: get_v(n) for n in gA}, {n: get_val(n) for n in gB} if 'get_val' in locals() else {n: get_v(n) for n in gB}
-            ta, tb = sum(d['t'] for d in da.values()), sum(d['t'] for d in db.values()); nt = round((ta+tb)/2); gap = ta-tb
-            st.markdown(f'<div class="punto-incontro-box">GAP: {gap:g} | MEDIA: {nt:g}</div>', unsafe_allow_html=True)
-            
-            ra, rb = st.columns(2)
-            with ra:
-                for n, i in db.items():
-                    ni = round((i['t']/tb)*nt) if tb>0 else nt
-                    st.markdown(f'<div class="player-card" style="background-color:#e3f2fd; border:3px solid #1e88e5;"><b>{n}</b><br><small>NUOVO: {max(0, ni-int(i["v"])):g} + {i["v"]:g} (VINC) | ANTE: {i["t"]:g}</small></div>', unsafe_allow_html=True)
-            with rb:
-                for n, i in da.items():
-                    ni = round((i['t']/ta)*nt) if ta>0 else nt
-                    st.markdown(f'<div class="player-card" style="background-color:#fbe9e7; border:3px solid #e53935;"><b>{n}</b><br><small>NUOVO: {max(0, ni-int(i["v"])):g} + {i["v"]:g} (VINC) | ANTE: {i["t"]:g}</small></div>', unsafe_allow_html=True)
-            
-            pA = f_rs[f_rs['Squadra_N']==sA]['Prezzo_N'].sum() + (f_vn[f_vn['Sq_N']==sA]['Tot_Vincolo'].sum() if f_vn is not None else 0) + bg_ex.get(sA, 0)
-            pB = f_rs[f_rs['Squadra_N']==sB]['Prezzo_N'].sum() + (f_vn[f_vn['Sq_N']==sB]['Tot_Vincolo'].sum() if f_vn is not None else 0) + bg_ex.get(sB, 0)
-            diff = nt - ta
-            cp1, cp2 = st.columns(2)
-            cp1.markdown(f'<div class="patrimonio-box">NUOVO PATRIMONIO {sA}<br><h2>{int(pA+diff)}</h2><small>PRIMA: {int(pA)}</small></div>', unsafe_allow_html=True)
-            cp2.markdown(f'<div class="patrimonio-box">NUOVO PATRIMONIO {sB}<br><h2>{int(pB-diff)}</h2><small>PRIMA: {int(pB)}</small></div>', unsafe_allow_html=True)
-
 with t[5]: # TAGLI GIGANTI
     st.subheader("✂️ TAGLI GOLDEN")
     if f_rs is not None:
-        sq_t = st.selectbox("SQUADRA", sorted(f_rs['Squadra_N'].unique()), key="sq_tag_p")
+        sq_t = st.selectbox("SQUADRA", sorted(f_rs['Squadra_N'].unique()), key="sq_t_tag")
         gt = st.selectbox("GIOCATORE", f_rs[f_rs['Squadra_N'] == sq_t]['Nome'].tolist())
         if gt:
-            v_asta = f_rs[(f_rs['Squadra_N'] == sq_t) & (f_rs['Nome'] == gt)]['Prezzo_N'].iloc[0]
+            v_a = f_rs[(f_rs['Squadra_N'] == sq_t) & (f_rs['Nome'] == gt)]['Prezzo_N'].iloc[0]
             vm = f_vn[f_vn['Giocatore_Match'] == super_clean_match(gt)] if f_vn is not None else pd.DataFrame()
             vv = vm['Tot_Vincolo'].iloc[0] if not vm.empty else 0
-            st.markdown(f'''<div class="cut-box"><div class="cut-player-name">{gt}</div><div style="font-size:2em; color:#2e7d32;">RIMBORSO: {round((v_asta+vv)*0.6):g} CREDITI</div><br>ASTA: {v_asta:g} | VINCOLI: {vv:g}</div>''', unsafe_allow_html=True)
-
-with t[6]: # MERCATO GENNAIO (CON RIEPILOGO RIMBORSI)
-    st.subheader("🚀 MERCATO CESSIONI")
-    with st.expander("➕ AGGIUNGI CESSIONE"):
-        sc = st.selectbox("Seleziona:", [""] + sorted(f_rs['Nome'].unique()) if f_rs is not None else [""])
-        if st.button("INSERISCI"):
-            if sc != "" and sc not in df_mercato['GIOCATORE'].values:
-                info = f_rs[f_rs['Nome'] == sc].iloc[0]
-                vm_m = f_vn[f_vn['Giocatore_Match'] == super_clean_match(sc)] if f_vn is not None else pd.DataFrame()
-                vv_m = vm_m['Tot_Vincolo'].iloc[0] if not vm_m.empty else 0
-                nuova = pd.DataFrame([{"GIOCATORE": sc, "SQUADRA": info['Squadra_N'], "TOTALE": ((info['Prezzo_N'] + info['Quotazione'])*0.5)+vv_m, "STATO": "PROBABILE"}])
-                df_mercato = pd.concat([df_mercato, nuova], ignore_index=True); df_mercato.to_csv(FILE_DB, index=False); st.rerun()
-    
-    if not df_mercato.empty:
-        for idx, row in df_mercato.iterrows():
-            mc1, mc2, mc3, mc4 = st.columns([2, 1, 1, 1])
-            with mc1: st.write(f"**{row['GIOCATORE']}** ({row['SQUADRA']})")
-            with mc2: st.write(f"TOT: {row['TOTALE']:g}")
-            with mc3: st.write(f"<span class='status-probabile'>{row['STATO']}</span>" if row['STATO']=="PROBABILE" else f"<span class='status-ufficiale'>{row['STATO']}</span>", unsafe_allow_html=True)
-            with mc4:
-                if row['STATO'] == "PROBABILE" and st.button("✅", key=f"u_{idx}"):
-                    df_mercato.at[idx, 'STATO'] = "UFFICIALE"; df_mercato.to_csv(FILE_DB, index=False); st.rerun()
-                if st.button("🗑️", key=f"d_{idx}"):
-                    df_mercato = df_mercato.drop(idx).to_csv(FILE_DB, index=False); st.rerun()
-        
-        st.write("---")
-        st.markdown("### 💰 RIEPILOGO RECUPERI PER SQUADRA")
-        sq_m = df_mercato.groupby('SQUADRA')['TOTALE'].sum().sort_values(ascending=False)
-        cols_m = st.columns(4)
-        for idx, (sq_name, sq_tot) in enumerate(sq_m.items()):
-            with cols_m[idx % 4]:
-                st.markdown(f'<div class="refund-box"><small>{sq_name}</small><br><b style="font-size:1.5em;">+{sq_tot:g}</b></div>', unsafe_allow_html=True)
+            st.markdown(f'''<div class="cut-box"><div class="cut-player-name">{gt}</div><div style="font-size:2em; color:#2e7d32;">RIMBORSO: {round((v_a+vv)*0.6):g}</div><br>ASTA: {v_a:g} | VINCOLI: {vv:g}</div>''', unsafe_allow_html=True)
