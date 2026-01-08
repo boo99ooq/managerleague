@@ -7,33 +7,21 @@ import re
 # 1. SETUP UI
 st.set_page_config(page_title="MuyFantaLAB - Test Area", layout="wide", initial_sidebar_state="expanded")
 
-# CSS
+# CSS (Neretto e stili box)
 st.markdown("""
 <style>
     html, body, [data-testid="stAppViewContainer"] * { font-weight: 900 !important; }
     .player-card { padding: 12px; border-radius: 10px; margin-bottom: 12px; border: 3px solid #333; box-shadow: 4px 4px 8px rgba(0,0,0,0.2); color: black; }
     .refund-box { background-color: #e8f5e9; padding: 15px; border-radius: 10px; border: 3px solid #2e7d32; color: #1b5e20; margin-bottom: 10px; border: 2px solid #2e7d32; }
-    .sim-box { background-color: #fff3e0; padding: 15px; border-radius: 10px; border: 2px solid #ff9800; color: #e65100; margin-bottom: 10px; }
 </style>
 """, unsafe_allow_html=True)
 
 # --- FUNZIONI DI SUPPORTO ---
-def color_ruoli(row):
-    r = str(row.get('RUOLO', row.get('Ruolo', ''))).upper()
-    if 'POR' in r or r == 'P': bg = '#FCE4EC'
-    elif 'DIF' in r or r == 'D': bg = '#E8F5E9'
-    elif 'CEN' in r or r == 'C': bg = '#E3F2FD'
-    elif 'ATT' in r or r == 'A': bg = '#FFFDE7'
-    else: bg = '#FFFFFF'
-    return [f'background-color: {bg}; color: black; font-weight: 900; border: 1px solid #ddd;'] * len(row)
-
 def super_clean_match(name):
     if not isinstance(name, str): return ""
     mappa_err = {'Ã²': 'Ò', 'Ã³': 'Ó', 'Ã¨': 'È', 'Ã©': 'É', 'Ã¹': 'Ù', 'Ã¬': 'Ì', 'Ã\x88': 'È', 'Ã\x80': 'À'}
     for err, corr in mappa_err.items(): name = name.replace(err, corr)
     name = unicodedata.normalize('NFD', name).encode('ascii', 'ignore').decode('utf-8').upper().strip()
-    mapping = {'ZAMBO ANGUISSA': 'ANGUISSA', 'MARTINEZ L.': 'LAUTARO', 'PAZ N.': 'NICO PAZ', 'CASTELLANOS T.': 'CASTELLANOS', 'MARTINELLI T.': 'MARTINELLI'}
-    if name in mapping: return mapping[name]
     return re.sub(r'\s[A-Z]\.$', '', name)
 
 def to_num(val):
@@ -75,68 +63,87 @@ if f_vn is not None:
     for c in v_cols: f_vn[c] = f_vn[c].apply(to_num)
     f_vn['Tot_Vincolo'] = f_vn[v_cols].sum(axis=1)
 
-# Persistenza ufficiali
-if os.path.exists(FILE_PARTENTI):
-    df_ufficiali = pd.read_csv(FILE_PARTENTI)
-else:
-    df_ufficiali = pd.DataFrame(columns=["GIOCATORE", "SQUADRA", "RUOLO", "ASTA", "QUOT.", "VINCOLO", "RIMBORSO"])
+# Inizializzazione Session State per i partenti
+if 'df_ufficiali' not in st.session_state:
+    if os.path.exists(FILE_PARTENTI):
+        st.session_state.df_ufficiali = pd.read_csv(FILE_PARTENTI)
+    else:
+        st.session_state.df_ufficiali = pd.DataFrame(columns=["GIOCATORE", "SQUADRA", "RUOLO", "ASTA", "QUOT.", "VINCOLO", "RIMBORSO"])
 
 # --- TABS ---
 t = st.tabs(["🏆 **CLASSIFICHE**", "💰 **BUDGET**", "🏃 **ROSE**", "📅 **VINCOLI**", "🔄 **SCAMBI**", "✂️ **TAGLI**", "🆕 **RIMBORSO CESSIONI**"])
 
-with t[6]: # RIMBORSO PER CESSIONE
+# --- TAB 6: RIMBORSO CESSIONI ---
+with t[6]:
     st.subheader("🚀 **GESTIONE CESSIONI GENNAIO**")
     
-    col_uff, col_sim = st.columns(2)
+    c_uff, c_sim = st.columns(2)
     
-    with col_uff:
+    with c_uff:
         st.markdown("### ✅ USCITE UFFICIALI")
-        st.caption("Registra qui chi ha lasciato DEFINITIVAMENTE la Serie A.")
-        scelta_uff = st.selectbox("Registra ufficiale:", [""] + sorted(f_rs['Nome'].unique()), key="sel_uff")
-        if st.button("REGISTRA COME UFFICIALE") and scelta_uff != "":
-            info = f_rs[f_rs['Nome'] == scelta_uff].iloc[0]
-            v_match = f_vn[f_vn['Giocatore_Match'] == super_clean_match(scelta_uff)] if f_vn is not None else pd.DataFrame()
+        scelta_uff = st.selectbox("Seleziona giocatore ufficiale:", [""] + sorted(f_rs['Nome'].unique()) if f_rs is not None else [""])
+        
+        if st.button("REGISTRA CESSIONE"):
+            if scelta_uff != "":
+                if scelta_uff not in st.session_state.df_ufficiali['GIOCATORE'].values:
+                    info = f_rs[f_rs['Nome'] == scelta_uff].iloc[0]
+                    v_match = f_vn[f_vn['Giocatore_Match'] == super_clean_match(scelta_uff)] if f_vn is not None else pd.DataFrame()
+                    vv = v_match['Tot_Vincolo'].iloc[0] if not v_match.empty else 0
+                    rimb = ((info['Prezzo_N'] + info['Quotazione']) * 0.5) + vv
+                    
+                    nuova_riga = pd.DataFrame([{
+                        "GIOCATORE": scelta_uff, "SQUADRA": info['Squadra_N'], "RUOLO": info['Ruolo'],
+                        "ASTA": info['Prezzo_N'], "QUOT.": info['Quotazione'], "VINCOLO": vv, "RIMBORSO": rimb
+                    }])
+                    
+                    st.session_state.df_ufficiali = pd.concat([st.session_state.df_ufficiali, nuova_riga], ignore_index=True)
+                    st.session_state.df_ufficiali.to_csv(FILE_PARTENTI, index=False)
+                    st.success(f"Registrato: {scelta_uff}")
+                    st.rerun()
+                else:
+                    st.warning("Giocatore già in lista!")
+            else:
+                st.error("Seleziona un nome!")
+
+    with c_sim:
+        st.markdown("### 🧪 SIMULATORE PROBABILI")
+        giocatori_sim = st.multiselect("Simula cessione per:", sorted(f_rs['Nome'].unique()) if f_rs is not None else [])
+
+    # Calcolo Logica Rimborsi
+    r_uff = st.session_state.df_ufficiali.groupby("SQUADRA")["RIMBORSO"].sum().to_dict()
+    r_sim = {}
+    if giocatori_sim:
+        for g in giocatori_sim:
+            info = f_rs[f_rs['Nome'] == g].iloc[0]
+            v_match = f_vn[f_vn['Giocatore_Match'] == super_clean_match(g)] if f_vn is not None else pd.DataFrame()
             vv = v_match['Tot_Vincolo'].iloc[0] if not v_match.empty else 0
             rimb = ((info['Prezzo_N'] + info['Quotazione']) * 0.5) + vv
-            nuova_riga = pd.DataFrame([{"GIOCATORE": scelta_uff, "SQUADRA": info['Squadra_N'], "RUOLO": info['Ruolo'], "ASTA": info['Prezzo_N'], "QUOT.": info['Quotazione'], "VINCOLO": vv, "RIMBORSO": rimb}])
-            df_ufficiali = pd.concat([df_ufficiali, nuova_riga], ignore_index=True)
-            df_ufficiali.to_csv(FILE_PARTENTI, index=False)
+            r_sim[info['Squadra_N']] = r_sim.get(info['Squadra_N'], 0) + rimb
+
+    sq_list = sorted(f_rs['Squadra_N'].unique()) if f_rs is not None else []
+    rimborsi_totali = {s: r_uff.get(s, 0) + r_sim.get(s, 0) for s in sq_list}
+
+    if not st.session_state.df_ufficiali.empty:
+        st.write("---")
+        st.markdown("#### 📋 ELENCO UFFICIALI SALVATI")
+        st.dataframe(st.session_state.df_ufficiali, use_container_width=True, hide_index=True)
+        if st.button("SVUOTA TUTTO"):
+            st.session_state.df_ufficiali = pd.DataFrame(columns=["GIOCATORE", "SQUADRA", "RUOLO", "ASTA", "QUOT.", "VINCOLO", "RIMBORSO"])
+            if os.path.exists(FILE_PARTENTI): os.remove(FILE_PARTENTI)
             st.rerun()
 
-    with col_sim:
-        st.markdown("### 🧪 SIMULATORE PROBABILI")
-        st.caption("Aggiungi giocatori 'in bilico' per vedere l'effetto sul budget.")
-        giocatori_sim = st.multiselect("Simula cessione per:", sorted(f_rs['Nome'].unique()), key="sel_sim")
-    
-    # Calcolo rimborsi totali (Ufficiali + Simulati)
-    rimborsi_uff = df_ufficiali.groupby("SQUADRA")["RIMBORSO"].sum().to_dict()
-    
-    rimborsi_sim = {}
-    for g in giocatori_sim:
-        info = f_rs[f_rs['Nome'] == g].iloc[0]
-        v_match = f_vn[f_vn['Giocatore_Match'] == super_clean_match(g)] if f_vn is not None else pd.DataFrame()
-        vv = v_match['Tot_Vincolo'].iloc[0] if not v_match.empty else 0
-        rimb = ((info['Prezzo_N'] + info['Quotazione']) * 0.5) + vv
-        rimborsi_sim[info['Squadra_N']] = rimborsi_sim.get(info['Squadra_N'], 0) + rimb
-
-    # Unione per il budget
-    squadre_tutte = sorted(f_rs['Squadra_N'].unique())
-    rimborsi_totali = {s: rimborsi_uff.get(s, 0) + rimborsi_sim.get(s, 0) for s in squadre_tutte}
-
-with t[1]: # BUDGET
+# --- TAB 1: BUDGET ---
+with t[1]:
     if f_rs is not None:
-        st.subheader("💰 **BUDGET DINAMICO (UFFICIALI + SIMULATI)**")
+        st.subheader("💰 **BUDGET DINAMICO**")
         bu = f_rs.groupby('Squadra_N')['Prezzo_N'].sum().reset_index().rename(columns={'Prezzo_N': 'SPESA ROSE'})
         v_sum = f_vn.groupby('Sq_N')['Tot_Vincolo'].sum().reset_index() if f_vn is not None else pd.DataFrame(columns=['Sq_N', 'Tot_Vincolo'])
         bu = pd.merge(bu, v_sum, left_on='Squadra_N', right_on='Sq_N', how='left').fillna(0).drop('Sq_N', axis=1).rename(columns={'Tot_Vincolo': 'SPESA VINCOLI'})
         bu['CREDITI DISPONIBILI'] = bu['Squadra_N'].map(bg_ex).fillna(0)
-        
-        # Questa colonna ora somma sia i salvati che quelli scelti nel multiselect del simulatore
         bu['RECUPERO CESSIONI'] = bu['Squadra_N'].map(rimborsi_totali).fillna(0)
+        bu['PATRIMONIO TOTALE'] = bu['SPESA ROSE'] + bu['SPESA VINCOLI'] + bu['CREDITI DISPONIBILI'] + bu['RECUPERO CESSIONI']
         
-        voci_sel = st.multiselect("Voci calcolo:", ['SPESA ROSE', 'SPESA VINCOLI', 'CREDITI DISPONIBILI', 'RECUPERO CESSIONI'], default=['SPESA ROSE', 'SPESA VINCOLI', 'CREDITI DISPONIBILI', 'RECUPERO CESSIONI'])
-        bu['PATRIMONIO TOTALE'] = bu[voci_sel].sum(axis=1) if voci_sel else 0
-        
-        st.dataframe(bu[['Squadra_N'] + voci_sel + ['PATRIMONIO TOTALE']].sort_values("PATRIMONIO TOTALE", ascending=False).style\
+        st.dataframe(bu.sort_values("PATRIMONIO TOTALE", ascending=False).style\
             .background_gradient(cmap='YlOrRd', subset=['PATRIMONIO TOTALE'])\
-            .format({c: "{:g}" for c in bu.columns if c != 'Squadra_N'}), hide_index=True, use_container_width=True)
+            .format({c: "{:g}" for c in bu.columns if c != 'Squadra_N'})\
+            .set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
