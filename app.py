@@ -12,8 +12,6 @@ st.set_page_config(page_title="MuyFantaManager", layout="wide", initial_sidebar_
 st.markdown("""
 <style>
     html, body, [data-testid="stAppViewContainer"] * { font-weight: 900 !important; }
-    
-    /* Card Ricerca Sidebar */
     .search-card { 
         background-color: #ffffff; 
         padding: 15px; 
@@ -31,8 +29,6 @@ st.markdown("""
     .clearfix { clear: both; }
     .quot-box { margin-top: 10px; padding-top: 5px; border-top: 1px dashed #ccc; color: #2e7d32; }
     .tot-reale { background-color: #f8f9fa; padding: 5px; margin-top: 8px; border-radius: 5px; text-align: center; }
-
-    /* Card Giocatori (Scambi e Tagli) */
     .player-card { padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 6px solid; }
     .card-blue { background-color: #e3f2fd; border-color: #1a73e8; color: black; }
     .card-red { background-color: #fbe9e7; border-color: #d32f2f; color: black; }
@@ -146,10 +142,10 @@ with st.sidebar:
             """, unsafe_allow_html=True)
 
 # --- MAIN APP ---
-st.title("⚽ MUYFANTAMANAGER GOLDEN V6.7")
+st.title("⚽ MUYFANTAMANAGER GOLDEN V6.8")
 t = st.tabs(["🏆 CLASSIFICHE", "💰 BUDGET", "🏃 ROSE", "📅 VINCOLI", "🔄 SCAMBI", "✂️ TAGLI"])
 
-with t[0]: # CLASSIFICHE
+with t[0]: # TAB 0: CLASSIFICHE
     c1, c2 = st.columns(2)
     if f_pt is not None:
         with c1:
@@ -163,7 +159,7 @@ with t[0]: # CLASSIFICHE
             f_sc['DR'] = f_sc['Gol Fatti'].apply(to_num) - f_sc['Gol Subiti'].apply(to_num)
             st.dataframe(f_sc[['Posizione','Giocatore','P_S','DR']].style.background_gradient(subset=['P_S'], cmap='Blues').background_gradient(subset=['DR'], cmap='RdYlGn').format({"P_S": "{:g}", "DR": "{:+g}"}).set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
-with t[1]: # BUDGET
+with t[1]: # TAB 1: BUDGET
     if f_rs is not None:
         st.subheader("💰 BUDGET E PATRIMONIO")
         bu = f_rs.groupby('Squadra_N')['Prezzo_N'].sum().reset_index().rename(columns={'Prezzo_N': 'ROSE'})
@@ -173,37 +169,37 @@ with t[1]: # BUDGET
         bu['TOT'] = bu['ROSE'] + bu['Tot_Vincolo'] + bu['DISP']
         st.dataframe(bu.sort_values("TOT", ascending=False).style.background_gradient(cmap='YlOrRd', subset=['TOT']).background_gradient(cmap='Greens', subset=['DISP']).format({c: "{:g}" for c in bu.columns if c != 'Squadra_N'}).set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
-with t[2]: # ROSE
+with t[2]: # TAB 2: ROSE
     if f_rs is not None:
         mancanti = f_rs[f_rs['Quotazione'] == 0]['Nome_N'].unique()
         if len(mancanti) > 0:
             with st.expander(f"⚠️ {len(mancanti)} GIOCATORI SENZA QUOTAZIONE"):
                 st.write(", ".join(sorted(mancanti)))
-        sq = st.selectbox("SQUADRA", sorted(f_rs['Squadra_N'].unique()), key="rs_v67")
+        sq = st.selectbox("SQUADRA", sorted(f_rs['Squadra_N'].unique()), key="rs_v68")
         df_sq = f_rs[f_rs['Squadra_N'] == sq][['Ruolo', 'Nome_N', 'Prezzo_N', 'Quotazione']]
         def color_ruoli(row):
             bg = {'POR': '#FCE4EC', 'DIF': '#E8F5E9', 'CEN': '#E3F2FD', 'ATT': '#FFFDE7'}.get(str(row['Ruolo']).upper()[:3], '#FFFFFF')
             return [f'background-color: {bg}; color: black; font-weight: 900;'] * len(row)
         st.dataframe(df_sq.style.apply(color_ruoli, axis=1).format({"Prezzo_N":"{:g}", "Quotazione":"{:g}"}), hide_index=True, use_container_width=True)
 
-with t[3]: # VINCOLI
+with t[3]: # TAB 3: VINCOLI
     if f_vn is not None:
         st.subheader("📅 VINCOLI PER SQUADRA")
-        sq_v = st.selectbox("SELEZIONA SQUADRA", ["TUTTE"] + sorted(f_vn['Sq_N'].unique()), key="v_v67")
+        sq_v = st.selectbox("SELEZIONA SQUADRA", ["TUTTE"] + sorted(f_vn['Sq_N'].unique()), key="v_v68")
         df_v = f_vn if sq_v == "TUTTE" else f_vn[f_vn['Sq_N'] == sq_v]
         st.dataframe(df_v[['Squadra', 'Giocatore', 'Tot_Vincolo', 'Anni_T']].sort_values('Tot_Vincolo', ascending=False).style.background_gradient(cmap='Purples', subset=['Tot_Vincolo']).format({"Tot_Vincolo": "{:g}"}).set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
-with t[4]: # SCAMBI
+with t[4]: # TAB 4: SCAMBI
     st.subheader("🔄 SIMULATORE SCAMBI")
     if f_rs is not None:
         c1, c2 = st.columns(2)
         l_sq = sorted(f_rs['Squadra_N'].unique())
         with c1:
-            sa = st.selectbox("SQUADRA A", l_sq, key="sa_67")
-            ga = st.multiselect("DA A", f_rs[f_rs['Squadra_N']==sa]['Nome_N'].tolist(), key="ga_67")
+            sa = st.selectbox("SQUADRA A", l_sq, key="sa_68")
+            ga = st.multiselect("DA A", f_rs[f_rs['Squadra_N']==sa]['Nome_N'].tolist(), key="ga_68")
         with c2:
-            sb = st.selectbox("SQUADRA B", [s for s in l_sq if s != sa], key="sb_67")
-            gb = st.multiselect("DA B", f_rs[f_rs['Squadra_N']==sb]['Nome_N'].tolist(), key="gb_67")
+            sb = st.selectbox("SQUADRA B", [s for s in l_sq if s != sa], key="sb_68")
+            gb = st.multiselect("DA B", f_rs[f_rs['Squadra_N']==sb]['Nome_N'].tolist(), key="gb_68")
         if ga and gb:
             def get_v(n):
                 p = f_rs[f_rs['Nome_N']==n]['Prezzo_N'].iloc[0]
@@ -225,11 +221,11 @@ with t[4]: # SCAMBI
                     v_t, v_v = get_v(n); n_v = max(0, round((v_t/tot_a)*nuovo) - v_v)
                     st.markdown(f'<div class="player-card card-red"><b>{n}</b><br>VAL: <b>{int(n_v)}</b> + VINC: {int(v_v)}</div>', unsafe_allow_html=True)
 
-with t[5]: # TAGLI
+with t[5]: # TAB 5: TAGLI
     st.subheader("✂️ SIMULATORE TAGLI")
     if f_rs is not None:
-        sq_t = st.selectbox("SQUADRA", sorted(f_rs['Squadra_N'].unique()), key="st_67")
-        gi_t = st.selectbox("GIOCATORE", f_rs[f_rs['Squadra_N'] == sq_t]['Nome_N'].tolist(), key="gt_67")
+        sq_t = st.selectbox("SQUADRA", sorted(f_rs['Squadra_N'].unique()), key="st_68")
+        gi_t = st.selectbox("GIOCATORE", f_rs[f_rs['Squadra_N'] == sq_t]['Nome_N'].tolist(), key="gt_68")
         if gi_t:
             p_d = f_rs[(f_rs['Squadra_N'] == sq_t) & (f_rs['Nome_N'] == gi_t)].iloc[0]
             v_d = f_vn[f_vn['Giocatore_N'] == gi_t] if f_vn is not None else pd.DataFrame()
