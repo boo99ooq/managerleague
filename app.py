@@ -12,10 +12,7 @@ st.set_page_config(page_title="MuyFantaManager Golden V3.2", layout="wide", init
 st.markdown("""
 <style>
     html, body, [data-testid="stAppViewContainer"] * { font-weight: 900 !important; }
-    .player-card { padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 6px solid; }
-    .card-blue { background-color: #e3f2fd; border-color: #1a73e8; }
-    .card-red { background-color: #fbe9e7; border-color: #d32f2f; }
-    .card-grey { background-color: #f1f3f4; border-color: #9e9e9e; }
+    .player-card { padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 6px solid #333; color: black; }
     .patrimonio-box { background-color: #f0f2f6; padding: 15px; border-radius: 10px; border: 2px solid #1a73e8; text-align: center; }
     .cut-box { background-color: #f8f9fa; padding: 20px; border-radius: 10px; border-left: 5px solid #ff4b4b; color: #1a1a1a; }
     .zero-tool { background-color: #ffebee; color: #c62828; padding: 15px; border-radius: 10px; border: 2px solid #c62828; margin-bottom: 20px; }
@@ -81,7 +78,7 @@ if f_vn is not None:
     f_vn['Tot_Vincolo'] = f_vn[v_cols].sum(axis=1)
     f_vn['Anni_T'] = f_vn[v_cols].gt(0).sum(axis=1).astype(str) + " ANNI"
 
-# --- SIDEBAR: RICERCA ---
+# --- SIDEBAR: RICERCA CON COLORI RUOLO ---
 with st.sidebar:
     st.header("🔍 **RICERCA GIOCATORE**")
     if f_rs is not None:
@@ -90,9 +87,18 @@ with st.sidebar:
             dr = f_rs[f_rs['Nome'] == n].iloc[0]
             v_match = f_vn[f_vn['Giocatore_Match'] == super_clean_match(n)] if f_vn is not None else pd.DataFrame()
             vv = v_match['Tot_Vincolo'].iloc[0] if not v_match.empty else 0
+            
+            # Definizione colore in base al ruolo
+            r = str(dr['Ruolo']).upper()
+            if 'POR' in r or r == 'P': bg_side = '#FCE4EC' # Rosa
+            elif 'DIF' in r or r == 'D': bg_side = '#E8F5E9' # Verde
+            elif 'CEN' in r or r == 'C': bg_side = '#E3F2FD' # Blu
+            elif 'ATT' in r or r == 'A': bg_side = '#FFFDE7' # Giallo
+            else: bg_side = '#f1f3f4' # Grigio default
+            
             st.markdown(f"""
-            <div class="player-card card-grey">
-                <b>{n}</b> (<b>{dr['Squadra_N']}</b>)<br>
+            <div class="player-card" style="background-color: {bg_side};">
+                <b style="color: black;">{n}</b> (<b style="color: black;">{dr['Squadra_N']}</b>)<br>
                 ASTA: <b>{int(dr['Prezzo_N'])}</b> | VINC: <b>{int(vv)}</b><br>
                 QUOT: <b style="color:#1a73e8;">{int(dr['Quotazione'])}</b> | TOT: <b>{int(dr['Prezzo_N'] + vv)}</b>
             </div>
@@ -102,7 +108,7 @@ with st.sidebar:
 st.title("⚽ **MUYFANTAMANAGER GOLDEN V3.2**")
 t = st.tabs(["🏆 **CLASSIFICHE**", "💰 **BUDGET**", "🏃 **ROSE**", "📅 **VINCOLI**", "🔄 **SCAMBI**", "✂️ **TAGLI**"])
 
-with t[0]: # CLASSIFICHE (Decimali puliti)
+with t[0]: # CLASSIFICHE
     c1, c2 = st.columns(2)
     if f_pt is not None:
         with c1:
@@ -151,7 +157,7 @@ with t[2]: # ROSE
             return [f'background-color: {bg}; color: black; font-weight: 900;'] * len(row)
         st.dataframe(df_sq.style.apply(color_ruoli, axis=1).format({"Prezzo_N":"{:g}", "Quotazione":"{:g}"}), hide_index=True, use_container_width=True)
 
-with t[3]: # VINCOLI (Decimali puliti)
+with t[3]: # VINCOLI
     st.subheader("📅 **VINCOLI ATTIVI**")
     if f_vn is not None:
         sq_v = st.selectbox("**FILTRA SQUADRA**", ["TUTTE"] + sorted([s for s in f_vn['Sq_N'].unique() if s]), key="vinc_sel")
@@ -160,8 +166,6 @@ with t[3]: # VINCOLI (Decimali puliti)
             .background_gradient(subset=['Tot_Vincolo'], cmap='Purples')\
             .format({"Tot_Vincolo": "{:g}"})\
             .set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
-    else:
-        st.info("File vincoli.csv non trovato.")
 
 with t[4]: # SCAMBI
     st.subheader("🔄 **SIMULATORE SCAMBI**")
@@ -192,12 +196,12 @@ with t[4]: # SCAMBI
                 for n, info in dict_b.items():
                     peso = info['t']/tot_ante_b if tot_ante_b > 0 else 1/len(gb)
                     nuovo_t = round(peso*nuovo_tot)
-                    st.markdown(f"""<div class="player-card card-blue"><b>{n}</b><br><small>VAL PRE: {int(info['t'])}</small><br>NUOVA VAL: <b>{max(0, nuovo_t-int(info['v']))}</b> + VINC: <b>{int(info['v'])}</b></div>""", unsafe_allow_html=True)
+                    st.markdown(f"""<div class="player-card" style="background-color: #e3f2fd;"><b>{n}</b><br><small>VAL PRE: {int(info['t'])}</small><br>NUOVA VAL: <b>{max(0, nuovo_t-int(info['v']))}</b> + VINC: <b>{int(info['v'])}</b></div>""", unsafe_allow_html=True)
             with res_b:
                 for n, info in dict_a.items():
                     peso = info['t']/tot_ante_a if tot_ante_a > 0 else 1/len(ga)
                     nuovo_t = round(peso*nuovo_tot)
-                    st.markdown(f"""<div class="player-card card-red"><b>{n}</b><br><small>VAL PRE: {int(info['t'])}</small><br>NUOVA VAL: <b>{max(0, nuovo_t-int(info['v']))}</b> + VINC: <b>{int(info['v'])}</b></div>""", unsafe_allow_html=True)
+                    st.markdown(f"""<div class="player-card" style="background-color: #fbe9e7;"><b>{n}</b><br><small>VAL PRE: {int(info['t'])}</small><br>NUOVA VAL: <b>{max(0, nuovo_t-int(info['v']))}</b> + VINC: <b>{int(info['v'])}</b></div>""", unsafe_allow_html=True)
             st.divider()
             p_a_v = f_rs[f_rs['Squadra_N']==sa]['Prezzo_N'].sum() + (f_vn[f_vn['Sq_N']==sa]['Tot_Vincolo'].sum() if f_vn is not None else 0) + bg_ex.get(sa, 0)
             p_b_v = f_rs[f_rs['Squadra_N']==sb]['Prezzo_N'].sum() + (f_vn[f_vn['Sq_N']==sb]['Tot_Vincolo'].sum() if f_vn is not None else 0) + bg_ex.get(sb, 0)
