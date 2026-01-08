@@ -124,17 +124,57 @@ with st.sidebar:
 # --- TABS ---
 t = st.tabs(["🏆 **CLASSIFICHE**", "💰 **BUDGET**", "🏃 **ROSE**", "📅 **VINCOLI**", "🔄 **SCAMBI**", "✂️ **TAGLI**", "🚀 **MERCATO**"])
 
-# TAB 0: CLASSIFICHE
+# --- TAB 0: CLASSIFICHE (Versione Golden con Gradienti) ---
 with t[0]:
+    st.markdown("### 🏆 CLASSIFICHE GENERALI")
     c1, c2 = st.columns(2)
-    if f_pt is not None:
-        with c1:
-            st.subheader("🎯 PUNTI")
-            st.dataframe(f_pt, hide_index=True, use_container_width=True)
-    if f_sc is not None:
-        with c2:
-            st.subheader("⚔️ SCONTRI DIRETTI")
-            st.dataframe(f_sc, hide_index=True, use_container_width=True)
+    
+    # 1. CLASSIFICA PUNTI
+    with c1:
+        st.markdown("#### 🎯 CLASSIFICA PUNTI")
+        if f_pt is not None:
+            # Creazione Tabella HTML con Gradienti
+            html_pt = '<table class="golden-table"><thead><tr><th>POS</th><th>GIOCATORE</th><th style="background: linear-gradient(90deg, #f1f5f9 0%, #fef9c3 100%);">PUNTI</th></tr></thead><tbody>'
+            for _, r in f_pt.iterrows():
+                pos = r.iloc[0]
+                gio = r.iloc[1]
+                punti = to_num(r.iloc[2])
+                # Formattazione: togliamo il .0 se presente
+                punti_f = int(punti) if punti.is_integer() else punti
+                
+                html_pt += f'''
+                <tr>
+                    <td>{pos}</td>
+                    <td style="text-align:left; padding-left:20px;">{gio}</td>
+                    <td style="background: linear-gradient(90deg, #ffffff 0%, #fef9c3 100%);">{punti_f}</td>
+                </tr>'''
+            html_pt += '</tbody></table>'
+            st.markdown(html_pt, unsafe_allow_html=True)
+        else:
+            st.error("File classificapunti.csv non trovato")
+
+    # 2. CLASSIFICA SCONTRI DIRETTI
+    with c2:
+        st.markdown("#### ⚔️ SCONTRI DIRETTI")
+        if f_sc is not None:
+            # Creazione Tabella HTML con Gradienti
+            html_sc = '<table class="golden-table"><thead><tr><th>POS</th><th>GIOCATORE</th><th style="background: linear-gradient(90deg, #f1f5f9 0%, #fff3e0 100%);">PUNTI</th></tr></thead><tbody>'
+            for _, r in f_sc.iterrows():
+                pos = r.iloc[0]
+                gio = r.iloc[1]
+                punti = to_num(r.iloc[2])
+                punti_f = int(punti) if punti.is_integer() else punti
+                
+                html_sc += f'''
+                <tr>
+                    <td>{pos}</td>
+                    <td style="text-align:left; padding-left:20px;">{gio}</td>
+                    <td style="background: linear-gradient(90deg, #ffffff 0%, #fff3e0 100%);">{punti_f}</td>
+                </tr>'''
+            html_sc += '</tbody></table>'
+            st.markdown(html_sc, unsafe_allow_html=True)
+        else:
+            st.error("File scontridiretti.csv non trovato")
 
 # TAB 1: BUDGET
 with t[1]:
