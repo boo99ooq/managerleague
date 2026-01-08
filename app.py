@@ -8,7 +8,7 @@ from datetime import datetime
 # 1. SETUP UI
 st.set_page_config(page_title="MuyFantaManager", layout="wide", initial_sidebar_state="expanded")
 
-# CSS PER GRASSETTO ESTREMO E CONTRASTO AUTOMATICO
+# CSS PER GRASSETTO ESTREMO E CONTRASTO
 st.markdown("""
 <style>
     html, body, [data-testid="stAppViewContainer"] * { font-weight: 900 !important; }
@@ -21,57 +21,60 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- FUNZIONE PULIZIA AUTOMATICA NOMI (PER MATCHARE LE ROSE) ---
+# --- FUNZIONE PULIZIA AVANZATA NOMI (PER MATCHARE LE TUE ROSE) ---
 def clean_quotazioni_name(name):
     if not isinstance(name, str): return name
-    # Correzione caratteri "sporchi" tipici dei CSV esportati (č, ň, č)
+    
+    # 1. Correzione manuale caratteri speciali del CSV
     name = name.replace('č', 'E').replace('ň', 'O').replace('ř', 'I').replace('ć', 'C')
     name = name.replace('Č', 'E').replace('Ň', 'O').replace('ř', 'I')
-    # Normalizzazione accenti standard
+    
+    # 2. Normalizzazione accenti standard
     name = unicodedata.normalize('NFD', name).encode('ascii', 'ignore').decode('utf-8')
     name = name.upper().strip()
     
-    # Mappatura specifica per i nomi della tua Lega
+    # 3. DIZIONARIO DI TRADUZIONE (CSV -> TUA LEGA)
+    # Qui risolviamo i casi dove i nomi sono proprio diversi
     mapping = {
+        'ZAMBO ANGUISSA': 'ANGUISSA',
         'ESPOSITO F.P.': 'PIO ESPOSITO', 
         'ESPOSITO SE.': 'S ESPOSITO',
         'DAVIS K.': 'DAVIS K', 
         'MARTINEZ L.': 'LAUTARO',
         'MARTINEZ JO.': 'MARTINEZ JO', 
         'PELLEGRINO M.': 'PELLEGRINO',
-        'ADAMS C.': 'ADAMS', 
-        'DYBALA P.': 'DYBALA', 
-        'VLAHOVIC D.': 'VLAHOVIC',
-        'SOULE': 'SOULE', 
-        'LAURIENTE': 'LAURIENTE', 
-        'MONTIPO': 'MONTIPO'
+        'ADAMS C.': 'ADAMS',
+        'CASTRO S.': 'CASTRO',
+        'DOUVIKAS': 'DOUVIKAZ',
+        'PAZ N.': 'NICO PAZ',
+        'FOFANA Y.': 'FOFANA',
+        'SULEMANA I.': 'SULEMANA',
+        'SULEMANA K.': 'SULEMANA',
+        'KELLY L.': 'KELLY',
+        'DOMINGUEZ B.': 'DOMINGUEZ',
+        'NICOLUSSI CAVIGLIA': 'NICOLUSSI'
     }
+    
     if name in mapping: return mapping[name]
     
-    # Rimuove iniziali (es: ADAMS C. -> ADAMS)
+    # 4. Pulizia generica (rimuove iniziali come "DYBALA P.")
     name = re.sub(r'\s[A-Z]\.$', '', name)
     name = re.sub(r'\s[A-Z]\.[A-Z]\.$', '', name)
+    
     return name
 
-# --- FUNZIONE DI CARICAMENTO (CON FIX ENCODING) ---
+# --- FUNZIONI DI CARICAMENTO ---
 def ld(f, is_quot=False):
-    if not os.path.exists(f): 
-        if is_quot: st.warning(f"File {f} non trovato. Le quotazioni non verranno caricate.")
-        return None
+    if not os.path.exists(f): return None
     try:
-        # Usiamo latin1 per evitare l'errore 'utf-8 codec can't decode'
+        # Carichiamo con latin1 per i caratteri speciali
         df = pd.read_csv(f, engine='python', skip_blank_lines=True, encoding='latin1')
         df.columns = [c.strip() for c in df.columns]
         if is_quot:
             df['Nome'] = df['Nome'].apply(clean_quotazioni_name)
-            # Prende Nome e Quotazione (Qt.A)
-            if 'Qt.A' in df.columns:
-                return df[['Nome', 'Qt.A']].rename(columns={'Qt.A': 'Quotazione'})
-            return None
+            return df[['Nome', 'Qt.A']].rename(columns={'Qt.A': 'Quotazione'})
         return df.dropna(how='all')
-    except Exception as e:
-        st.error(f"Errore tecnico nel caricare {f}: {e}")
-        return None
+    except: return None
 
 def clean_string(s):
     if pd.isna(s): return None
@@ -84,14 +87,14 @@ def to_num(val):
     try: return float(str(val).replace(',', '.'))
     except: return 0.0
 
-# --- CARICAMENTO DATI ---
+# --- CARICAMENTO FILE ---
 f_sc, f_pt, f_rs, f_vn = ld("scontridiretti.csv"), ld("classificapunti.csv"), ld("rose_complete.csv"), ld("vincoli.csv")
-f_qt = ld("quotazioni.csv", is_quot=True) # File caricato "sporco"
+f_qt = ld("quotazioni.csv", is_quot=True)
 
 bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
 map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS", "DANI ROBI": "DANI ROBI"}
 
-# --- ELABORAZIONE ROSE E MATCH QUOTAZIONI ---
+# --- ELABORAZIONE ROSE + MATCH QUOTAZIONI ---
 if f_rs is not None:
     f_rs['Squadra_N'] = f_rs['Fantasquadra'].apply(clean_string).replace(map_n)
     f_rs['Nome'] = f_rs['Nome'].apply(clean_string)
@@ -115,7 +118,7 @@ with st.sidebar:
         for n in scelte:
             dr = f_rs[f_rs['Nome'] == n].iloc[0]
             vv = f_vn[f_vn['Giocatore'] == n]['Tot_Vincolo'].iloc[0] if (f_vn is not None and n in f_vn['Giocatore'].values) else 0
-            qt_val = dr['Quotazione'] if 'Quotazione' in dr.index else 0
+            qt_val = dr['Quotazione'] if 'Quotazione' in dr else 0
             st.markdown(f"""
             <div class="player-card card-grey">
                 <b>{n}</b> (<b>{dr['Squadra_N']}</b>)<br>
@@ -126,7 +129,7 @@ with st.sidebar:
             """, unsafe_allow_html=True)
 
 # --- MAIN APP ---
-st.title("⚽ **MUYFANTAMANAGER GOLDEN V2**")
+st.title("⚽ **MUYFANTAMANAGER GOLDEN V3**")
 t = st.tabs(["🏆 **CLASSIFICHE**", "💰 **BUDGET**", "🏃 **ROSE**", "📅 **VINCOLI**", "🔄 **SCAMBI**", "✂️ **TAGLI**"])
 
 with t[0]: # CLASSIFICHE
@@ -237,5 +240,3 @@ with t[5]: # TAGLI
         v_v = f_vn[f_vn['Giocatore'] == gioc_t]['Tot_Vincolo'].iloc[0] if (f_vn is not None and gioc_t in f_vn['Giocatore'].values) else 0
         rimborso = round((v_p + v_v) * 0.6)
         st.markdown(f"""<div class="cut-box"><h3>💰 **RIMBORSO: {rimborso} CREDITI**</h3>VALUTAZIONE: <b>{int(v_p)}</b> | VINC: <b>{int(v_v)}</b></div>""", unsafe_allow_html=True)
-        if st.button("📋 **GENERA VERBALE TAGLIO**"):
-            st.code(f"✂️ TAGLIO UFFICIALE - {sq_t}\nGIOCATORE: {gioc_t}\nRIMBORSO: {rimborso} CREDITI")
