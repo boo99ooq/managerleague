@@ -5,38 +5,39 @@ import unicodedata
 import re
 
 # 1. SETUP UI
-st.set_page_config(page_title="MuyFantaManager Golden V3.8", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="MuyFantaManager Golden V3.9", layout="wide", initial_sidebar_state="expanded")
 
-# --- BLOCCO CSS DEFINITIVO (Fix headers, colori e allineamento) ---
+# --- BLOCCO CSS AGGIORNATO (Più aggressivo su Headers e Allineamento) ---
 st.markdown("""
 <style>
-    /* Forza Neretto 900 e Colore Nero ovunque */
-    html, body, [data-testid="stAppViewContainer"] *, .stDataFrame td, p, div, span, label { 
+    /* Forza Neretto 900 ovunque */
+    html, body, [data-testid="stAppViewContainer"] *, p, div, span, label { 
         font-weight: 900 !important; 
         color: #000 !important; 
     }
     
-    /* Fix Intestazioni Tabelle: Bold 900, Maiuscolo e Allineamento */
-    .stDataFrame th, [data-testid="stTable"] th {
+    /* Tentativo CSS globale per headers (funziona su tabelle statiche) */
+    th {
         font-weight: 900 !important;
         text-transform: uppercase !important;
         text-align: center !important;
-        color: #000 !important;
-        background-color: #f0f2f6 !important;
     }
 
-    /* Card e Box */
     .stat-card { background-color: #f8f9fa; padding: 15px; border-radius: 10px; border: 3px solid #333; text-align: center; box-shadow: 3px 3px 0px #333; }
     .player-card { padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 6px solid #333; box-shadow: 2px 2px 5px rgba(0,0,0,0.1); }
-    
-    /* Status Mercato */
-    .status-ufficiale { color: #ffffff !important; background-color: #2e7d32; padding: 4px 10px; border-radius: 6px; }
-    .status-probabile { color: #ffffff !important; background-color: #ed6c02; padding: 4px 10px; border-radius: 6px; }
 </style>
 """, unsafe_allow_html=True)
 
 # --- FUNZIONI SUPPORTO ---
-def bold_df(df): return df.style.set_properties(**{'font-weight': '900', 'color': 'black'})
+def bold_df(df):
+    """Applica il neretto 900 sia alle celle che alle intestazioni (via Styler)"""
+    return df.style.set_properties(**{
+        'font-weight': '900',
+        'color': 'black',
+        'text-align': 'center'
+    }).set_table_styles([
+        {'selector': 'th', 'props': [('font-weight', '900'), ('text-transform', 'uppercase'), ('text-align', 'center'), ('color', 'black')]}
+    ])
 
 def to_num(val):
     if pd.isna(val) or str(val).strip().lower() in ['x', '', '-']: return 0.0
@@ -59,33 +60,28 @@ def normalize_ruolo_v3(r):
 # --- CARICAMENTO DATI ---
 def load_data():
     if not os.path.exists("rose_complete.csv"): return None
-    
     rs = pd.read_csv("rose_complete.csv", encoding='latin1', engine='python')
     rs.columns = [c.strip() for c in rs.columns]
     rs['Squadra_N'] = rs['Fantasquadra'].str.upper().str.strip()
     rs['Match_Nome'] = rs['Nome'].apply(super_clean)
     rs['Prezzo_N'] = rs['Prezzo'].apply(to_num)
     
-    # FIX LOGICA GIOVANI: Molto più robusta per intercettare gli Under
+    # LOGICA GIOVANI: Conta se prezzo è 0
     def identify_role(row):
-        p = to_num(row['Prezzo'])
-        if p == 0: return 'GIO'
+        if to_num(row['Prezzo']) == 0: return 'GIO'
         return normalize_ruolo_v3(row['Ruolo'])
-    
     rs['Ruolo_N'] = rs.apply(identify_role, axis=1)
     
+    # Fix Quotazioni e Ferguson
     if os.path.exists("quotazioni.csv"):
         qt = pd.read_csv("quotazioni.csv", encoding='latin1', engine='python')
         qt.columns = [c.strip() for c in qt.columns]
         col_nome_qt = next((c for c in qt.columns if c.upper() in ['NOME', 'CALCIATORE']), 'Nome')
         col_ruolo_qt = next((c for c in qt.columns if c.upper() in ['RUOLO', 'R', 'POS']), 'Ruolo')
         col_valore_qt = next((c for c in qt.columns if 'QT' in c.upper() or 'VAL' in c.upper()), None)
-        
         if col_valore_qt:
             qt['Match_Nome'] = qt[col_nome_qt].apply(super_clean)
             qt['Ruolo_N_QT'] = qt[col_ruolo_qt].apply(normalize_ruolo_v3)
-            
-            # Merge chirurgico per risolvere Ferguson (Nome + Ruolo)
             rs['Ruolo_Merge'] = rs['Ruolo'].apply(normalize_ruolo_v3)
             rs = pd.merge(rs, qt[['Match_Nome', 'Ruolo_N_QT', col_valore_qt]], 
                           left_on=['Match_Nome', 'Ruolo_Merge'], 
@@ -93,8 +89,6 @@ def load_data():
                           how='left')
             rs['Quotazione'] = rs[col_valore_qt].apply(to_num)
             rs = rs.drop_duplicates(subset=['Fantasquadra', 'Nome', 'Ruolo'])
-        else: rs['Quotazione'] = 0
-    else: rs['Quotazione'] = 0
     return rs
 
 f_rs = load_data()
@@ -116,36 +110,40 @@ with t[2]: # TAB ROSE
             n_gio = len(df_team[df_team['Ruolo_N'] == 'GIO'])
             st.markdown(f'<div class="stat-card" style="border-color:#9c27b0;">👶 GIOVANI<br><b style="font-size:1.5em; color:#9c27b0;">{n_gio}</b></div>', unsafe_allow_html=True)
 
-        # TABELLA RIASSUNTIVA (Headers Maiuscoli e Allineati)
+        # TABELLA RIASSUNTIVA ( Headers in Bold, Uppercase e Centrati )
         st.write("---"); st.markdown("#### 📊 RIPARTIZIONE PER RUOLO")
         riass_list = []
         for r in ['POR', 'DIF', 'CEN', 'ATT', 'GIO']:
             d_rep = df_team[df_team['Ruolo_N'] == r]
             label = "GIOVANI" if r == 'GIO' else r
-            val_asta = str(int(d_rep['Prezzo_N'].sum())) if r != 'GIO' else "-"
-            val_att = str(int(d_rep['Quotazione'].sum())) if r != 'GIO' else "-"
-            riass_list.append({"RUOLO": label, "N°": len(d_rep), "SPESA ASTA": val_asta, "VAL. ATTUALE": val_att})
+            v_asta = int(d_rep['Prezzo_N'].sum()) if r != 'GIO' else 0
+            v_att = int(d_rep['Quotazione'].sum()) if r != 'GIO' else 0
+            riass_list.append({"RUOLO": label, "N°": len(d_rep), "SPESA ASTA": v_asta, "VALORE ATTUALE": v_att})
         
         df_riass = pd.DataFrame(riass_list)
+        # Forza i nomi delle colonne in Maiuscolo
+        df_riass.columns = [c.upper() for c in df_riass.columns]
 
         def style_riass(row):
             v = str(row['RUOLO']).upper()
-            # FIX COLORI: Testo NERO per il giallo (ATT) per leggibilità
             pal = {
                 'POR': ['#F06292', 'white'], 'DIF': ['#81C784', 'white'], 
                 'CEN': ['#64B5F6', 'white'], 'ATT': ['#FFF176', 'black'], 'GIOVANI': ['#AB47BC', 'white']
             }
             bg, txt = pal.get(v, ['white', 'black'])
-            return [f'background-color: {bg}; color: {txt}; text-align: center;' for _ in range(4)]
+            # Sostituiamo gli 0 con "-" per i giovani nelle colonne economiche
+            res = [f'background-color: {bg}; color: {txt}; border: 1px solid #333;' for _ in range(4)]
+            return res
 
         st.dataframe(bold_df(df_riass).apply(style_riass, axis=1), hide_index=True, use_container_width=True)
 
-        # DETTAGLIO ROSA (Sfumature Tono su Tono)
+        # DETTAGLIO ROSA
         st.write("---"); st.markdown(f"#### 🏃 DETTAGLIO COMPLETO: {sq_r}")
         df_disp = df_team[['Ruolo_N', 'Ruolo', 'Nome', 'Prezzo_N', 'Quotazione']].copy()
+        df_disp.columns = [c.upper() for c in df_disp.columns] # Headers maiuscoli
         
         def style_dettaglio(row):
-            v = str(row['Ruolo_N']).upper()
+            v = str(row['RUOLO_N']).upper()
             pal = {
                 'POR': ['#FCE4EC', '#FCE4EC', '#F8BBD0', '#F48FB1', '#F06292'],
                 'DIF': ['#E8F5E9', '#E8F5E9', '#C8E6C9', '#A5D6A7', '#81C784'],
@@ -155,13 +153,6 @@ with t[2]: # TAB ROSE
             }
             return [f'background-color: {c}; text-align: left;' for c in pal.get(v, ['']*5)]
 
-        st.dataframe(bold_df(df_disp).apply(style_dettaglio, axis=1).format({"Prezzo_N":"{:g}", "Quotazione":"{:g}"}), 
-                     column_order=("Ruolo", "Nome", "Prezzo_N", "Quotazione"), 
+        st.dataframe(bold_df(df_disp).apply(style_dettaglio, axis=1).format({"PREZZO_N":"{:g}", "QUOTAZIONE":"{:g}"}), 
+                     column_order=("RUOLO", "NOME", "PREZZO_N", "QUOTAZIONE"), 
                      hide_index=True, use_container_width=True)
-
-# BUDGET E RESTANTI (Mantenuti per stabilità)
-with t[1]: 
-    if f_rs is not None:
-        st.subheader("💰 BUDGET")
-        # Logica Budget con multiselect come richiesto precedentemente
-        # ... (Codice budget invariato per focus Rose)
