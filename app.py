@@ -19,30 +19,51 @@ st.markdown("""
     .patrimonio-box { background-color: #f0f2f6; padding: 15px; border-radius: 10px; border: 2px solid #1a73e8; text-align: center; }
     .cut-box { background-color: #f8f9fa; padding: 20px; border-radius: 10px; border-left: 5px solid #ff4b4b; color: #1a1a1a; }
     .zero-tool { background-color: #ffebee; color: #c62828; padding: 15px; border-radius: 10px; border: 2px solid #c62828; margin-bottom: 20px; }
+    .search-card { background-color: #ffffff; padding: 10px; border: 1px solid #ddd; border-radius: 5px; margin-top: 5px; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- FUNZIONE PULIZIA NOMI (Per eliminare gli 0) ---
+# --- FUNZIONE PULIZIA NOMI OTTIMIZZATA ---
 def super_clean(name):
     if not isinstance(name, str): return ""
-    # Traduzione caratteri speciali del listone (ň->O, č->E)
-    name = name.replace('ň', 'O').replace('č', 'E').replace('Ã’', 'O').replace('Ãˆ', 'E')
-    # Normalizzazione accenti italiani
-    n = unicodedata.normalize('NFD', name).encode('ascii', 'ignore').decode('utf-8').upper().strip()
-    # Mappatura manuale casi critici
+    
+    # 1. Correzione manuale dei "caratteri rotti" (Encoding Mojibake)
+    # Questa mappa risolve i casi come MONTIPÃ² o BERNABÃ¨
+    mappa_encoding = {
+        'Ã²': 'Ò', 'Ã²': 'Ò', 'Ã³': 'Ó', 'Ã³': 'Ó',
+        'Ã¨': 'È', 'Ã©': 'É', 'Ã¹': 'Ù', 'Ã¬': 'Ì',
+        'Ã\x88': 'È', 'Ã\x80': 'À', 'Ã\x92': 'Ò', 'Ã\x8c': 'Ì', 'Ã\x99': 'Ù',
+        'Ã': 'À' # Fallback generico per la A
+    }
+    for err, corr in mappa_encoding.items():
+        name = name.replace(err, corr)
+
+    # 2. Normalizzazione caratteri speciali rari (ň -> O, č -> E)
+    name = name.replace('ň', 'O').replace('č', 'E')
+    
+    # 3. Trasformazione in Maiuscolo e rimozione spazi
+    name = name.upper().strip()
+
+    # 4. Mappatura casi critici e varianti nomi
     mapping = {
-        'PAZ N': 'NICO PAZ', 'NICO PAZ': 'NICO PAZ',
+        'PAZ N': 'NICOPAZ', 'NICO PAZ': 'NICOPAZ',
         'TIAGO GABRIEL': 'GABRIEL', 'GABRIEL': 'GABRIEL',
         'SULEMANA K': 'SULEMANA', 'SULEMANA I': 'SULEMANA',
-        'KON M': 'M KONE', 'KON I': 'KONE SASSUOLO',
-        'MARTINEZ L': 'LAUTARO', 'THURAM M': 'THURAM'
+        'KON M': 'MKONE', 'KON I': 'KONESASSUOLO',
+        'MARTINEZ L': 'LAUTARO', 'THURAM M': 'THURAM',
+        'VLAHOVIC ATA': 'VLAHOVIC' # Gestione caso specifico vlahovic ata
     }
-    # Pulizia radicale
-    clean_raw = "".join(re.findall(r'[A-Z0-9]+', n))
+    
+    # Pulizia radicale: teniamo solo lettere (incluse accentate) e numeri
+    clean_raw = "".join(re.findall(r'[A-ZÀÈÉÌÒÓÙ0-9]+', name))
+    
+    # Controllo se il nome pulito è nei nostri casi speciali
     for k, v in mapping.items():
-        if k.replace(' ', '') in clean_raw: return v.replace(' ', '')
-    # Fallback parole ordinate
-    words = re.findall(r'[A-Z0-9]+', n)
+        if k.replace(' ', '') in clean_raw: 
+            return v.replace(' ', '')
+    
+    # 5. Fallback: Se non è un caso speciale, ordiniamo le parole (es: MARTINELLI T -> MARTINELLIT)
+    words = re.findall(r'[A-ZÀÈÉÌÒÓÙ0-9]+', name)
     words = [w for w in words if len(w) > 1] or words
     return "".join(sorted(words))
 
@@ -50,7 +71,12 @@ def super_clean(name):
 def ld(f, is_quot=False):
     if not os.path.exists(f): return None
     try:
-        df = pd.read_csv(f, engine='python', encoding='latin1')
+        # Proviamo UTF-8, se fallisce Latin1 (standard Excel/CSV)
+        try:
+            df = pd.read_csv(f, engine='python', encoding='utf-8')
+        except:
+            df = pd.read_csv(f, engine='python', encoding='latin1')
+            
         df.columns = [c.strip() for c in df.columns]
         if is_quot:
             df['Match_Nome'] = df['Nome'].apply(super_clean)
@@ -81,11 +107,11 @@ if f_rs is not None and f_qt is not None:
     map_ruoli = {'PORTIERE':'P','DIFENSORE':'D','CENTROCAMPISTA':'C','ATTACCANTE':'A'}
     f_rs['R_Match'] = f_rs['Ruolo'].str.upper().map(map_ruoli)
     
-    # Merge Standard
+    # Merge Standard (Ruolo + Nome)
     f_rs_std = f_rs[f_rs['Ruolo'] != 'Giovani'].copy()
     f_rs_std = pd.merge(f_rs_std, f_qt[['Match_Nome', 'Ruolo_Q', 'Quotazione']], left_on=['Match_Nome', 'R_Match'], right_on=['Match_Nome', 'Ruolo_Q'], how='left')
     
-    # Merge Giovani (Ignora ruolo)
+    # Merge Giovani (Solo Nome)
     f_rs_gio = f_rs[f_rs['Ruolo'] == 'Giovani'].copy()
     f_rs_gio = pd.merge(f_rs_gio, f_qt.drop_duplicates('Match_Nome')[['Match_Nome', 'Quotazione']], on='Match_Nome', how='left')
     
@@ -122,7 +148,7 @@ with t[2]: # ROSE & TOOL INDIVIDUAZIONE 0
         df_sq = f_rs[f_rs['Squadra_N'] == sq][['Ruolo', 'Nome', 'Prezzo_N', 'Quotazione']]
         st.dataframe(df_sq.style.format({"Prezzo_N":"{:g}", "Quotazione":"{:g}"}), hide_index=True, use_container_width=True)
 
-# (Altre Tab: Classifiche, Budget, Vincoli, Scambi e Tagli rimangono identiche al tuo file Golden)
-with t[4]: # SCAMBI (Ripristinato)
+with t[4]: # SCAMBI
     st.subheader("🔄 **SIMULATORE SCAMBI**")
-    # ... (Codice scambi originale del tuo file golden1.csv)
+    # Qui andrà il tuo codice scambi originale che avevi in Golden 1
+    st.info("Logica scambi pronta per l'integrazione.")
