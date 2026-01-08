@@ -66,8 +66,6 @@ if f_vn is not None:
 st.title("⚽ **MUYFANTAMANAGER**")
 t = st.tabs(["🏆 **CLASSIFICHE**", "💰 **BUDGET**", "🏃 **ROSE**", "📅 **VINCOLI**", "🔄 **SCAMBI**", "✂️ **TAGLI**"])
 
-# ... [Tab 0, 1, 2, 3 rimangono invariate per brevità, sono incluse nel codice completo]
-
 with t[0]: # CLASSIFICHE
     c1, c2 = st.columns(2)
     if f_pt is not None:
@@ -132,7 +130,7 @@ with t[3]: # VINCOLI
             .format({"Tot_Vincolo": "{:g}"})\
             .set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
-with t[4]: # SCAMBI (VERSIONE CON VALUTAZIONI PRE-SCAMBIO)
+with t[4]: # SCAMBI
     st.subheader("🔄 **SIMULATORE SCAMBI**")
     c1, c2 = st.columns(2)
     lista_n_sq = sorted([s for s in f_rs['Squadra_N'].unique() if s])
@@ -153,22 +151,15 @@ with t[4]: # SCAMBI (VERSIONE CON VALUTAZIONI PRE-SCAMBIO)
         dict_a = {n: get_info(n) for n in ga}
         dict_b = {n: get_info(n) for n in gb}
         
-        # Totali ante-scambio
         tot_ante_a = sum(d['t'] for d in dict_a.values())
         tot_ante_b = sum(d['t'] for d in dict_b.values())
         nuovo_tot = round((tot_ante_a + tot_ante_b) / 2)
 
-        # Mostriamo i valori attuali prima del ricalcolo
-        st.write(f"📊 **VALORE ATTUALE COINVOLTO:** A: **{int(tot_ante_a)}** | B: **{int(tot_ante_b)}**")
-
-        p_a_v = f_rs[f_rs['Squadra_N']==sa]['Prezzo_N'].sum() + (f_vn[f_vn['Sq_N']==sa]['Tot_Vincolo'].sum() if f_vn is not None else 0) + bg_ex.get(sa, 0)
-        p_b_v = f_rs[f_rs['Squadra_N']==sb]['Prezzo_N'].sum() + (f_vn[f_vn['Sq_N']==sb]['Tot_Vincolo'].sum() if f_vn is not None else 0) + bg_ex.get(sb, 0)
-        diff = nuovo_tot - tot_ante_a
-
+        # Metriche Valore Coinvolto
         st.divider()
-        col_p1, col_p2 = st.columns(2)
-        col_p1.markdown(f"""<div class="patrimonio-box">NUOVO PATRIMONIO {sa}<br><h2>{int(p_a_v + diff)}</h2><small>PRIMA: {int(p_a_v)}</small></div>""", unsafe_allow_html=True)
-        col_p2.markdown(f"""<div class="patrimonio-box">NUOVO PATRIMONIO {sb}<br><h2>{int(p_b_v - diff)}</h2><small>PRIMA: {int(p_b_v)}</small></div>""", unsafe_allow_html=True)
+        m1, m2 = st.columns(2)
+        m1.metric(f"Valore ceduto da {sa}", f"{int(tot_ante_a)}")
+        m2.metric(f"Valore ceduto da {sb}", f"{int(tot_ante_b)}")
         st.divider()
 
         res_a, res_b = st.columns(2)
@@ -185,6 +176,30 @@ with t[4]: # SCAMBI (VERSIONE CON VALUTAZIONI PRE-SCAMBIO)
                 nuovo_t = round(peso*nuovo_tot)
                 st.markdown(f"""<div class="player-card card-red"><b>{n}</b><br><small>VALORE PRE: {int(info['t'])}</small><br>NUOVA VAL: <b>{max(0, nuovo_t-int(info['v']))}</b> + VINC: <b>{int(info['v'])}</b></div>""", unsafe_allow_html=True)
 
+        # Patrimonio Real Time SPOSTATO IN BASSO
+        st.divider()
+        st.write("### 📊 **IMPATTO SUL PATRIMONIO TOTALE**")
+        p_a_v = f_rs[f_rs['Squadra_N']==sa]['Prezzo_N'].sum() + (f_vn[f_vn['Sq_N']==sa]['Tot_Vincolo'].sum() if f_vn is not None else 0) + bg_ex.get(sa, 0)
+        p_b_v = f_rs[f_rs['Squadra_N']==sb]['Prezzo_N'].sum() + (f_vn[f_vn['Sq_N']==sb]['Tot_Vincolo'].sum() if f_vn is not None else 0) + bg_ex.get(sb, 0)
+        diff = nuovo_tot - tot_ante_a
+
+        col_p1, col_p2 = st.columns(2)
+        col_p1.markdown(f"""<div class="patrimonio-box">NUOVO PATRIMONIO {sa}<br><h2>{int(p_a_v + diff)}</h2><small>PRIMA: {int(p_a_v)}</small></div>""", unsafe_allow_html=True)
+        col_p2.markdown(f"""<div class="patrimonio-box">NUOVO PATRIMONIO {sb}<br><h2>{int(p_b_v - diff)}</h2><small>PRIMA: {int(p_b_v)}</small></div>""", unsafe_allow_html=True)
+        
+        if st.button("📋 **GENERA VERBALE SCAMBIO**"):
+            report = f"📜 VERBALE SCAMBIO - {datetime.now().strftime('%d/%m/%Y')}\n{sa} <-> {sb}\n\n"
+            report += f"✅ VERSO {sa}:\n"
+            for n, info in dict_b.items():
+                peso = info['t']/tot_ante_b if tot_ante_b > 0 else 1/len(gb)
+                nuovo_t = round(peso*nuovo_tot)
+                report += f"- {n}: VALUTAZIONE {round(peso*nuovo_tot-info['v'])} + VINC {int(info['v'])}\n"
+            report += f"\n✅ VERSO {sb}:\n"
+            for n, info in dict_a.items():
+                peso = info['t']/tot_ante_a if tot_ante_a > 0 else 1/len(ga)
+                report += f"- {n}: VALUTAZIONE {round(peso*nuovo_tot-info['v'])} + VINC {int(info['v'])}\n"
+            st.code(report)
+
 with t[5]: # TAGLI
     st.subheader("✂️ **SIMULATORE TAGLI**")
     sq_t = st.selectbox("**SQUADRA**", sorted(f_rs['Squadra_N'].unique()), key="sq_tag")
@@ -194,3 +209,5 @@ with t[5]: # TAGLI
         v_v = f_vn[f_vn['Giocatore'] == gioc_t]['Tot_Vincolo'].iloc[0] if (f_vn is not None and gioc_t in f_vn['Giocatore'].values) else 0
         rimborso = round((v_p + v_v) * 0.6)
         st.markdown(f"""<div class="cut-box"><h3>💰 **RIMBORSO: {rimborso} CREDITI**</h3>VALUTAZIONE: <b>{int(v_p)}</b> | VINCOLI: <b>{int(v_v)}</b></div>""", unsafe_allow_html=True)
+        if st.button("📋 **GENERA VERBALE TAGLIO**"):
+            st.code(f"✂️ TAGLIO UFFICIALE - {sq_t}\nGIOCATORE: {gioc_t}\nRIMBORSO: {rimborso} CREDITI")
