@@ -5,7 +5,7 @@ import unicodedata
 import re
 
 # 1. SETUP UI
-st.set_page_config(page_title="MuyFantaManager Golden V3.9.7", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="MuyFantaManager Golden V3.9.8", layout="wide", initial_sidebar_state="expanded")
 
 # --- BLOCCO CSS DEFINITIVO (Headers, Neretto 900 e Allineamento) ---
 st.markdown("""
@@ -54,9 +54,7 @@ def to_num(val):
     if pd.isna(val): return 0.0
     s = str(val).replace('€', '').strip()
     if s == '' or s == '-' or s.lower() == 'x': return 0.0
-    # FIX: Se c'è la virgola è formato italiano (1.000,50), altrimenti è standard (10.0)
-    if ',' in s:
-        s = s.replace('.', '').replace(',', '.')
+    if ',' in s: s = s.replace('.', '').replace(',', '.')
     try: return float(s)
     except: return 0.0
 
@@ -68,9 +66,8 @@ def super_clean(name):
 def normalize_ruolo_v3(row):
     r = str(row['Ruolo']).upper().strip()
     p = to_num(row['Prezzo'])
-    # FIX GIOVANI: Riconosce se il ruolo contiene "G" o "GIOVANI" OPPURE se il prezzo è 0
-    if 'GIOVANI' in r or r == 'G' or p == 0:
-        return 'GIO'
+    # Logica Giovani: Riconosce "G", "GIOVANI" o prezzo 0
+    if 'GIOVANI' in r or r == 'G' or p == 0: return 'GIO'
     if r in ['P', 'POR', 'PORTIERE']: return 'POR'
     if r in ['D', 'DIF', 'DIFENSORE']: return 'DIF'
     if r in ['C', 'CEN', 'CENTROCAMPISTA']: return 'CEN'
@@ -85,9 +82,12 @@ def load_data():
     rs['Squadra_N'] = rs['Fantasquadra'].str.upper().str.strip()
     rs['Match_Nome'] = rs['Nome'].apply(super_clean)
     rs['Prezzo_N'] = rs['Prezzo'].apply(to_num)
-    rs['Ruolo_N'] = rs.apply(normalize_ruolo_v3, axis=1) # Applica la nuova logica giovani
+    rs['Ruolo_N'] = rs.apply(normalize_ruolo_v3, axis=1)
     
-    # Merge Quotazioni e Ferguson
+    # Definizione ordine gerarchico dei ruoli per l'ordinamento della rosa
+    ordine_ruoli = {'POR': 0, 'DIF': 1, 'CEN': 2, 'ATT': 3, 'GIO': 4}
+    rs['Ruolo_Rank'] = rs['Ruolo_N'].map(ordine_ruoli).fillna(99)
+    
     if os.path.exists("quotazioni.csv"):
         qt = pd.read_csv("quotazioni.csv", encoding='latin1', engine='python')
         qt.columns = [c.strip() for c in qt.columns]
@@ -96,7 +96,7 @@ def load_data():
         col_valore_qt = next((c for c in qt.columns if 'QT' in c.upper() or 'VAL' in c.upper()), None)
         if col_valore_qt:
             qt['Match_Nome'] = qt[col_nome_qt].apply(super_clean)
-            qt['Ruolo_N_QT'] = qt[col_ruolo_qt].apply(lambda x: normalize_ruolo_v3({'Ruolo': x, 'Prezzo': 10})) # Prezzo fittizio per merge
+            qt['Ruolo_N_QT'] = qt[col_ruolo_qt].apply(lambda x: normalize_ruolo_v3({'Ruolo': x, 'Prezzo': 10}))
             rs['Ruolo_Merge'] = rs['Ruolo'].apply(lambda x: normalize_ruolo_v3({'Ruolo': x, 'Prezzo': 10}))
             rs = pd.merge(rs, qt[['Match_Nome', 'Ruolo_N_QT', col_valore_qt]], 
                           left_on=['Match_Nome', 'Ruolo_Merge'], 
@@ -138,14 +138,13 @@ with t[2]: # TAB ROSE
         for row in riass_list:
             bg = pal_piena.get(row['RUOLO'], '#fff')
             txt = 'black' if row['RUOLO'] == 'ATT' else 'white'
-            # Per i giovani mostriamo solo il numero
             s_asta = row['SPESA ASTA'] if row['RUOLO'] != 'GIOVANI' else "-"
             s_att = row['VALORE ATTUALE'] if row['RUOLO'] != 'GIOVANI' else "-"
             html_riass += f'<tr style="background-color:{bg}; color:{txt};"><td>{row["RUOLO"]}</td><td>{row["N°"]}</td><td>{s_asta}</td><td>{s_att}</td></tr>'
         html_riass += '</tbody></table>'
         st.markdown(html_riass, unsafe_allow_html=True)
 
-        # 3. DETTAGLIO ROSA (HTML Custom)
+        # 3. DETTAGLIO ROSA (HTML Custom con ORDINAMENTO CORRETTO)
         st.write("---"); st.markdown(f"#### 🏃 DETTAGLIO COMPLETO: {sq_r}")
         pal_shades = {
             'POR': ['#FCE4EC', '#F8BBD0', '#F48FB1', '#F06292'],
@@ -154,8 +153,12 @@ with t[2]: # TAB ROSE
             'ATT': ['#FFFDE7', '#FFF9C4', '#FFF59D', '#FFF176'],
             'GIO': ['#F3E5F5', '#E1BEE7', '#CE93D8', '#AB47BC']
         }
+        
+        # ORDINA: Ruolo (POR->DIF->CEN->ATT->GIO) e poi Prezzo (Decrescente)
+        df_team_sorted = df_team.sort_values(['Ruolo_Rank', 'Prezzo_N'], ascending=[True, False])
+        
         html_dett = '<table class="golden-table"><thead><tr><th>RUOLO</th><th>NOME</th><th>PREZZO</th><th>QUOTAZIONE</th></tr></thead><tbody>'
-        for _, row in df_team.sort_values(['Ruolo_N', 'Prezzo_N'], ascending=[True, False]).iterrows():
+        for _, row in df_team_sorted.iterrows():
             v = str(row['Ruolo_N']).upper()
             sh = pal_shades.get(v, ['#fff']*4)
             html_dett += f'<tr><td style="background-color:{sh[0]}">{row["Ruolo"]}</td><td style="background-color:{sh[1]}">{row["Nome"]}</td><td style="background-color:{sh[2]}">{int(row["Prezzo_N"])}</td><td style="background-color:{sh[3]}">{int(row["Quotazione"])}</td></tr>'
