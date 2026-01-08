@@ -42,8 +42,9 @@ def normalize_ruolo_v3(row):
 
 # --- CARICAMENTO DATI ---
 def load_data():
-    if not os.path.exists("rose_complete.csv"): return None, None
+    if not os.path.exists("rose_complete.csv"): return None
     
+    # Caricamento Rose
     rs = pd.read_csv("rose_complete.csv", encoding='latin1', engine='python')
     rs.columns = [c.strip() for c in rs.columns]
     rs['Squadra_N'] = rs['Fantasquadra'].str.upper().str.strip()
@@ -51,30 +52,31 @@ def load_data():
     rs['Prezzo_N'] = rs['Prezzo'].apply(to_num)
     rs['Ruolo_N'] = rs.apply(normalize_ruolo_v3, axis=1)
     
-    # Caricamento Quotazioni con fix per Ferguson
+    # Caricamento Quotazioni
     if os.path.exists("quotazioni.csv"):
         qt = pd.read_csv("quotazioni.csv", encoding='latin1', engine='python')
         qt.columns = [c.strip() for c in qt.columns]
         qt['Match_Nome'] = qt['Nome'].apply(super_clean)
         
-        # Merge intelligente: unisce per nome E ruolo per evitare doppioni errati
-        # Se il ruolo nel fanta è CEN e in quotazioni è C, deve matchare quello da 5
-        rs = pd.merge(rs, qt[['Match_Nome', 'Ruolo', 'Qt.A']], 
-                      left_on=['Match_Nome'], right_on=['Match_Nome'], 
-                      how='left', suffixes=('', '_qt'))
+        # Cerchiamo la colonna della quotazione (gestendo Qt.A o Qt. A)
+        col_qt = next((c for c in qt.columns if 'Qt' in c), None)
         
-        # Fix specifico Ferguson/Omonimie: Filtra la quotazione corretta in base al ruolo
-        def fix_omoni(row):
-            if row['Match_Nome'] == 'FERGUSON':
-                if row['Ruolo_N'] == 'CEN' and to_num(row['Qt.A']) == 5: return 5
-                if row['Ruolo_N'] == 'ATT' and to_num(row['Qt.A']) == 15: return 15
-            return to_num(row['Qt.A'])
-        
-        rs['Quotazione'] = rs.apply(fix_omoni, axis=1)
-        # Rimuoviamo eventuali righe duplicate dal merge se il nome esiste 2 volte nel listone
-        rs = rs.drop_duplicates(subset=['Fantasquadra', 'Nome', 'Ruolo'])
+        if col_qt:
+            # Creiamo una colonna Ruolo Normalizzata anche nel listone quotazioni
+            qt['Ruolo_QT_Norm'] = qt['Ruolo'].apply(lambda x: normalize_ruolo_v3({'Ruolo': x, 'Prezzo': 10})) # Prezzo fittizio per non renderli GIO
+            
+            # Merge basato su NOME e RUOLO per risolvere Ferguson
+            rs = pd.merge(rs, qt[['Match_Nome', 'Ruolo_QT_Norm', col_qt]], 
+                          left_on=['Match_Nome', 'Ruolo_N'], 
+                          right_on=['Match_Nome', 'Ruolo_QT_Norm'], 
+                          how='left')
+            
+            rs['Quotazione'] = rs[col_qt].apply(to_num)
+        else:
+            rs['Quotazione'] = 0
     else:
         rs['Quotazione'] = 0
+        
     return rs
 
 f_rs = load_data()
