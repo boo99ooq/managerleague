@@ -124,111 +124,76 @@ with st.sidebar:
 # --- TABS ---
 t = st.tabs(["🏆 **CLASSIFICHE**", "💰 **BUDGET**", "🏃 **ROSE**", "📅 **VINCOLI**", "🔄 **SCAMBI**", "✂️ **TAGLI**", "🚀 **MERCATO**"])
 
-# --- TAB 0: CLASSIFICHE (Versione Golden con Gradienti) ---
+# --- TAB 0: CLASSIFICHE (Versione Golden V5.2 - Dati Completi) ---
 with t[0]:
     st.markdown("### 🏆 CLASSIFICHE GENERALI")
     c1, c2 = st.columns(2)
     
-    # 1. CLASSIFICA PUNTI
+    # 1. CLASSIFICA PUNTI (Con Fantamedia)
     with c1:
         st.markdown("#### 🎯 CLASSIFICA PUNTI")
         if f_pt is not None:
-            # Creazione Tabella HTML con Gradienti
-            html_pt = '<table class="golden-table"><thead><tr><th>POS</th><th>GIOCATORE</th><th style="background: linear-gradient(90deg, #f1f5f9 0%, #fef9c3 100%);">PUNTI</th></tr></thead><tbody>'
-            for _, r in f_pt.iterrows():
-                pos = r.iloc[0]
-                gio = r.iloc[1]
-                punti = to_num(r.iloc[2])
-                # Formattazione: togliamo il .0 se presente
-                punti_f = int(punti) if punti.is_integer() else punti
-                
-                html_pt += f'''
-                <tr>
-                    <td>{pos}</td>
-                    <td style="text-align:left; padding-left:20px;">{gio}</td>
-                    <td style="background: linear-gradient(90deg, #ffffff 0%, #fef9c3 100%);">{punti_f}</td>
-                </tr>'''
-            html_pt += '</tbody></table>'
-            st.markdown(html_pt, unsafe_allow_html=True)
-        else:
-            st.error("File classificapunti.csv non trovato")
-
-    # 2. CLASSIFICA SCONTRI DIRETTI
-    with c2:
-        st.markdown("#### ⚔️ SCONTRI DIRETTI")
-        if f_sc is not None:
-            # Creazione Tabella HTML con Gradienti
-            html_sc = '<table class="golden-table"><thead><tr><th>POS</th><th>GIOCATORE</th><th style="background: linear-gradient(90deg, #f1f5f9 0%, #fff3e0 100%);">PUNTI</th></tr></thead><tbody>'
-            for _, r in f_sc.iterrows():
-                pos = r.iloc[0]
-                gio = r.iloc[1]
-                punti = to_num(r.iloc[2])
-                punti_f = int(punti) if punti.is_integer() else punti
-                
-                html_sc += f'''
-                <tr>
-                    <td>{pos}</td>
-                    <td style="text-align:left; padding-left:20px;">{gio}</td>
-                    <td style="background: linear-gradient(90deg, #ffffff 0%, #fff3e0 100%);">{punti_f}</td>
-                </tr>'''
-            html_sc += '</tbody></table>'
-            st.markdown(html_sc, unsafe_allow_html=True)
-        else:
-            st.error("File scontridiretti.csv non trovato")# --- TAB 0: CLASSIFICHE (Versione Intelligente con Gradienti e Dati Reali) ---
-with t[0]:
-    st.markdown("### 🏆 CLASSIFICHE GENERALI")
-    c1, c2 = st.columns(2)
-    
-    # 1. CLASSIFICA PUNTI
-    with c1:
-        st.markdown("#### 🎯 CLASSIFICA PUNTI")
-        if f_pt is not None:
-            # Identifichiamo le colonne giuste nel CSV
+            # Identificazione colonne
             col_pos = f_pt.columns[0]
             col_nome = f_pt.columns[1]
-            # Cerchiamo la colonna dei punti (spesso è la terza o si chiama 'Punti Totali')
             col_punti = next((c for c in f_pt.columns if 'PUNTI' in c.upper()), f_pt.columns[2])
+            col_fm = next((c for c in f_pt.columns if 'MEDIA' in c.upper() or 'FM' in c.upper()), None)
             
-            html_pt = '<table class="golden-table"><thead><tr><th>POS</th><th>GIOCATORE</th><th style="background: linear-gradient(90deg, #f1f5f9 0%, #fef9c3 100%);">PUNTI</th></tr></thead><tbody>'
+            html_pt = f'''<table class="golden-table">
+                <thead>
+                    <tr>
+                        <th>POS</th>
+                        <th>GIOCATORE</th>
+                        <th style="background: linear-gradient(90deg, #f1f5f9 0%, #fef9c3 100%);">PUNTI</th>
+                        {'<th>FM</th>' if col_fm else ''}
+                    </tr>
+                </thead>
+                <tbody>'''
+            
             for _, r in f_pt.iterrows():
                 p_val = to_num(r[col_punti])
+                fm_val = to_num(r[col_fm]) if col_fm else 0
+                
                 html_pt += f'''
                 <tr>
                     <td>{r[col_pos]}</td>
-                    <td style="text-align:left; padding-left:20px;">{r[col_nome]}</td>
+                    <td style="text-align:left; padding-left:15px;">{r[col_nome]}</td>
                     <td style="background: linear-gradient(90deg, #ffffff 0%, #fef9c3 100%);">{int(p_val) if p_val.is_integer() else p_val}</td>
+                    {'<td>' + str(round(fm_val, 2)) + '</td>' if col_fm else ''}
                 </tr>'''
             st.markdown(html_pt + '</tbody></table>', unsafe_allow_html=True)
 
-    # 2. CLASSIFICA SCONTRI DIRETTI (Con Gol e Diff. Reti)
+    # 2. CLASSIFICA SCONTRI DIRETTI (Con Gol Fatti, Subiti e DR)
     with c2:
         st.markdown("#### ⚔️ SCONTRI DIRETTI")
         if f_sc is not None:
-            # Identifichiamo le colonne per nome
             c_pos = f_sc.columns[0]
             c_nome = f_sc.columns[1]
             c_punti = next((c for c in f_sc.columns if 'PUNTI' in c.upper()), 'Punti')
             c_gf = next((c for c in f_sc.columns if 'GOL F' in c.upper() or 'GF' in c.upper()), None)
             c_gs = next((c for c in f_sc.columns if 'GOL S' in c.upper() or 'GS' in c.upper()), None)
             
-            header_html = '<th>POS</th><th>GIOCATORE</th><th style="background: #fff3e0;">PT</th>'
-            if c_gf: header_html += '<th>GF</th>'
-            if c_gf and c_gs: header_html += '<th>DR</th>'
+            # Intestazione dinamica
+            header = f'<th>POS</th><th>GIOCATORE</th><th style="background: #fff3e0;">PT</th>'
+            if c_gf: header += '<th>GF</th>'
+            if c_gs: header += '<th>GS</th>'
+            if c_gf and c_gs: header += '<th>DR</th>'
             
-            html_sc = f'<table class="golden-table"><thead><tr>{header_html}</tr></thead><tbody>'
+            html_sc = f'<table class="golden-table"><thead><tr>{header}</tr></thead><tbody>'
+            
             for _, r in f_sc.iterrows():
                 pt_v = to_num(r[c_punti])
                 gf_v = to_num(r[c_gf]) if c_gf else 0
                 gs_v = to_num(r[c_gs]) if c_gs else 0
                 dr = gf_v - gs_v
                 
-                row_html = f'<td>{r[c_pos]}</td><td style="text-align:left; padding-left:15px;">{r[c_nome]}</td><td style="background: #fff3e0;">{int(pt_v)}</td>'
-                if c_gf: row_html += f'<td>{int(gf_v)}</td>'
-                if c_gf and c_gs: row_html += f'<td>{int(dr)}</td>'
+                row = f'<td>{r[c_pos]}</td><td style="text-align:left; padding-left:15px;">{r[c_nome]}</td><td style="background: #fff3e0;">{int(pt_v)}</td>'
+                if c_gf: row += f'<td>{int(gf_v)}</td>'
+                if c_gs: row += f'<td>{int(gs_v)}</td>'
+                if c_gf and c_gs: row += f'<td>{int(dr)}</td>'
                 
-                html_sc += f'<tr>{row_html}</tr>'
+                html_sc += f'<tr>{row}</tr>'
             st.markdown(html_sc + '</tbody></table>', unsafe_allow_html=True)
-
 # TAB 1: BUDGET
 with t[1]:
     if f_rs is not None:
