@@ -16,12 +16,9 @@ st.markdown("""
     }
     .stat-card { background-color: #f8f9fa; padding: 15px; border-radius: 10px; border: 3px solid #333; text-align: center; box-shadow: 3px 3px 0px #333; }
     .player-card { padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 6px solid #333; box-shadow: 2px 2px 5px rgba(0,0,0,0.1); }
-    .patrimonio-box { background-color: #f0f2f6; padding: 15px; border-radius: 10px; border: 3px solid #1a73e8; text-align: center; }
     .refund-box-pastello { padding: 15px; border-radius: 12px; border: 3px solid #333; text-align: center; min-height: 135px; box-shadow: 4px 4px 0px #333; margin-bottom: 15px; }
     .bg-azzurro { background-color: #E3F2FD !important; } .bg-verde { background-color: #E8F5E9 !important; }
     .bg-rosa { background-color: #FCE4EC !important; } .bg-giallo { background-color: #FFFDE7 !important; }
-    .status-ufficiale { color: #ffffff !important; background-color: #2e7d32; padding: 4px 10px; border-radius: 6px; font-size: 0.9em; }
-    .status-probabile { color: #ffffff !important; background-color: #ed6c02; padding: 4px 10px; border-radius: 6px; font-size: 0.9em; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -36,17 +33,17 @@ def normalize_ruolo(r):
     if r in ['A', 'ATT', 'ATTACCANTE']: return 'ATT'
     return r
 
+def to_num(val):
+    if pd.isna(val) or str(val).strip().lower() == 'x' or str(val).strip() == '': return 0.0
+    try: return float(str(val).replace(',', '.'))
+    except: return 0.0
+
 def super_clean_match(name):
     if not isinstance(name, str): return ""
     mappa_err = {'Ã²': 'Ò', 'Ã³': 'Ó', 'Ã¨': 'È', 'Ã©': 'É', 'Ã¹': 'Ù', 'Ã¬': 'Ì', 'Ã\x88': 'È', 'Ã\x80': 'À'}
     for err, corr in mappa_err.items(): name = name.replace(err, corr)
     name = unicodedata.normalize('NFD', name).encode('ascii', 'ignore').decode('utf-8').upper().strip()
     return re.sub(r'\s[A-Z]\.$', '', name)
-
-def to_num(val):
-    if pd.isna(val) or str(val).strip().lower() == 'x' or str(val).strip() == '': return 0.0
-    try: return float(str(val).replace(',', '.'))
-    except: return 0.0
 
 def ld(f, is_quot=False):
     if not os.path.exists(f): return None
@@ -75,18 +72,15 @@ if f_rs is not None:
 
 if f_vn is not None:
     f_vn['Sq_N'] = f_vn['Squadra'].str.upper().str.strip().replace(map_n)
-    f_vn['Giocatore_Match'] = f_vn['Giocatore'].apply(super_clean_match)
     v_cols = [c for c in f_vn.columns if '202' in c]
     for c in v_cols: f_vn[c] = f_vn[c].apply(to_num)
     f_vn['Tot_Vincolo'] = f_vn[v_cols].sum(axis=1)
-    f_vn['Anni_T'] = f_vn[v_cols].gt(0).sum(axis=1).astype(str) + " ANNI"
 
 df_mercato = pd.read_csv(FILE_DB) if os.path.exists(FILE_DB) else pd.DataFrame(columns=["GIOCATORE", "SQUADRA", "TOTALE", "STATO"])
 
-# --- TABS ---
 t = st.tabs(["🏆 **CLASSIFICHE**", "💰 **BUDGET**", "🏃 **ROSE**", "📅 **VINCOLI**", "🔄 **SCAMBI**", "✂️ **TAGLI**", "🚀 **MERCATO**"])
 
-with t[2]: # TAB 2: ROSE (DASHBOARD FIX)
+with t[2]: # TAB ROSE
     if f_rs is not None:
         sq_r = st.selectbox("**SQUADRA**", sorted(f_rs['Squadra_N'].unique()))
         df_team = f_rs[f_rs['Squadra_N'] == sq_r].copy()
@@ -96,59 +90,42 @@ with t[2]: # TAB 2: ROSE (DASHBOARD FIX)
         c_m2.markdown(f'<div class="stat-card" style="border-color:#1a73e8;">💰 TOT. ASTA<br><b style="font-size:1.5em; color:#1a73e8;">{int(df_team["Prezzo_N"].sum())}</b></div>', unsafe_allow_html=True)
         c_m3.markdown(f'<div class="stat-card" style="border-color:#2e7d32;">📈 TOT. QUOT.<br><b style="font-size:1.5em; color:#2e7d32;">{int(df_team["Quotazione"].sum())}</b></div>', unsafe_allow_html=True)
 
-        # TABELLA RIASSUNTIVA (COLORI SCURI/INVERTITI)
+        # TABELLA RIASSUNTIVA (COLORI INVERTITI: SCURO -> CHIARO)
         st.write("---"); st.markdown("#### 📊 RIPARTIZIONE PER RUOLO")
-        riass_data = []
+        riass_list = []
         for r in ['POR', 'DIF', 'CEN', 'ATT']:
-            df_rep = df_team[df_team['Ruolo_N'] == r]
-            riass_data.append({"RUOLO": r, "N°": len(df_rep), "SPESA ASTA": int(df_rep['Prezzo_N'].sum()), "VAL. ATTUALE": int(df_rep['Quotazione'].sum())})
-        df_riass = pd.DataFrame(riass_data)
+            d_rep = df_team[df_team['Ruolo_N'] == r]
+            riass_list.append({"RUOLO": r, "N°": len(d_rep), "SPESA ASTA": int(d_rep['Prezzo_N'].sum()), "VAL. ATTUALE": int(d_rep['Quotazione'].sum())})
+        df_riass = pd.DataFrame(riass_list)
 
         def color_inverted(row):
             v = str(row['RUOLO']).upper()
-            colors = {
+            pal = {
                 'POR': ['#F06292', '#F48FB1', '#F8BBD0', '#FCE4EC'],
                 'DIF': ['#81C784', '#A5D6A7', '#C8E6C9', '#E8F5E9'],
                 'CEN': ['#64B5F6', '#90CAF9', '#BBDEFB', '#E3F2FD'],
                 'ATT': ['#FFF176', '#FFF59D', '#FFF9C4', '#FFFDE7']
             }
-            return [f'background-color: {c}' for c in colors.get(v, ['']*4)]
+            return [f'background-color: {c}' for c in pal.get(v, ['']*4)]
 
         st.dataframe(bold_df(df_riass).apply(color_inverted, axis=1), hide_index=True, use_container_width=True)
 
         # DETTAGLIO ROSA (COLORI CHIARI -> SCURI)
         st.write("---"); st.markdown(f"#### 🏃 DETTAGLIO ROSA: {sq_r}")
+        
+        # Filtriamo le colonne PRIMA dello stile per evitare il ValueError
+        df_display = df_team[['Ruolo_N', 'Ruolo', 'Nome', 'Prezzo_N', 'Quotazione']].copy()
+        
         def color_shades(row):
             v = str(row['Ruolo_N']).upper()
-            colors = {
-                'POR': ['#FCE4EC', '#F8BBD0', '#F48FB1', '#F06292'],
-                'DIF': ['#E8F5E9', '#C8E6C9', '#A5D6A7', '#81C784'],
-                'CEN': ['#E3F2FD', '#BBDEFB', '#90CAF9', '#64B5F6'],
-                'ATT': ['#FFFDE7', '#FFF9C4', '#FFF59D', '#FFF176']
+            pal = {
+                'POR': ['#FCE4EC', '#FCE4EC', '#F8BBD0', '#F48FB1', '#F06292'],
+                'DIF': ['#E8F5E9', '#E8F5E9', '#C8E6C9', '#A5D6A7', '#81C784'],
+                'CEN': ['#E3F2FD', '#E3F2FD', '#BBDEFB', '#90CAF9', '#64B5F6'],
+                'ATT': ['#FFFDE7', '#FFFDE7', '#FFF9C4', '#FFF59D', '#FFF176']
             }
-            return [f'background-color: {c}' for c in colors.get(v, ['']*4)]
+            return [f'background-color: {c}' for c in pal.get(v, ['']*5)]
 
-        # Passiamo tutto il dataframe ma mostriamo solo le colonne desiderate
-        st.dataframe(bold_df(df_team).apply(color_shades, axis=1).format({"Prezzo_N":"{:g}", "Quotazione":"{:g}"}), 
+        st.dataframe(bold_df(df_display).apply(color_shades, axis=1).format({"Prezzo_N":"{:g}", "Quotazione":"{:g}"}), 
                      column_order=("Ruolo", "Nome", "Prezzo_N", "Quotazione"), 
                      hide_index=True, use_container_width=True)
-
-# BUDGET E RESTANTI TAB (RIESTABILITE)
-with t[1]: # BUDGET
-    if f_rs is not None:
-        st.subheader("💰 **BUDGET**")
-        rim_u = df_mercato[df_mercato['STATO'] == 'UFFICIALE'].groupby('SQUADRA')['TOTALE'].sum().to_dict()
-        bu = f_rs.groupby('Squadra_N')['Prezzo_N'].sum().reset_index().rename(columns={'Prezzo_N': 'SPESA ROSE'})
-        v_s = f_vn.groupby('Sq_N')['Tot_Vincolo'].sum().reset_index() if f_vn is not None else pd.DataFrame(columns=['Sq_N', 'Tot_Vincolo'])
-        bu = pd.merge(bu, v_s, left_on='Squadra_N', right_on='Sq_N', how='left').fillna(0).drop('Sq_N', axis=1).rename(columns={'Tot_Vincolo': 'SPESA VINCOLI'})
-        bu['CREDITI DISPONIBILI'] = bu['Squadra_N'].map(bg_ex).fillna(0); bu['RECUPERO CESSIONI'] = bu['Squadra_N'].map(rim_u).fillna(0)
-        voci = ['SPESA ROSE', 'SPESA VINCOLI', 'CREDITI DISPONIBILI', 'RECUPERO CESSIONI']
-        sel = st.multiselect("**VOCI PATRIMONIO:**", voci, default=voci)
-        if sel:
-            bu['TOTALE'] = bu[sel].sum(axis=1)
-            n_cols = bu.select_dtypes(include=['number']).columns
-            st.dataframe(bold_df(bu[['Squadra_N'] + sel + ['TOTALE']].sort_values('TOTALE', ascending=False)).background_gradient(cmap='YlOrRd', subset=['TOTALE']).format({c: "{:g}" for c in n_cols}), hide_index=True, use_container_width=True)
-
-with t[4]: # SCAMBI
-    st.subheader("🔄 SCAMBI GOLDEN")
-    # ... (Codice scambi identico all'ultima versione stabile)
