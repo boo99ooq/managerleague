@@ -7,7 +7,7 @@ import re
 # 1. SETUP UI
 st.set_page_config(page_title="MuyFantaLAB - Test Area", layout="wide", initial_sidebar_state="expanded")
 
-# CSS (Neretto, Bordi e Box)
+# CSS
 st.markdown("""
 <style>
     html, body, [data-testid="stAppViewContainer"] * { font-weight: 900 !important; }
@@ -51,7 +51,7 @@ FILE_DB = "mercatone_gennaio.csv"
 bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
 map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS", "DANI ROBI": "DANI ROBI"}
 
-# --- ELABORAZIONE DATI ROSE E VINCOLI ---
+# --- ELABORAZIONE DATI ---
 if f_rs is not None:
     f_rs['Squadra_N'] = f_rs['Fantasquadra'].apply(lambda x: str(x).upper().strip()).replace(map_n)
     f_rs['Match_Nome'] = f_rs['Nome'].apply(super_clean_match)
@@ -66,23 +66,20 @@ if f_vn is not None:
     for c in v_cols: f_vn[c] = f_vn[c].apply(to_num)
     f_vn['Tot_Vincolo'] = f_vn[v_cols].sum(axis=1)
 
-# --- GESTIONE DATABASE MERCATO (FIX KEYERROR) ---
+# --- GESTIONE DATABASE MERCATO (AUTO-FIX) ---
 if os.path.exists(FILE_DB):
     df_mercato = pd.read_csv(FILE_DB)
-    # Controllo colonne necessarie
-    if not df_mercato.empty and "TOTALE" not in df_mercato.columns:
-        # Se il vecchio file aveva "RIMBORSO", lo rinominiamo in "TOTALE"
-        if "RIMBORSO" in df_mercato.columns:
-            df_mercato = df_mercato.rename(columns={"RIMBORSO": "TOTALE"})
-        else:
-            df_mercato = pd.DataFrame(columns=["GIOCATORE", "SQUADRA", "RIMB_BASE", "VINCOLO", "TOTALE", "STATO"])
+    if not df_mercato.empty:
+        # Rinomina colonne vecchie se necessario
+        if "RIMBORSO" in df_mercato.columns: df_mercato = df_mercato.rename(columns={"RIMBORSO": "TOTALE"})
+        # Aggiunge colonne mancanti per evitare KeyError
+        if "RIMB_BASE" not in df_mercato.columns: df_mercato["RIMB_BASE"] = df_mercato["TOTALE"]
+        if "VINCOLO" not in df_mercato.columns: df_mercato["VINCOLO"] = 0
+        if "STATO" not in df_mercato.columns: df_mercato["STATO"] = "PROBABILE"
 else:
     df_mercato = pd.DataFrame(columns=["GIOCATORE", "SQUADRA", "RIMB_BASE", "VINCOLO", "TOTALE", "STATO"])
 
-# Calcolo rimborsi sicuro
-rimborsi_squadre = {}
-if not df_mercato.empty:
-    rimborsi_squadre = df_mercato.groupby("SQUADRA")["TOTALE"].sum().to_dict()
+rimborsi_squadre = df_mercato.groupby("SQUADRA")["TOTALE"].sum().to_dict() if not df_mercato.empty else {}
 
 # --- SIDEBAR: RICERCA ---
 with st.sidebar:
@@ -101,7 +98,6 @@ t = st.tabs(["🏆 **CLASSIFICHE**", "💰 **BUDGET**", "🏃 **ROSE**", "📅 *
 # --- TAB 6: RIMBORSO CESSIONI ---
 with t[6]:
     st.subheader("🚀 **LISTA MOVIMENTI GENNAIO**")
-    
     with st.expander("➕ AGGIUNGI GIOCATORE ALLA LISTA"):
         scelta = st.selectbox("Seleziona giocatore:", [""] + sorted(f_rs['Nome'].unique()) if f_rs is not None else [""])
         if st.button("INSERISCI IN LISTA"):
@@ -109,24 +105,15 @@ with t[6]:
                 info = f_rs[f_rs['Nome'] == scelta].iloc[0]
                 v_match = f_vn[f_vn['Giocatore_Match'] == super_clean_match(scelta)] if f_vn is not None else pd.DataFrame()
                 vv = v_match['Tot_Vincolo'].iloc[0] if not v_match.empty else 0
-                
-                rimb_base = (info['Prezzo_N'] + info['Quotazione']) * 0.5
-                tot = rimb_base + vv
-                
-                nuova_riga = pd.DataFrame([{
-                    "GIOCATORE": scelta, "SQUADRA": info['Squadra_N'], 
-                    "RIMB_BASE": rimb_base, "VINCOLO": vv, 
-                    "TOTALE": tot, "STATO": "PROBABILE"
-                }])
+                rb = (info['Prezzo_N'] + info['Quotazione']) * 0.5
+                nuova_riga = pd.DataFrame([{"GIOCATORE": scelta, "SQUADRA": info['Squadra_N'], "RIMB_BASE": rb, "VINCOLO": vv, "TOTALE": rb+vv, "STATO": "PROBABILE"}])
                 df_mercato = pd.concat([df_mercato, nuova_riga], ignore_index=True)
-                df_mercato.to_csv(FILE_DB, index=False)
-                st.rerun()
+                df_mercato.to_csv(FILE_DB, index=False); st.rerun()
 
     if not df_mercato.empty:
         st.write("---")
         h1, h2, h3, h4, h5 = st.columns([2, 2, 1, 1, 1])
         h1.write("**GIOCATORE**"); h2.write("**DETTAGLIO**"); h3.write("**TOTALE**"); h4.write("**STATO**"); h5.write("**AZIONI**")
-
         for i, row in df_mercato.iterrows():
             c1, c2, c3, c4, c5 = st.columns([2, 2, 1, 1, 1])
             with c1: st.markdown(f"**{row['GIOCATORE']}**<br><span style='font-size:0.8em; color:gray;'>{row['SQUADRA']}</span>", unsafe_allow_html=True)
@@ -139,19 +126,16 @@ with t[6]:
                 sub1, sub2 = st.columns(2)
                 if row['STATO'] == "PROBABILE":
                     if sub1.button("✅", key=f"u_{i}"):
-                        df_mercato.at[i, 'STATO'] = "UFFICIALE"
-                        df_mercato.to_csv(FILE_DB, index=False); st.rerun()
+                        df_mercato.at[i, 'STATO'] = "UFFICIALE"; df_mercato.to_csv(FILE_DB, index=False); st.rerun()
                 if sub2.button("🗑️", key=f"d_{i}"):
-                    df_mercato = df_mercato.drop(i)
-                    df_mercato.to_csv(FILE_DB, index=False); st.rerun()
-
+                    df_mercato = df_mercato.drop(i); df_mercato.to_csv(FILE_DB, index=False); st.rerun()
+        
         st.write("---")
         st.markdown("### 💰 RIEPILOGO RIMBORSI PER SQUADRA")
         df_riep = pd.DataFrame(list(rimborsi_squadre.items()), columns=['SQUADRA', 'TOT']).sort_values('TOT', ascending=False)
         cols = st.columns(4)
         for idx, row in enumerate(df_riep.itertuples()):
-            with cols[idx % 4]:
-                st.markdown(f'<div class="refund-box"><small>{row.SQUADRA}</small><br><b>+{row.TOT:g} crediti</b></div>', unsafe_allow_html=True)
+            with cols[idx % 4]: st.markdown(f'<div class="refund-box"><small>{row.SQUADRA}</small><br><b>+{row.TOT:g} crediti</b></div>', unsafe_allow_html=True)
 
 # --- TAB 1: BUDGET ---
 with t[1]:
