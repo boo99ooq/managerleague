@@ -8,7 +8,7 @@ from datetime import datetime
 # 1. SETUP UI
 st.set_page_config(page_title="MuyFantaManager", layout="wide", initial_sidebar_state="expanded")
 
-# CSS PER GRASSETTO ESTREMO E CONTRASTO
+# CSS PER GRASSETTO ESTREMO SU TUTTA L'INTERFACCIA
 st.markdown("""
 <style>
     html, body, [data-testid="stAppViewContainer"] * { font-weight: 900 !important; }
@@ -23,15 +23,13 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- FUNZIONE MAPPING NOMI (IL CUORE DEL MATCHING) ---
+# --- FUNZIONE MAPPING NOMI (TRADUTTORE) ---
 def clean_quotazioni_name(name):
     if not isinstance(name, str): return name
-    # Correzione caratteri speciali
     name = name.replace('č', 'E').replace('ň', 'O').replace('ř', 'I').replace('ć', 'C').replace('Č', 'E').replace('Ň', 'O')
     name = unicodedata.normalize('NFD', name).encode('ascii', 'ignore').decode('utf-8')
     name = name.upper().strip()
     
-    # DIZIONARIO DI TRADUZIONE (CSV -> TUA LEGA)
     mapping = {
         'MARTINEZ JO.': 'MARTINEZ JO', 'MILINKOVIC-SAVIC V.': 'MILINKOVIC SAVIC', 'N\'DICKA': 'NDICKA',
         'TAVARES N.': 'NUNO TAVARES', 'OSTIGARD': 'OSTIGAARD', 'PEZZELLA GIU.': 'PEZZELLA',
@@ -46,7 +44,6 @@ def clean_quotazioni_name(name):
         'GABRIEL': 'GABRIEL', 'ZAMBO ANGUISSA': 'ANGUISSA', 'THURAM M.': 'THURAM M', 'MARTINEZ L.': 'LAUTARO'
     }
     if name in mapping: return mapping[name]
-    # Rimuove iniziali (es: LUKAKU R. -> LUKAKU)
     name = re.sub(r'\s[A-Z]\.$', '', name)
     name = re.sub(r'\s[A-Z]\.[A-Z]\.$', '', name)
     return name
@@ -107,24 +104,30 @@ with st.sidebar:
             st.markdown(f'<div class="player-card card-grey"><b>{n}</b> ({dr["Squadra_N"]})<br>VAL: <b>{int(dr["Prezzo_N"])}</b> | QUOT: <b style="color:#1a73e8;">{int(qt_v)}</b></div>', unsafe_allow_html=True)
 
 # --- MAIN APP ---
-st.title("⚽ **MUYFANTAMANAGER GOLDEN V6.1**")
+st.title("⚽ **MUYFANTAMANAGER GOLDEN V6.2**")
 t = st.tabs(["🏆 **CLASSIFICHE**", "💰 **BUDGET**", "🏃 **ROSE**", "📅 **VINCOLI**", "🔄 **SCAMBI**", "✂️ **TAGLI**"])
 
-with t[0]: # CLASSIFICHE
+with t[0]: # CLASSIFICHE - AGGIUNTO SET_PROPERTIES PER NERETTO
     c1, c2 = st.columns(2)
     if f_pt is not None:
         with c1:
             st.subheader("🎯 **PUNTI**")
             f_pt['P_N'], f_pt['FM'] = f_pt['Punti Totali'].apply(to_num), f_pt['Media'].apply(to_num)
-            st.dataframe(f_pt[['Posizione','Giocatore','P_N','FM']].sort_values('Posizione').style.background_gradient(subset=['P_N', 'FM'], cmap='YlGn').format({"P_N": "{:g}", "FM": "{:.2f}"}), hide_index=True, use_container_width=True)
+            st.dataframe(f_pt[['Posizione','Giocatore','P_N','FM']].sort_values('Posizione').style\
+                .background_gradient(subset=['P_N', 'FM'], cmap='YlGn')\
+                .format({"P_N": "{:g}", "FM": "{:.2f}"})\
+                .set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
     if f_sc is not None:
         with c2:
             st.subheader("⚔️ **SCONTRI**")
             f_sc['P_S'] = f_sc['Punti'].apply(to_num)
             f_sc['DR'] = f_sc['Gol Fatti'].apply(to_num) - f_sc['Gol Subiti'].apply(to_num)
-            st.dataframe(f_sc[['Posizione','Giocatore','P_S','DR']].style.background_gradient(subset=['P_S'], cmap='Blues').background_gradient(subset=['DR'], cmap='RdYlGn').format({"P_S": "{:g}", "DR": "{:+g}"}), hide_index=True, use_container_width=True)
+            st.dataframe(f_sc[['Posizione','Giocatore','P_S','DR']].style\
+                .background_gradient(subset=['P_S'], cmap='Blues').background_gradient(subset=['DR'], cmap='RdYlGn')\
+                .format({"P_S": "{:g}", "DR": "{:+g}"})\
+                .set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
-with t[1]: # BUDGET
+with t[1]: # BUDGET - AGGIUNTO SET_PROPERTIES PER NERETTO
     if f_rs is not None:
         st.subheader("💰 **BUDGET E PATRIMONIO**")
         bu = f_rs.groupby('Squadra_N')['Prezzo_N'].sum().reset_index().rename(columns={'Prezzo_N': 'ROSE'})
@@ -132,15 +135,18 @@ with t[1]: # BUDGET
         bu = pd.merge(bu, v_s, left_on='Squadra_N', right_on='Sq_N', how='left').fillna(0).drop('Sq_N', axis=1)
         bu['DISP'] = bu['Squadra_N'].map(bg_ex).fillna(0)
         bu['TOT'] = bu['ROSE'] + bu['Tot_Vincolo'] + bu['DISP']
-        st.dataframe(bu.sort_values("TOT", ascending=False).style.background_gradient(cmap='YlOrRd', subset=['TOT']).background_gradient(cmap='Greens', subset=['DISP']).format({c: "{:g}" for c in bu.columns if c != 'Squadra_N'}), hide_index=True, use_container_width=True)
+        st.dataframe(bu.sort_values("TOT", ascending=False).style\
+            .background_gradient(cmap='YlOrRd', subset=['TOT']).background_gradient(cmap='Greens', subset=['DISP'])\
+            .format({c: "{:g}" for c in bu.columns if c != 'Squadra_N'})\
+            .set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
-with t[2]: # ROSE
+with t[2]: # ROSE - GIÀ NERETTO TRAMITE COLOR_RUOLI
     if f_rs is not None:
         mancanti = f_rs[f_rs['Quotazione'] == 0]['Nome_N'].unique()
         if len(mancanti) > 0:
             with st.expander(f"⚠️ {len(mancanti)} GIOCATORI SENZA QUOTAZIONE"):
                 st.write(", ".join(sorted(mancanti)))
-        sq = st.selectbox("**SQUADRA**", sorted(f_rs['Squadra_N'].unique()), key="sel_sq_rose")
+        sq = st.selectbox("**SQUADRA**", sorted(f_rs['Squadra_N'].unique()), key="sel_sq_rose_v62")
         df_sq = f_rs[f_rs['Squadra_N'] == sq][['Ruolo', 'Nome_N', 'Prezzo_N', 'Quotazione']]
         def color_ruoli(row):
             bg = {'POR': '#FCE4EC', 'DIF': '#E8F5E9', 'CEN': '#E3F2FD', 'ATT': '#FFFDE7'}.get(str(row['Ruolo']).upper()[:3], '#FFFFFF')
@@ -149,19 +155,23 @@ with t[2]: # ROSE
 
 with t[3]: # VINCOLI
     if f_vn is not None:
-        st.dataframe(f_vn[['Squadra', 'Giocatore', 'Tot_Vincolo', 'Anni_T']].sort_values('Tot_Vincolo', ascending=False).style.background_gradient(cmap='Purples', subset=['Tot_Vincolo']).format({"Tot_Vincolo": "{:g}"}), hide_index=True, use_container_width=True)
+        st.dataframe(f_vn[['Squadra', 'Giocatore', 'Tot_Vincolo', 'Anni_T']].sort_values('Tot_Vincolo', ascending=False).style\
+            .background_gradient(cmap='Purples', subset=['Tot_Vincolo'])\
+            .format({"Tot_Vincolo": "{:g}"})\
+            .set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
-with t[4]: # SCAMBI (LOGICA COMPLETA)
+with t[4]: # SCAMBI
     st.subheader("🔄 **SIMULATORE SCAMBI**")
+    # ... (Codice scambi identico a v6.1, garantito dal CSS globale il neretto)
     if f_rs is not None:
         c1, c2 = st.columns(2)
         l_sq = sorted(f_rs['Squadra_N'].unique())
         with c1:
-            sa = st.selectbox("**SQUADRA A**", l_sq, key="sa_sc")
-            ga = st.multiselect("**DA A**", f_rs[f_rs['Squadra_N']==sa]['Nome_N'].tolist(), key="ga_sc")
+            sa = st.selectbox("**SQUADRA A**", l_sq, key="sa_sc_62")
+            ga = st.multiselect("**DA A**", f_rs[f_rs['Squadra_N']==sa]['Nome_N'].tolist(), key="ga_sc_62")
         with c2:
-            sb = st.selectbox("**SQUADRA B**", [s for s in l_sq if s != sa], key="sb_sc")
-            gb = st.multiselect("**DA B**", f_rs[f_rs['Squadra_N']==sb]['Nome_N'].tolist(), key="gb_sc")
+            sb = st.selectbox("**SQUADRA B**", [s for s in l_sq if s != sa], key="sb_sc_62")
+            gb = st.multiselect("**DA B**", f_rs[f_rs['Squadra_N']==sb]['Nome_N'].tolist(), key="gb_sc_62")
         if ga and gb:
             def get_v(n):
                 p = f_rs[f_rs['Nome_N']==n]['Prezzo_N'].iloc[0]
@@ -185,11 +195,11 @@ with t[4]: # SCAMBI (LOGICA COMPLETA)
                     nuova_v = max(0, round((v_tot/tot_a)*nuovo) - v_vinc)
                     st.markdown(f'<div class="player-card card-red"><b>{n}</b><br>NUOVA VAL: <b>{nuova_v}</b> + VINC: {int(v_vinc)}</div>', unsafe_allow_html=True)
 
-with t[5]: # TAGLI POTENZIATI
+with t[5]: # TAGLI
     st.subheader("✂️ **SIMULATORE TAGLI**")
     if f_rs is not None:
-        sq_t = st.selectbox("**SQUADRA**", sorted(f_rs['Squadra_N'].unique()), key="st_sq_fin")
-        gi_t = st.selectbox("**GIOCATORE**", f_rs[f_rs['Squadra_N'] == sq_t]['Nome_N'].tolist(), key="st_gi_fin")
+        sq_t = st.selectbox("**SQUADRA**", sorted(f_rs['Squadra_N'].unique()), key="st_sq_fin_62")
+        gi_t = st.selectbox("**GIOCATORE**", f_rs[f_rs['Squadra_N'] == sq_t]['Nome_N'].tolist(), key="st_gi_fin_62")
         if gi_t:
             p_d = f_rs[(f_rs['Squadra_N'] == sq_t) & (f_rs['Nome_N'] == gi_t)].iloc[0]
             v_d = f_vn[f_vn['Giocatore_N'] == gi_t] if f_vn is not None else pd.DataFrame()
