@@ -81,7 +81,7 @@ if f_vn is not None:
     f_vn['Tot_Vincolo'] = f_vn[v_cols].sum(axis=1)
     f_vn['Anni_T'] = f_vn[v_cols].gt(0).sum(axis=1).astype(str) + " ANNI"
 
-# --- SIDEBAR ---
+# --- SIDEBAR: RICERCA ---
 with st.sidebar:
     st.header("🔍 **RICERCA GIOCATORE**")
     if f_rs is not None:
@@ -102,19 +102,27 @@ with st.sidebar:
 st.title("⚽ **MUYFANTAMANAGER GOLDEN V3.2**")
 t = st.tabs(["🏆 **CLASSIFICHE**", "💰 **BUDGET**", "🏃 **ROSE**", "📅 **VINCOLI**", "🔄 **SCAMBI**", "✂️ **TAGLI**"])
 
-with t[0]: # CLASSIFICHE
+with t[0]: # CLASSIFICHE (Decimali puliti)
     c1, c2 = st.columns(2)
     if f_pt is not None:
         with c1:
             st.subheader("🎯 **CLASSIFICA PUNTI**")
             f_pt['P_N'] = f_pt['Punti Totali'].apply(to_num)
             f_pt['FM'] = f_pt['Media'].apply(to_num)
-            st.dataframe(f_pt[['Posizione','Giocatore','P_N','FM']].sort_values('Posizione').style.background_gradient(subset=['P_N', 'FM'], cmap='YlGn').set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
+            st.dataframe(f_pt[['Posizione','Giocatore','P_N','FM']].sort_values('Posizione').style\
+                .background_gradient(subset=['P_N', 'FM'], cmap='YlGn')\
+                .format({"P_N": "{:g}", "FM": "{:g}"})\
+                .set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
     if f_sc is not None:
         with c2:
             st.subheader("⚔️ **SCONTRI DIRETTI**")
             f_sc['P_S'] = f_sc['Punti'].apply(to_num)
-            st.dataframe(f_sc[['Posizione','Giocatore','P_S','Gol Fatti','Gol Subiti']].style.background_gradient(subset=['P_S'], cmap='Blues').set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
+            f_sc['GF'] = f_sc['Gol Fatti'].apply(to_num)
+            f_sc['GS'] = f_sc['Gol Subiti'].apply(to_num)
+            st.dataframe(f_sc[['Posizione','Giocatore','P_S','GF','GS']].style\
+                .background_gradient(subset=['P_S'], cmap='Blues')\
+                .format({"P_S": "{:g}", "GF": "{:g}", "GS": "{:g}"})\
+                .set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
 with t[1]: # BUDGET
     if f_rs is not None:
@@ -125,7 +133,10 @@ with t[1]: # BUDGET
         bu['CREDITI DISPONIBILI'] = bu['Squadra_N'].map(bg_ex).fillna(0)
         bu['PATRIMONIO TOTALE'] = bu['SPESA ROSE'] + bu['SPESA VINCOLI'] + bu['CREDITI DISPONIBILI']
         st.bar_chart(bu.set_index("Squadra_N")[['SPESA ROSE', 'SPESA VINCOLI', 'CREDITI DISPONIBILI']], color=["#1a73e8", "#9c27b0", "#ff9800"])
-        st.dataframe(bu.sort_values("PATRIMONIO TOTALE", ascending=False).style.background_gradient(cmap='YlOrRd', subset=['PATRIMONIO TOTALE']).set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
+        st.dataframe(bu.sort_values("PATRIMONIO TOTALE", ascending=False).style\
+            .background_gradient(cmap='YlOrRd', subset=['PATRIMONIO TOTALE'])\
+            .format({c: "{:g}" for c in bu.columns if c != 'Squadra_N'})\
+            .set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
 
 with t[2]: # ROSE
     if f_rs is not None:
@@ -140,12 +151,15 @@ with t[2]: # ROSE
             return [f'background-color: {bg}; color: black; font-weight: 900;'] * len(row)
         st.dataframe(df_sq.style.apply(color_ruoli, axis=1).format({"Prezzo_N":"{:g}", "Quotazione":"{:g}"}), hide_index=True, use_container_width=True)
 
-with t[3]: # VINCOLI (RIPRISTINATA)
+with t[3]: # VINCOLI (Decimali puliti)
     st.subheader("📅 **VINCOLI ATTIVI**")
     if f_vn is not None:
         sq_v = st.selectbox("**FILTRA SQUADRA**", ["TUTTE"] + sorted([s for s in f_vn['Sq_N'].unique() if s]), key="vinc_sel")
         df_v_disp = f_vn if sq_v == "TUTTE" else f_vn[f_vn['Sq_N'] == sq_v]
-        st.dataframe(df_v_disp[['Squadra', 'Giocatore', 'Tot_Vincolo', 'Anni_T']].sort_values('Tot_Vincolo', ascending=False).style.background_gradient(subset=['Tot_Vincolo'], cmap='Purples').set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
+        st.dataframe(df_v_disp[['Squadra', 'Giocatore', 'Tot_Vincolo', 'Anni_T']].sort_values('Tot_Vincolo', ascending=False).style\
+            .background_gradient(subset=['Tot_Vincolo'], cmap='Purples')\
+            .format({"Tot_Vincolo": "{:g}"})\
+            .set_properties(**{'font-weight': '900'}), hide_index=True, use_container_width=True)
     else:
         st.info("File vincoli.csv non trovato.")
 
