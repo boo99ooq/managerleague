@@ -220,4 +220,5 @@ with t[6]:
                 col_b1, col_b2 = st.columns(2)
                 if row['STATO'] == "PROBABILE" and col_b1.button("✅", key=f"ok_{idx}"):
                     df_mercato.at[idx, 'STATO'] = "UFFICIALE"; df_mercato.to_csv(FILE_DB, index=False); st.rerun()
-                if col_b2.button("🗑️", key=f
+                if col_b2.button("🗑️", key=f"del_{idx}"):
+                    df_mercato = df_mercato.drop(idx); df_mercato.to_csv(FILE_DB, index=False); st.rerun()
