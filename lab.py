@@ -152,4 +152,3 @@ with t[1]: # BUDGET
 with t[4]: # SCAMBI
     st.subheader("🔄 SCAMBI GOLDEN")
     # ... (Codice scambi identico all'ultima versione stabile)
-    
