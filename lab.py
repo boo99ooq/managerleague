@@ -31,6 +31,9 @@ st.markdown("""
     }
     .status-ufficiale { color: #2e7d32; font-weight: 900; } 
     .status-probabile { color: #ed6c02; font-weight: 900; }
+    /* Nuovi stili per evidenziare cifre mercato */
+    .cifra-ufficiale-tabella { color: #1b5e20; font-size: 1.5em; }
+    .cifra-ufficiale-box { color: #1b5e20; font-size: 2.2em; display: block; margin-top: 5px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -93,7 +96,7 @@ if f_vn is not None:
 df_mercato = pd.read_csv(FILE_DB) if os.path.exists(FILE_DB) else pd.DataFrame(columns=["GIOCATORE", "SQUADRA", "TOTALE", "STATO"])
 rimborsi_ufficiali = df_mercato[df_mercato['STATO'] == 'UFFICIALE'].groupby("SQUADRA")["TOTALE"].sum().to_dict() if not df_mercato.empty else {}
 
-# --- SIDEBAR RIPRISTINATA ---
+# --- SIDEBAR ---
 with st.sidebar:
     st.header("🔍 **RICERCA CALCIATORE**")
     if f_rs is not None:
@@ -103,15 +106,8 @@ with st.sidebar:
             vm = f_vn[f_vn['Giocatore_Match'] == super_clean_match(n)] if f_vn is not None else pd.DataFrame()
             vv = vm['Tot_Vincolo'].iloc[0] if not vm.empty else 0
             r = str(d_g['Ruolo']).upper()
-            # Colori Sidebar per ruolo
             bg_side = '#FCE4EC' if 'POR' in r else '#E8F5E9' if 'DIF' in r else '#E3F2FD' if 'CEN' in r else '#FFFDE7' if 'ATT' in r else '#f1f3f4'
-            st.markdown(f'''
-                <div class="player-card" style="background-color: {bg_side};">
-                    <b>{n}</b> ({d_g['Squadra_N']})<br>
-                    ASTA: {int(d_g['Prezzo_N'])} | VINC: {int(vv)}<br>
-                    QUOT: {int(d_g['Quotazione'])}
-                </div>
-            ''', unsafe_allow_html=True)
+            st.markdown(f'''<div class="player-card" style="background-color: {bg_side};"><b>{n}</b> ({d_g['Squadra_N']})<br>ASTA: {int(d_g['Prezzo_N'])} | VINC: {int(vv)}<br>QUOT: {int(d_g['Quotazione'])}</div>''', unsafe_allow_html=True)
 
 # --- TABS ---
 t = st.tabs(["🏆 **CLASSIFICHE**", "💰 **BUDGET**", "🏃 **ROSE**", "📅 **VINCOLI**", "🔄 **SCAMBI**", "✂️ **TAGLI**", "🚀 **MERCATO**"])
@@ -210,7 +206,7 @@ with t[5]: # TAGLI
             rimborso = round((info['Prezzo_N'] + vv) * 0.6, 1)
             st.markdown(f'<div class="cut-box"><div class="cut-player-name">{gt}</div><div style="font-size:2.2em; color:#2e7d32;">RIMBORSO (60%): {fmt(rimborso)}</div><br><small>ASTA: {info["Prezzo_N"]:g} | VINCOLI: {vv:g}</small></div>', unsafe_allow_html=True)
 
-with t[6]: # MERCATO
+with t[6]: # MERCATO (CON EVIDENZIAZIONE CIFRE)
     st.subheader("🚀 MERCATO CESSIONI")
     with st.expander("➕ AGGIUNGI CESSIONE"):
         sc_m = st.selectbox("Seleziona:", [""] + sorted(f_rs['Nome'].unique()) if f_rs is not None else [""])
@@ -226,7 +222,9 @@ with t[6]: # MERCATO
         for idx, row in df_mercato.iterrows():
             c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
             with c1: st.write(f"**{row['GIOCATORE']}** ({row['SQUADRA']})")
-            with c2: st.write(f"RECUPERO: {row['TOTALE']:g}")
+            # Cifra evidenziata se ufficiale
+            stile_cifra = "class='cifra-ufficiale-tabella'" if row['STATO']=='UFFICIALE' else ""
+            with c2: st.markdown(f"<span {stile_cifra}>RECUPERO: {row['TOTALE']:g}</span>", unsafe_allow_html=True)
             with c3: st.write(f"<span class='{'status-ufficiale' if row['STATO']=='UFFICIALE' else 'status-probabile'}'>{row['STATO']}</span>", unsafe_allow_html=True)
             with c4:
                 b1, b2 = st.columns(2)
@@ -243,4 +241,11 @@ with t[6]: # MERCATO
             uff = df_mercato[(df_mercato['SQUADRA'] == sq_n) & (df_mercato['STATO'] == 'UFFICIALE')]['TOTALE'].sum()
             prob = df_mercato[(df_mercato['SQUADRA'] == sq_n) & (df_mercato['STATO'] == 'PROBABILE')]['TOTALE'].sum()
             with cols_m[i % 5]:
-                st.markdown(f'<div class="refund-card"><small>{sq_n}</small><br><b class="status-ufficiale" style="font-size:1.4em;">{uff:g}</b><br><span class="status-probabile" style="font-size:0.8em;">(Prob: {prob:g})</span></div>', unsafe_allow_html=True)
+                # Cifra ufficiale resa enorme nel riquadro
+                st.markdown(f'''
+                    <div class="refund-card">
+                        <small>{sq_n}</small><br>
+                        <span class="cifra-ufficiale-box">{uff:g}</span>
+                        <span class="status-probabile" style="font-size:0.8em;">(Prob: {prob:g})</span>
+                    </div>
+                ''', unsafe_allow_html=True)
