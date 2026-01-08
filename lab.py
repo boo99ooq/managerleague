@@ -10,6 +10,29 @@ st.set_page_config(page_title="MuyFantaManager Golden V3.2", layout="wide", init
 # CSS DEFINITIVO (Grassetto estremo 900 su tutto, card e box originali)
 st.markdown("""
 <style>
+    /* ... qui ci sono i tuoi stili esistenti (es. .player-card, .patrimonio-box) ... */
+    /* NON cancellarli, vai semplicemente a capo dopo l'ultima parentesi graffa } */
+
+    .refund-box-pastello {
+        padding: 15px;
+        border-radius: 12px;
+        border: 3px solid #333;
+        text-align: center;
+        min-height: 130px;
+        box-shadow: 4px 4px 0px #333;
+        margin-bottom: 15px;
+    }
+
+    /* Palette Colori Pastello */
+    .bg-azzurro { background-color: #E3F2FD !important; }
+    .bg-verde   { background-color: #E8F5E9 !important; }
+    .bg-rosa    { background-color: #FCE4EC !important; }
+    .bg-giallo  { background-color: #FFFDE7 !important; }
+    .bg-arancio { background-color: #FFF3E0 !important; }
+    .bg-viola   { background-color: #F3E5F5 !important; }
+</style>
+""", unsafe_allow_html=True) # <-- Assicurati che le virgolette e la parentesi chiudano quist.markdown("""
+<style>
     html, body, [data-testid="stAppViewContainer"] *, .stDataFrame td, .stDataFrame th, p, div, span, label { 
         font-weight: 900 !important; 
         color: #000 !important; 
