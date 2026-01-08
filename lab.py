@@ -7,15 +7,25 @@ import re
 # 1. SETUP UI
 st.set_page_config(page_title="MuyFantaLAB - Test Area", layout="wide", initial_sidebar_state="expanded")
 
-# CSS
+# CSS (Neretto, Bordi e Box riepilogo dettagliati)
 st.markdown("""
 <style>
     html, body, [data-testid="stAppViewContainer"] * { font-weight: 900 !important; }
     .player-card { padding: 12px; border-radius: 10px; margin-bottom: 12px; border: 3px solid #333; box-shadow: 4px 4px 8px rgba(0,0,0,0.2); color: black; }
-    .refund-box { background-color: #e8f5e9; padding: 15px; border-radius: 10px; border: 3px solid #2e7d32; color: #1b5e20; margin-bottom: 10px; border: 2px solid #2e7d32; text-align: center; }
+    .refund-box { 
+        background-color: #f8f9fa; 
+        padding: 10px; 
+        border-radius: 10px; 
+        border: 2px solid #333; 
+        margin-bottom: 10px; 
+        text-align: center;
+        min-height: 120px;
+    }
     .status-ufficiale { color: #2e7d32; font-weight: 900; }
     .status-probabile { color: #ed6c02; font-weight: 900; }
     .info-small { font-size: 0.8em; color: #666; font-weight: 400 !important; }
+    .text-ufficiale { color: #2e7d32; font-size: 0.85em; }
+    .text-probabile { color: #ed6c02; font-size: 0.85em; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -51,7 +61,7 @@ FILE_DB = "mercatone_gennaio.csv"
 bg_ex = {"GIANNI":102.5,"DANI ROBI":164.5,"MARCO":131.0,"PIETRO":101.5,"PIERLUIGI":105.0,"GIGI":232.5,"ANDREA":139.0,"GIUSEPPE":136.5,"MATTEO":166.5,"NICHOLAS":113.0}
 map_n = {"NICO FABIO": "NICHOLAS", "MATTEO STEFANO": "MATTEO", "NICHO": "NICHOLAS", "DANI ROBI": "DANI ROBI"}
 
-# --- ELABORAZIONE DATI ---
+# --- ELABORAZIONE DATI ROSE E VINCOLI ---
 if f_rs is not None:
     f_rs['Squadra_N'] = f_rs['Fantasquadra'].apply(lambda x: str(x).upper().strip()).replace(map_n)
     f_rs['Match_Nome'] = f_rs['Nome'].apply(super_clean_match)
@@ -66,20 +76,19 @@ if f_vn is not None:
     for c in v_cols: f_vn[c] = f_vn[c].apply(to_num)
     f_vn['Tot_Vincolo'] = f_vn[v_cols].sum(axis=1)
 
-# --- GESTIONE DATABASE MERCATO (AUTO-FIX) ---
+# --- GESTIONE DATABASE MERCATO (CON FIX PER COLONNE) ---
 if os.path.exists(FILE_DB):
     df_mercato = pd.read_csv(FILE_DB)
     if not df_mercato.empty:
-        # Rinomina colonne vecchie se necessario
         if "RIMBORSO" in df_mercato.columns: df_mercato = df_mercato.rename(columns={"RIMBORSO": "TOTALE"})
-        # Aggiunge colonne mancanti per evitare KeyError
         if "RIMB_BASE" not in df_mercato.columns: df_mercato["RIMB_BASE"] = df_mercato["TOTALE"]
         if "VINCOLO" not in df_mercato.columns: df_mercato["VINCOLO"] = 0
         if "STATO" not in df_mercato.columns: df_mercato["STATO"] = "PROBABILE"
 else:
     df_mercato = pd.DataFrame(columns=["GIOCATORE", "SQUADRA", "RIMB_BASE", "VINCOLO", "TOTALE", "STATO"])
 
-rimborsi_squadre = df_mercato.groupby("SQUADRA")["TOTALE"].sum().to_dict() if not df_mercato.empty else {}
+# Calcolo rimborsi totali per budget
+rimborsi_squadre_tot = df_mercato.groupby("SQUADRA")["TOTALE"].sum().to_dict() if not df_mercato.empty else {}
 
 # --- SIDEBAR: RICERCA ---
 with st.sidebar:
@@ -130,21 +139,38 @@ with t[6]:
                 if sub2.button("🗑️", key=f"d_{i}"):
                     df_mercato = df_mercato.drop(i); df_mercato.to_csv(FILE_DB, index=False); st.rerun()
         
+        # RIEPILOGO SQUADRE DETTAGLIATO
         st.write("---")
         st.markdown("### 💰 RIEPILOGO RIMBORSI PER SQUADRA")
-        df_riep = pd.DataFrame(list(rimborsi_squadre.items()), columns=['SQUADRA', 'TOT']).sort_values('TOT', ascending=False)
+        
+        # Calcoliamo i rimborsi divisi per stato
+        sq_stats = df_mercato.groupby(['SQUADRA', 'STATO'])['TOTALE'].sum().unstack(fill_value=0)
+        if 'UFFICIALE' not in sq_stats.columns: sq_stats['UFFICIALE'] = 0
+        if 'PROBABILE' not in sq_stats.columns: sq_stats['PROBABILE'] = 0
+        sq_stats['TOTALE_GENERALE'] = sq_stats['UFFICIALE'] + sq_stats['PROBABILE']
+        sq_stats = sq_stats.sort_values('TOTALE_GENERALE', ascending=False)
+
         cols = st.columns(4)
-        for idx, row in enumerate(df_riep.itertuples()):
-            with cols[idx % 4]: st.markdown(f'<div class="refund-box"><small>{row.SQUADRA}</small><br><b>+{row.TOT:g} crediti</b></div>', unsafe_allow_html=True)
+        for idx, (squadra, data) in enumerate(sq_stats.iterrows()):
+            with cols[idx % 4]:
+                st.markdown(f"""
+                <div class="refund-box">
+                    <small>{squadra}</small><br>
+                    <span style="font-size: 1.2em;"><b>+{data['TOTALE_GENERALE']:g}</b></span><br>
+                    <hr style="margin: 5px 0; border: 0; border-top: 1px solid #ccc;">
+                    <span class="text-ufficiale">Uff: {data['UFFICIALE']:g}</span><br>
+                    <span class="text-probabile">Prob: {data['PROBABILE']:g}</span>
+                </div>
+                """, unsafe_allow_html=True)
 
 # --- TAB 1: BUDGET ---
 with t[1]:
     if f_rs is not None:
-        st.subheader("💰 **BUDGET AGGIORNATO**")
+        st.subheader("💰 **BUDGET AGGIORNATO (Inclusi Probabili)**")
         bu = f_rs.groupby('Squadra_N')['Prezzo_N'].sum().reset_index().rename(columns={'Prezzo_N': 'SPESA ROSE'})
         v_sum = f_vn.groupby('Sq_N')['Tot_Vincolo'].sum().reset_index() if f_vn is not None else pd.DataFrame(columns=['Sq_N', 'Tot_Vincolo'])
         bu = pd.merge(bu, v_sum, left_on='Squadra_N', right_on='Sq_N', how='left').fillna(0).drop('Sq_N', axis=1).rename(columns={'Tot_Vincolo': 'SPESA VINCOLI'})
         bu['CREDITI DISPONIBILI'] = bu['Squadra_N'].map(bg_ex).fillna(0)
-        bu['RECUPERO CESSIONI'] = bu['Squadra_N'].map(rimborsi_squadre).fillna(0)
+        bu['RECUPERO CESSIONI'] = bu['Squadra_N'].map(rimborsi_squadre_tot).fillna(0)
         bu['PATRIMONIO TOTALE'] = bu[['SPESA ROSE', 'SPESA VINCOLI', 'CREDITI DISPONIBILI', 'RECUPERO CESSIONI']].sum(axis=1)
         st.dataframe(bu.sort_values("PATRIMONIO TOTALE", ascending=False).style.background_gradient(cmap='YlOrRd', subset=['PATRIMONIO TOTALE']).format({c: "{:g}" for c in bu.columns if c != 'Squadra_N'}), hide_index=True, use_container_width=True)
